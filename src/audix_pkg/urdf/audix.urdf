@@ -8,16 +8,16 @@
     name="base_link">
     <inertial>
       <origin
-        xyz="-0.165425609192592 -0.149974396919815 0.0555112241125014"
+        xyz="-0.16542560919261 -0.149974396919816 0.0555112241124055"
         rpy="0 0 0" />
       <mass
-        value="2.23789814285684" />
+        value="2.23789814285683" />
       <inertia
         ixx="0.0100668608395496"
-        ixy="3.41741618462387E-05"
-        ixz="8.32772399082318E-05"
+        ixy="3.41741618462473E-05"
+        ixz="8.32772399082271E-05"
         iyy="0.0114849385643874"
-        iyz="8.93952677484566E-05"
+        iyz="8.93952677484501E-05"
         izz="0.0190387521155491" />
     </inertial>
     <visual>
@@ -48,17 +48,17 @@
     name="front_left_wheel_link">
     <inertial>
       <origin
-        xyz="2.17268698310402E-06 2.05342648856854E-07 -0.00553115532802828"
+        xyz="2.17138829122776E-06 2.03215867453088E-07 -0.00553115504484736"
         rpy="0 0 0" />
       <mass
-        value="0.131907084296385" />
+        value="0.131907088712342" />
       <inertia
-        ixx="2.27621274494277E-05"
-        ixy="-1.02524646272199E-09"
-        ixz="1.96761982827681E-10"
-        iyy="2.27707903666074E-05"
-        iyz="-1.73299082188491E-09"
-        izz="2.86732755656157E-05" />
+        ixx="2.2762127581352E-05"
+        ixy="-1.0257433972716E-09"
+        ixz="1.97582531332748E-10"
+        iyy="2.27707918074449E-05"
+        iyz="-1.73314179729484E-09"
+        izz="2.86732762535432E-05" />
     </inertial>
     <visual>
       <origin
@@ -101,17 +101,17 @@
     name="front_right_wheel_link">
     <inertial>
       <origin
-        xyz="9.66289620374372E-07 -2.18301833003476E-06 0.005591563250399"
+        xyz="9.66760170029168E-07 -2.18161607033057E-06 0.0055915632478869"
         rpy="0 0 0" />
       <mass
-        value="0.131907400590731" />
+        value="0.131907397861947" />
       <inertia
-        ixx="2.2769646502052E-05"
-        ixy="3.23471270264869E-09"
-        ixz="1.61245288615068E-09"
-        iyy="2.27636755981895E-05"
-        iyz="6.6623654841971E-10"
-        izz="2.86736671226467E-05" />
+        ixx="2.27696460666187E-05"
+        ixy="3.23455712926575E-09"
+        ixz="1.61314949114098E-09"
+        iyy="2.27636756246867E-05"
+        iyz="6.66175308060549E-10"
+        izz="2.86736661064582E-05" />
     </inertial>
     <visual>
       <origin
@@ -148,23 +148,23 @@
     <child
       link="front_right_wheel_link" />
     <axis
-      xyz="0 0 1" />
+      xyz="0 0 -1" />
   </joint>
   <link
     name="back_right_wheel_link">
     <inertial>
       <origin
-        xyz="3.93598461267963E-07 -2.20615013937081E-06 0.00553103387698972"
+        xyz="3.94474537701583E-07 -2.20404279228925E-06 0.0055310343592373"
         rpy="0 0 0" />
       <mass
-        value="0.131907129758154" />
+        value="0.131907120892093" />
       <inertia
-        ixx="2.27705864434052E-05"
-        ixy="1.74920520754187E-09"
-        ixz="-1.70044123207189E-09"
-        iyy="2.27624163985454E-05"
-        iyz="-4.12707157447266E-10"
-        izz="2.86733556916648E-05" />
+        ixx="2.27705853631545E-05"
+        ixy="1.74870218010666E-09"
+        ixz="-1.70093688925694E-09"
+        iyy="2.27624145736594E-05"
+        iyz="-4.12256740259426E-10"
+        izz="2.86733539890198E-05" />
     </inertial>
     <visual>
       <origin
@@ -201,23 +201,23 @@
     <child
       link="back_right_wheel_link" />
     <axis
-      xyz="0 0 1" />
+      xyz="0 0 -1" />
   </joint>
   <link
     name="back_left_wheel_link">
     <inertial>
       <origin
-        xyz="2.27704030925091E-06 3.56143494868733E-07 -0.00559151540708869"
+        xyz="2.28144067604408E-06 3.55205777451129E-07 -0.00559151795330359"
         rpy="0 0 0" />
       <mass
-        value="0.131907545752213" />
+        value="0.131907512521704" />
       <inertia
-        ixx="2.27625324063538E-05"
-        ixy="-1.51398514697908E-09"
-        ixz="-3.69564399113687E-10"
-        iyy="2.27707651443182E-05"
-        iyz="1.71638394759723E-09"
-        izz="2.86736357556112E-05" />
+        ixx="2.27625261618148E-05"
+        ixy="-1.51449993560838E-09"
+        ixz="-3.70290705048845E-10"
+        iyy="2.27707585099419E-05"
+        iyz="1.71525628197816E-09"
+        izz="2.86736314372639E-05" />
     </inertial>
     <visual>
       <origin
@@ -260,17 +260,17 @@
     name="scissors_lift_base">
     <inertial>
       <origin
-        xyz="0.0640804372939909 6.00038682641024E-06 0.0414333132682887"
+        xyz="0.0640804372971069 6.00038746534359E-06 0.0414333132690798"
         rpy="0 0 0" />
       <mass
-        value="0.240484568927395" />
+        value="0.240484568977745" />
       <inertia
-        ixx="0.000179982875589855"
-        ixy="-4.87618131400979E-08"
-        ixz="-3.47904212840419E-05"
-        iyy="0.000579348711168266"
-        iyz="-5.93888633785935E-10"
-        izz="0.000667789961393891" />
+        ixx="0.000179982875596582"
+        ixy="-4.87618112557164E-08"
+        ixz="-3.47904212839925E-05"
+        iyy="0.000579348711169908"
+        iyz="-5.93888337150469E-10"
+        izz="0.000667789961401685" />
     </inertial>
     <visual>
       <origin
@@ -313,17 +313,17 @@
     name="bottom_stud_link">
     <inertial>
       <origin
-        xyz="-9.6601817455369E-07 7.19407882932011E-07 -1.3007363775519E-06"
+        xyz="-9.66018046694161E-07 7.19407880156453E-07 -1.30073635579153E-06"
         rpy="0 0 0" />
       <mass
-        value="0.00137057236420401" />
+        value="0.00137057236420413" />
       <inertia
-        ixx="1.36300739625947E-06"
-        ixy="8.79532677974459E-12"
-        ixz="-3.23276858235148E-14"
-        iyy="2.72084887040127E-09"
-        iyz="-7.18702250945327E-12"
-        izz="1.36300692144801E-06" />
+        ixx="1.36300739625955E-06"
+        ixy="8.79532677841038E-12"
+        ixz="-3.23276837741884E-14"
+        iyy="2.72084887040155E-09"
+        iyz="-7.1870225138555E-12"
+        izz="1.36300692144809E-06" />
     </inertial>
     <visual>
       <origin
@@ -362,16 +362,16 @@
     <axis
       xyz="0 0 1" />
     <limit
-      lower="0"
-      upper="0"
-      effort="0"
-      velocity="0" />
+      lower="-0.05"
+      upper="0.05"
+      effort="150"
+      velocity="0.15" />
   </joint>
   <link
     name="right_link1">
     <inertial>
       <origin
-        xyz="0.0589015692763848 0.0114282604442705 -1.94289029309402E-14"
+        xyz="0.0589015692763513 0.0114282604443 4.77395900588817E-15"
         rpy="0 0 0" />
       <mass
         value="0.00615413438956677" />
@@ -411,7 +411,7 @@
     name="right_joint1"
     type="revolute">
     <origin
-      xyz="0 -0.0428492805921222 0"
+      xyz="0 -0.0428492805920998 0"
       rpy="1.5707963267949 -1.5707963267949 0" />
     <parent
       link="bottom_stud_link" />
@@ -420,26 +420,26 @@
     <axis
       xyz="0 0 1" />
     <limit
-      lower="0"
-      upper="0"
-      effort="0"
-      velocity="0" />
+      lower="-0.7853981634"
+      upper="0.7853981634"
+      effort="80"
+      velocity="3.0" />
   </joint>
   <link
     name="right_link4">
     <inertial>
       <origin
-        xyz="0.0589015692765562 0.0114282604443096 2.1094237467878E-14"
+        xyz="0.0589015692764527 0.0114282604436201 -4.44089209850063E-15"
         rpy="0 0 0" />
       <mass
         value="0.00615413438956673" />
       <inertia
-        ixx="3.58514450684073E-07"
-        ixy="-1.51291789623521E-06"
-        ixz="-3.60554546235251E-20"
-        iyy="7.86259408058206E-06"
-        iyz="-7.54716058163533E-21"
-        izz="8.19546630464294E-06" />
+        ixx="3.58514450684072E-07"
+        ixy="-1.5129178962352E-06"
+        ixz="-3.37030159486864E-20"
+        iyy="7.86259408058201E-06"
+        iyz="-7.10037267768547E-21"
+        izz="8.19546630464289E-06" />
     </inertial>
     <visual>
       <origin
@@ -469,7 +469,7 @@
     name="right_joint4"
     type="revolute">
     <origin
-      xyz="0.117803138552813 0.0228565208880633 -0.00499999999999967"
+      xyz="0.117803138552677 0.022856520888779 -0.00500000000000089"
       rpy="3.14159265358979 0 3.14159265358979" />
     <parent
       link="right_link1" />
@@ -478,26 +478,26 @@
     <axis
       xyz="0 0 1" />
     <limit
-      lower="0"
-      upper="0"
-      effort="0"
-      velocity="0" />
+      lower="-1.5707963268"
+      upper="1.5707963268"
+      effort="80"
+      velocity="3.0" />
   </joint>
   <link
     name="right_link5">
     <inertial>
       <origin
-        xyz="0.0589015692761234 0.0110362235597465 0.00296764322724363"
+        xyz="0.058901569276356 0.011036223559655 0.00296764322716681"
         rpy="0 0 0" />
       <mass
         value="0.00615413438956677" />
       <inertia
-        ixx="3.58514450718715E-07"
-        ixy="-1.46101851743524E-06"
-        ixz="-3.92868238370166E-07"
-        iyy="7.88504016932886E-06"
-        iyz="-8.34736640703394E-08"
-        izz="8.17302021586157E-06" />
+        ixx="3.58514450717523E-07"
+        ixy="-1.46101851743504E-06"
+        ixz="-3.92868238359539E-07"
+        iyy="7.885040169329E-06"
+        iyz="-8.34736640683652E-08"
+        izz="8.17302021586263E-06" />
     </inertial>
     <visual>
       <origin
@@ -527,35 +527,35 @@
     name="right_joint5"
     type="revolute">
     <origin
-      xyz="0.117803138552815 0.022856520887972 -0.00500000000000012"
-      rpy="2.87890613213286 0 3.14159265358978" />
+      xyz="0.117803138552938 0.0228565208873703 -0.00499999999999845"
+      rpy="3.14159265358979 0 3.14159265358979" />
     <parent
       link="right_link4" />
     <child
       link="right_link5" />
     <axis
-      xyz="0 0.259675848455465 -0.965695839138253" />
+      xyz="0 0 -1" />
     <limit
-      lower="0"
-      upper="0"
-      effort="0"
-      velocity="0" />
+      lower="-1.5707963268"
+      upper="1.5707963268"
+      effort="80"
+      velocity="3.0" />
   </joint>
   <link
     name="left_link1">
     <inertial>
       <origin
-        xyz="0.0589015692763918 0.0114282604442722 -2.29816166097407E-14"
+        xyz="0.058901569276351 0.0114282604443038 5.44009282066327E-15"
         rpy="0 0 0" />
       <mass
-        value="0.0061541343895667" />
+        value="0.00615413438956669" />
       <inertia
-        ixx="3.5851445071867E-07"
-        ixy="-1.51291789632101E-06"
-        ixz="-6.31925059226189E-20"
-        iyy="7.86259408054744E-06"
-        iyz="-1.16050397546716E-20"
-        izz="8.19546630464291E-06" />
+        ixx="3.58514450718669E-07"
+        ixy="-1.512917896321E-06"
+        ixz="-6.56132613937647E-20"
+        iyy="7.86259408054739E-06"
+        iyz="-1.20728138375068E-20"
+        izz="8.19546630464286E-06" />
     </inertial>
     <visual>
       <origin
@@ -585,7 +585,7 @@
     name="left_joint1"
     type="revolute">
     <origin
-      xyz="0 0.0421507194078778 0"
+      xyz="0 0.0421507194079047 0"
       rpy="1.5707963267949 -1.5707963267949 0" />
     <parent
       link="bottom_stud_link" />
@@ -594,16 +594,16 @@
     <axis
       xyz="0 0 1" />
     <limit
-      lower="0"
-      upper="0"
-      effort="0"
-      velocity="0" />
+      lower="-0.7853981634"
+      upper="0.7853981634"
+      effort="80"
+      velocity="3.0" />
   </joint>
   <link
     name="left_link4">
     <inertial>
       <origin
-        xyz="0.058901569276552 0.0114282604443232 2.28705943072782E-14"
+        xyz="0.0589015692764531 0.0114282604436195 -4.21884749357559E-15"
         rpy="0 0 0" />
       <mass
         value="0.00615413438956676" />
@@ -643,7 +643,7 @@
     name="left_joint4"
     type="revolute">
     <origin
-      xyz="0.117803138552813 0.0228565208880835 0.00499999999999956"
+      xyz="0.117803138552674 0.0228565208888156 0.00500000000000111"
       rpy="3.14159265358979 0 3.14159265358979" />
     <parent
       link="left_link1" />
@@ -652,26 +652,26 @@
     <axis
       xyz="0 0 1" />
     <limit
-      lower="0"
-      upper="0"
-      effort="0"
-      velocity="0" />
+      lower="-1.5707963268"
+      upper="1.5707963268"
+      effort="80"
+      velocity="3.0" />
   </joint>
   <link
     name="left_link5">
     <inertial>
       <origin
-        xyz="0.0589015692761248 0.0114282604444132 -2.16493489801906E-14"
+        xyz="0.0589015692763521 0.0114282604443051 4.66293670342566E-15"
         rpy="0 0 0" />
       <mass
         value="0.00615413438956676" />
       <inertia
-        ixx="3.58514450718512E-07"
-        ixy="-1.51291789632062E-06"
-        ixz="6.23596792173211E-22"
-        iyy="7.86259408054763E-06"
-        iyz="6.30276637663022E-22"
-        izz="8.19546630464294E-06" />
+        ixx="3.58514450718514E-07"
+        ixy="-1.51291789632063E-06"
+        ixz="2.96626750716358E-21"
+        iyy="7.86259408054767E-06"
+        iyz="1.07867172619938E-21"
+        izz="8.19546630464299E-06" />
     </inertial>
     <visual>
       <origin
@@ -701,7 +701,7 @@
     name="left_joint5"
     type="revolute">
     <origin
-      xyz="0.117803138552813 0.0228565208880058 0.00499999999999967"
+      xyz="0.11780313855294 0.0228565208874148 0.00499999999999923"
       rpy="3.14159265358979 0 3.14159265358979" />
     <parent
       link="left_link4" />
@@ -710,25 +710,25 @@
     <axis
       xyz="0 0 -1" />
     <limit
-      lower="0"
-      upper="0"
-      effort="0"
-      velocity="0" />
+      lower="-1.5707963268"
+      upper="1.5707963268"
+      effort="80"
+      velocity="3.0" />
   </joint>
   <link
     name="camera_link">
     <inertial>
       <origin
-        xyz="-0.0682144048132187 0.0215672397949688 -0.0429610406081863"
+        xyz="-0.0682144048132004 0.0215672397948367 -0.0429610406081853"
         rpy="0 0 0" />
       <mass
         value="0.354470228585855" />
       <inertia
-        ixx="0.00034118534551311"
-        ixy="5.38220140605918E-05"
-        ixz="1.84999678385051E-08"
-        iyy="0.000709048005585155"
-        iyz="-3.64345991315383E-09"
+        ixx="0.000341185345513111"
+        ixy="5.38220140605919E-05"
+        ixz="1.84999678383365E-08"
+        iyy="0.000709048005585156"
+        iyz="-3.64345991311805E-09"
         izz="0.000433758076720855" />
     </inertial>
     <visual>
@@ -759,35 +759,35 @@
     name="camera_joint"
     type="revolute">
     <origin
-      xyz="0.117803138552453 0.0228565208887948 0.0849999999999819"
+      xyz="0.11780313855266 0.0228565208888024 0.0850000000000067"
       rpy="0 0 0" />
     <parent
       link="left_link5" />
     <child
       link="camera_link" />
     <axis
-      xyz="0 0 -1" />
+      xyz="0 0 1" />
     <limit
-      lower="0"
-      upper="0"
-      effort="0"
-      velocity="0" />
+      lower="-1.5707963268"
+      upper="1.5707963268"
+      effort="10"
+      velocity="2.0" />
   </joint>
   <link
     name="right_link2">
     <inertial>
       <origin
-        xyz="0.0589015692764303 0.0114282604443792 1.93178806284777E-14"
+        xyz="0.0589015692764525 0.0114282604436174 -4.88498130835069E-15"
         rpy="0 0 0" />
       <mass
-        value="0.00615413438956677" />
+        value="0.00615413438956663" />
       <inertia
-        ixx="3.58514450684052E-07"
-        ixy="-1.51291789623516E-06"
-        ixz="8.54378013756915E-21"
-        iyy="7.86259408058212E-06"
-        iyz="1.68871254201842E-21"
-        izz="8.19546630464297E-06" />
+        ixx="3.58514450684044E-07"
+        ixy="-1.51291789623513E-06"
+        ixz="8.52272193176882E-21"
+        iyy="7.86259408058194E-06"
+        iyz="1.68138033365146E-21"
+        izz="8.19546630464279E-06" />
     </inertial>
     <visual>
       <origin
@@ -815,9 +815,9 @@
   </link>
   <joint
     name="right_joint2"
-    type="continuous">
+    type="revolute">
     <origin
-      xyz="0.0200000000000368 0.0375000000000166 0.0424999999993435"
+      xyz="0.0199999999999953 0.037499999999994 0.0424999999999847"
       rpy="1.5707963267949 0 0" />
     <parent
       link="scissors_lift_base" />
@@ -825,22 +825,27 @@
       link="right_link2" />
     <axis
       xyz="0 0 1" />
+    <limit
+      lower="-0.7853981634"
+      upper="0.7853981634"
+      effort="80"
+      velocity="3.0" />
   </joint>
   <link
     name="right_link3">
     <inertial>
       <origin
-        xyz="0.0589015692762507 0.0114282604443728 -1.98729921407903E-14"
+        xyz="0.0589015692763515 0.0114282604443026 4.66293670342566E-15"
         rpy="0 0 0" />
       <mass
-        value="0.00615413438956667" />
+        value="0.00615413438956681" />
       <inertia
-        ixx="3.5851445071848E-07"
-        ixy="-1.51291789632053E-06"
-        ixz="7.29080406010438E-21"
-        iyy="7.86259408054756E-06"
-        iyz="1.44738514383463E-21"
-        izz="8.19546630464284E-06" />
+        ixx="3.58514450718488E-07"
+        ixy="-1.51291789632056E-06"
+        ixz="9.60646676981584E-21"
+        iyy="7.86259408054769E-06"
+        iyz="1.90221359507389E-21"
+        izz="8.19546630464298E-06" />
     </inertial>
     <visual>
       <origin
@@ -870,7 +875,7 @@
     name="right_joint3"
     type="revolute">
     <origin
-      xyz="0.117803138552811 0.0228565208881228 -0.00500000000000023"
+      xyz="0.117803138552934 0.0228565208874355 -0.00500000000000012"
       rpy="3.14159265358979 0 3.14159265358979" />
     <parent
       link="right_link2" />
@@ -879,16 +884,16 @@
     <axis
       xyz="0 0 -1" />
     <limit
-      lower="0"
-      upper="0"
-      effort="0"
-      velocity="0" />
+      lower="-1.5707963268"
+      upper="1.5707963268"
+      effort="80"
+      velocity="3.0" />
   </joint>
   <link
     name="right_link6">
     <inertial>
       <origin
-        xyz="0.0589015692766905 0.0114282604443346 2.16493489801906E-14"
+        xyz="0.0589015692764531 0.0114282604436248 -4.55191440096314E-15"
         rpy="0 0 0" />
       <mass
         value="0.0061541343895667" />
@@ -928,7 +933,7 @@
     name="right_joint6"
     type="revolute">
     <origin
-      xyz="0.117803138552816 0.0228565208881623 -0.00499999999999978"
+      xyz="0.11780313855268 0.0228565208887971 -0.00500000000000211"
       rpy="-3.14159265358979 0 -3.14159265358979" />
     <parent
       link="right_link3" />
@@ -937,16 +942,16 @@
     <axis
       xyz="0 0 -1" />
     <limit
-      lower="0"
-      upper="0"
-      effort="0"
-      velocity="0" />
+      lower="-1.5707963268"
+      upper="1.5707963268"
+      effort="80"
+      velocity="3.0" />
   </joint>
   <link
     name="left_link2">
     <inertial>
       <origin
-        xyz="0.0589015692764191 0.0114282604443155 2.27595720048157E-14"
+        xyz="0.0589015692764523 0.0114282604436192 -3.88578058618805E-15"
         rpy="0 0 0" />
       <mass
         value="0.00615413438956668" />
@@ -986,7 +991,7 @@
     name="left_joint2"
     type="revolute">
     <origin
-      xyz="0.0200000000000404 -0.0374999999999837 0.0424999999994037"
+      xyz="0.0199999999999877 -0.037500000000009 0.0424999999999793"
       rpy="1.5707963267949 0 0" />
     <parent
       link="scissors_lift_base" />
@@ -995,26 +1000,26 @@
     <axis
       xyz="0 0 1" />
     <limit
-      lower="0"
-      upper="0"
-      effort="0"
-      velocity="0" />
+      lower="-0.7853981634"
+      upper="0.7853981634"
+      effort="80"
+      velocity="3.0" />
   </joint>
   <link
     name="left_link3">
     <inertial>
       <origin
-        xyz="0.0589015692762586 0.0114282604443113 -2.42028619368284E-14"
+        xyz="0.0589015692763514 0.011428260444304 5.10702591327572E-15"
         rpy="0 0 0" />
       <mass
-        value="0.00615413438956668" />
+        value="0.00615413438956673" />
       <inertia
-        ixx="3.58514450718563E-07"
-        ixy="-1.51291789632074E-06"
-        ixz="-4.556820498975E-20"
-        iyy="7.8625940805475E-06"
-        iyz="-8.14298803333981E-21"
-        izz="8.19546630464287E-06" />
+        ixx="3.58514450718568E-07"
+        ixy="-1.51291789632077E-06"
+        ixz="-4.56164845525657E-20"
+        iyy="7.86259408054763E-06"
+        iyz="-8.15643900712848E-21"
+        izz="8.195466304643E-06" />
     </inertial>
     <visual>
       <origin
@@ -1044,7 +1049,7 @@
     name="left_joint3"
     type="revolute">
     <origin
-      xyz="0.117803138552808 0.0228565208880964 0.00499999999999923"
+      xyz="0.117803138552934 0.0228565208874119 0.00500000000000156"
       rpy="3.14159265358979 0 3.14159265358979" />
     <parent
       link="left_link2" />
@@ -1053,26 +1058,26 @@
     <axis
       xyz="0 0 -1" />
     <limit
-      lower="0"
-      upper="0"
-      effort="0"
-      velocity="0" />
+      lower="-1.5707963268"
+      upper="1.5707963268"
+      effort="80"
+      velocity="3.0" />
   </joint>
   <link
     name="left_link6">
     <inertial>
       <origin
-        xyz="0.0589015692766959 0.0114282604442972 2.08721928629529E-14"
+        xyz="0.0589015692764536 0.0114282604436206 -4.44089209850063E-15"
         rpy="0 0 0" />
       <mass
-        value="0.00615413438956669" />
+        value="0.00615413438956674" />
       <inertia
-        ixx="3.58514450683972E-07"
+        ixx="3.58514450683974E-07"
         ixy="-1.51291789623495E-06"
-        ixz="-4.1402050331523E-20"
-        iyy="7.86259408058204E-06"
-        iyz="-8.58086618358921E-21"
-        izz="8.19546630464282E-06" />
+        ixz="-3.67396779389843E-20"
+        iyy="7.86259408058207E-06"
+        iyz="-7.67555247795871E-21"
+        izz="8.19546630464285E-06" />
     </inertial>
     <visual>
       <origin
@@ -1102,7 +1107,7 @@
     name="left_joint6"
     type="revolute">
     <origin
-      xyz="0.11780313855282 0.0228565208881415 0.00499999999999901"
+      xyz="0.117803138552671 0.0228565208888066 0.00500000000000234"
       rpy="-3.14159265358979 0 -3.14159265358979" />
     <parent
       link="left_link3" />
@@ -1111,26 +1116,26 @@
     <axis
       xyz="0 0 -1" />
     <limit
-      lower="0"
-      upper="0"
-      effort="0"
-      velocity="0" />
+      lower="-1.5707963268"
+      upper="1.5707963268"
+      effort="80"
+      velocity="3.0" />
   </joint>
   <link
     name="top_stud_link">
     <inertial>
       <origin
-        xyz="-7.50090308754281E-08 -7.19407883709167E-07 -1.61848112906204E-06"
+        xyz="-7.50091505921646E-08 -7.1940788193281E-07 -1.61848111002172E-06"
         rpy="0 0 0" />
       <mass
-        value="0.00137057236420411" />
+        value="0.00137057236420412" />
       <inertia
-        ixx="1.36300723783461E-06"
-        ixy="1.13583038164696E-11"
-        ixz="-2.26204747684194E-13"
-        iyy="2.72084887040146E-09"
-        iyz="1.07269797862821E-22"
-        izz="1.36300707987298E-06" />
+        ixx="1.36300723783455E-06"
+        ixy="1.13583038240478E-11"
+        ixz="-2.26204748242467E-13"
+        iyy="2.72084887040144E-09"
+        iyz="-1.91801898430313E-21"
+        izz="1.36300707987292E-06" />
     </inertial>
     <visual>
       <origin
@@ -1160,7 +1165,7 @@
     name="top_stud_joint"
     type="prismatic">
     <origin
-      xyz="0.117801346067773 0.0228566574753921 -0.0371507194078791"
+      xyz="0.117801346067551 0.022856657474836 -0.0371507194079034"
       rpy="-1.5707963267949 0 1.5707963267949" />
     <parent
       link="left_link6" />
@@ -1169,137 +1174,460 @@
     <axis
       xyz="0 0 1" />
     <limit
-      lower="0"
-      upper="0"
-      effort="0"
-      velocity="0" />
+      lower="-0.05"
+      upper="0.05"
+      effort="150"
+      velocity="0.15" />
   </joint>
 
-  <link name="RobotBody" />
+  <!-- ============================================================ -->
+  <!-- Dummy sensor reference frames (no geometry, fixed to base)   -->
+  <!-- Robot frame: X=back, Y=right, Z=up                          -->
+  <!-- Sensor Z axis points in the sensing direction                -->
+  <!-- ============================================================ -->
 
-  <joint name="robot_body_joint" type="fixed">
-    <origin xyz="0 0 0" rpy="0 0 0" />
-    <parent link="base_link" />
-    <child link="RobotBody" />
+  <!-- IR Sensors -->
+  <link name="ir_back_link"/>
+  <joint name="ir_back_joint" type="fixed">
+    <origin xyz="0.00389 -0.15402 0.01325" rpy="0 1.5707963267949 0"/>
+    <parent link="base_link"/>
+    <child link="ir_back_link"/>
   </joint>
 
-  <link name="imu_link">
-    <inertial>
-      <mass value="0.05" />
-      <origin xyz="0 0 0" rpy="0 0 0" />
-      <inertia ixx="1e-5" ixy="0" ixz="0" iyy="1e-5" iyz="0" izz="1e-5" />
-    </inertial>
-    <visual>
-      <geometry>
-        <box size="0.02 0.02 0.01" />
-      </geometry>
-    </visual>
-    <collision>
-      <geometry>
-        <box size="0.02 0.02 0.01" />
-      </geometry>
-    </collision>
-  </link>
+  <link name="ir_right_link"/>
+  <joint name="ir_right_joint" type="fixed">
+    <origin xyz="-0.15593 0.00425 0.01325" rpy="0 1.5707963267949 1.5707963267949"/>
+    <parent link="base_link"/>
+    <child link="ir_right_link"/>
+  </joint>
 
+  <link name="ir_front_right_link"/>
+  <joint name="ir_front_right_joint" type="fixed">
+    <origin xyz="-0.33619 -0.02391 0.01325" rpy="0 1.5707963267949 2.3561944901923"/>
+    <parent link="base_link"/>
+    <child link="ir_front_right_link"/>
+  </joint>
+
+  <link name="ir_front_link"/>
+  <joint name="ir_front_joint" type="fixed">
+    <origin xyz="-0.36061 -0.14597 0.01325" rpy="0 1.5707963267949 3.1415926535898"/>
+    <parent link="base_link"/>
+    <child link="ir_front_link"/>
+  </joint>
+
+  <link name="ir_front_left_link"/>
+  <joint name="ir_front_left_joint" type="fixed">
+    <origin xyz="-0.34189 -0.27041 0.01325" rpy="0 1.5707963267949 -2.3561944901923"/>
+    <parent link="base_link"/>
+    <child link="ir_front_left_link"/>
+  </joint>
+
+  <link name="ir_left_link"/>
+  <joint name="ir_left_joint" type="fixed">
+    <origin xyz="-0.16403 -0.30425 0.01325" rpy="0 1.5707963267949 -1.5707963267949"/>
+    <parent link="base_link"/>
+    <child link="ir_left_link"/>
+  </joint>
+
+  <!-- Camera Optical Frame (Z points toward front, i.e. -X direction) -->
+  <link name="camera_optical_link"/>
+  <joint name="camera_optical_joint" type="fixed">
+    <origin xyz="-0.0285214690324131 0.0532714690323321 -0.0320399999999404" rpy="-1.5707963267949 0 -1.57079632679491"/>
+    <parent link="camera_link"/>
+    <child link="camera_optical_link"/>
+  </joint>
+
+  <!-- IMU Frame (aligned with robot body frame) -->
+  <link name="imu_link"/>
   <joint name="imu_joint" type="fixed">
-    <origin xyz="0 0 0.05" rpy="0 0 0" />
-    <parent link="RobotBody" />
-    <child link="imu_link" />
+    <origin xyz="-0.15866 -0.15079 0.010" rpy="0 0 0"/>
+    <parent link="base_link"/>
+    <child link="imu_link"/>
   </joint>
 
-  <link name="ultrasonic_link">
-    <visual>
-      <geometry>
-        <cylinder radius="0.03" length="0.05" />
-      </geometry>
-    </visual>
-    <collision>
-      <geometry>
-        <cylinder radius="0.03" length="0.05" />
-      </geometry>
-    </collision>
-    <inertial>
-      <mass value="0.1" />
-      <origin xyz="0 0 0" rpy="0 0 0" />
-      <inertia ixx="1e-5" ixy="0" ixz="0" iyy="1e-5" iyz="0" izz="1e-5" />
-    </inertial>
-  </link>
-
-  <joint name="ultrasonic_joint" type="fixed">
-    <parent link="RobotBody" />
-    <child link="ultrasonic_link" />
-    <origin xyz="0.15 0 0.07" rpy="0 0 0" />
-  </joint>
-
-  <ros2_control name="AudixSystem" type="system">
+  <!-- ============================================================ -->
+  <!-- ros2_control hardware interface                              -->
+  <!-- ============================================================ -->
+  <ros2_control name="GazeboSystem" type="system">
     <hardware>
       <plugin>gz_ros2_control/GazeboSimSystem</plugin>
     </hardware>
-
     <joint name="front_left_wheel_joint">
-      <command_interface name="velocity" />
-      <state_interface name="position" />
-      <state_interface name="velocity" />
-    </joint>
-    <joint name="back_left_wheel_joint">
-      <command_interface name="velocity" />
-      <state_interface name="position" />
-      <state_interface name="velocity" />
+      <command_interface name="velocity"/>
+      <state_interface name="velocity"/>
+      <state_interface name="position"/>
     </joint>
     <joint name="front_right_wheel_joint">
-      <command_interface name="velocity" />
-      <state_interface name="position" />
-      <state_interface name="velocity" />
+      <command_interface name="velocity"/>
+      <state_interface name="velocity"/>
+      <state_interface name="position"/>
+    </joint>
+    <joint name="back_left_wheel_joint">
+      <command_interface name="velocity"/>
+      <state_interface name="velocity"/>
+      <state_interface name="position"/>
     </joint>
     <joint name="back_right_wheel_joint">
-      <command_interface name="velocity" />
-      <state_interface name="position" />
-      <state_interface name="velocity" />
+      <command_interface name="velocity"/>
+      <state_interface name="velocity"/>
+      <state_interface name="position"/>
+    </joint>
+    <joint name="bottom_stud_joint">
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="left_joint1">
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="right_joint1">
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="left_joint2">
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="right_joint2">
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="left_joint3">
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="right_joint3">
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="left_joint4">
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="right_joint4">
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="left_joint5">
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="right_joint5">
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="left_joint6">
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="right_joint6">
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="camera_joint">
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
     </joint>
   </ros2_control>
 
+  <!-- ============================================================ -->
+  <!-- Gazebo: ros2_control plugin for simulation                   -->
+  <!-- ============================================================ -->
   <gazebo>
-    <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
-      <parameters>$(find audix)/config/controllers.yaml</parameters>
+    <plugin filename="gz_ros2_control-system"
+            name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+      <ros>
+        <remapping>~/robot_description:=robot_description</remapping>
+      </ros>
     </plugin>
   </gazebo>
 
+  <!-- ============================================================ -->
+  <!-- Gazebo: wheel surface friction                               -->
+  <!-- ============================================================ -->
+  <gazebo reference="front_left_wheel_link">
+    <mu1>1.0</mu1>
+    <mu2>1.0</mu2>
+    <material>Gazebo/DarkGray</material>
+  </gazebo>
+  <gazebo reference="front_right_wheel_link">
+    <mu1>1.0</mu1>
+    <mu2>1.0</mu2>
+    <material>Gazebo/DarkGray</material>
+  </gazebo>
+  <gazebo reference="back_left_wheel_link">
+    <mu1>1.0</mu1>
+    <mu2>1.0</mu2>
+    <material>Gazebo/DarkGray</material>
+  </gazebo>
+  <gazebo reference="back_right_wheel_link">
+    <mu1>1.0</mu1>
+    <mu2>1.0</mu2>
+    <material>Gazebo/DarkGray</material>
+  </gazebo>
+
+  <!-- ============================================================ -->
+  <!-- Gazebo: IMU sensor                                           -->
+  <!-- Placed at imu_link — aligned with body frame                -->
+  <!-- ============================================================ -->
   <gazebo reference="imu_link">
     <sensor name="imu_sensor" type="imu">
+      <pose>0 0 0 0 0 0</pose>
       <always_on>true</always_on>
-      <update_rate>50</update_rate>
-      <topic>imu</topic>
-      <plugin filename="gz-sim-imu-system" name="gz::sim::systems::Imu" />
+      <update_rate>100</update_rate>
+      <topic>/imu</topic>
+      <imu>
+        <angular_velocity>
+          <x><noise type="gaussian"><mean>0.0</mean><stddev>0.009</stddev></noise></x>
+          <y><noise type="gaussian"><mean>0.0</mean><stddev>0.009</stddev></noise></y>
+          <z><noise type="gaussian"><mean>0.0</mean><stddev>0.009</stddev></noise></z>
+        </angular_velocity>
+        <linear_acceleration>
+          <x><noise type="gaussian"><mean>0.0</mean><stddev>0.021</stddev></noise></x>
+          <y><noise type="gaussian"><mean>0.0</mean><stddev>0.021</stddev></noise></y>
+          <z><noise type="gaussian"><mean>0.0</mean><stddev>0.021</stddev></noise></z>
+        </linear_acceleration>
+      </imu>
     </sensor>
   </gazebo>
 
-  <gazebo reference="ultrasonic_link">
-    <sensor name="lidar_sensor" type="gpu_lidar">
-      <always_on>1</always_on>
-      <update_rate>50</update_rate>
-      <topic>scan</topic>
-      <ray>
+  <!-- ============================================================ -->
+  <!-- Gazebo: 6 x IR sensors as gpu_lidar (35° total FOV)        -->
+  <!--                                                              -->
+  <!-- Each link's +Z is the sensing direction.                    -->
+  <!-- Sensor pose pitch = -π/2 rotates the lidar's default        -->
+  <!-- forward axis (+X) onto the link's +Z.                       -->
+  <!-- FOV: ±17.5° = ±0.30543 rad   Range: 0.05 – 0.30 m         -->
+  <!-- ============================================================ -->
+
+  <gazebo reference="ir_back_link">
+    <sensor name="ir_back" type="gpu_lidar">
+      <pose>0 0 0 0 -1.5707963267949 0</pose>
+      <always_on>true</always_on>
+      <update_rate>10</update_rate>
+      <topic>/ir_back/scan</topic>
+      <lidar>
         <scan>
           <horizontal>
-            <samples>640</samples>
+            <samples>10</samples>
             <resolution>1</resolution>
-            <min_angle>0</min_angle>
-            <max_angle>0</max_angle>
+            <min_angle>-0.30543</min_angle>
+            <max_angle>0.30543</max_angle>
           </horizontal>
           <vertical>
             <samples>1</samples>
-            <resolution>0.01</resolution>
+            <resolution>1</resolution>
             <min_angle>0</min_angle>
             <max_angle>0</max_angle>
           </vertical>
         </scan>
         <range>
-          <min>0.08</min>
-          <max>10.0</max>
+          <min>0.05</min>
+          <max>0.30</max>
           <resolution>0.01</resolution>
         </range>
-      </ray>
+        <noise>
+          <type>gaussian</type>
+          <mean>0.0</mean>
+          <stddev>0.005</stddev>
+        </noise>
+      </lidar>
       <visualize>true</visualize>
     </sensor>
   </gazebo>
+
+  <gazebo reference="ir_right_link">
+    <sensor name="ir_right" type="gpu_lidar">
+      <pose>0 0 0 0 -1.5707963267949 0</pose>
+      <always_on>true</always_on>
+      <update_rate>10</update_rate>
+      <topic>/ir_right/scan</topic>
+      <lidar>
+        <scan>
+          <horizontal>
+            <samples>10</samples>
+            <resolution>1</resolution>
+            <min_angle>-0.30543</min_angle>
+            <max_angle>0.30543</max_angle>
+          </horizontal>
+          <vertical>
+            <samples>1</samples>
+            <resolution>1</resolution>
+            <min_angle>0</min_angle>
+            <max_angle>0</max_angle>
+          </vertical>
+        </scan>
+        <range>
+          <min>0.05</min>
+          <max>0.30</max>
+          <resolution>0.01</resolution>
+        </range>
+        <noise>
+          <type>gaussian</type>
+          <mean>0.0</mean>
+          <stddev>0.005</stddev>
+        </noise>
+      </lidar>
+      <visualize>true</visualize>
+    </sensor>
+  </gazebo>
+
+  <gazebo reference="ir_front_right_link">
+    <sensor name="ir_front_right" type="gpu_lidar">
+      <pose>0 0 0 0 -1.5707963267949 0</pose>
+      <always_on>true</always_on>
+      <update_rate>10</update_rate>
+      <topic>/ir_front_right/scan</topic>
+      <lidar>
+        <scan>
+          <horizontal>
+            <samples>10</samples>
+            <resolution>1</resolution>
+            <min_angle>-0.30543</min_angle>
+            <max_angle>0.30543</max_angle>
+          </horizontal>
+          <vertical>
+            <samples>1</samples>
+            <resolution>1</resolution>
+            <min_angle>0</min_angle>
+            <max_angle>0</max_angle>
+          </vertical>
+        </scan>
+        <range>
+          <min>0.05</min>
+          <max>0.30</max>
+          <resolution>0.01</resolution>
+        </range>
+        <noise>
+          <type>gaussian</type>
+          <mean>0.0</mean>
+          <stddev>0.005</stddev>
+        </noise>
+      </lidar>
+      <visualize>true</visualize>
+    </sensor>
+  </gazebo>
+
+  <gazebo reference="ir_front_link">
+    <sensor name="ir_front" type="gpu_lidar">
+      <pose>0 0 0 0 -1.5707963267949 0</pose>
+      <always_on>true</always_on>
+      <update_rate>10</update_rate>
+      <topic>/ir_front/scan</topic>
+      <lidar>
+        <scan>
+          <horizontal>
+            <samples>10</samples>
+            <resolution>1</resolution>
+            <min_angle>-0.30543</min_angle>
+            <max_angle>0.30543</max_angle>
+          </horizontal>
+          <vertical>
+            <samples>1</samples>
+            <resolution>1</resolution>
+            <min_angle>0</min_angle>
+            <max_angle>0</max_angle>
+          </vertical>
+        </scan>
+        <range>
+          <min>0.05</min>
+          <max>0.30</max>
+          <resolution>0.01</resolution>
+        </range>
+        <noise>
+          <type>gaussian</type>
+          <mean>0.0</mean>
+          <stddev>0.005</stddev>
+        </noise>
+      </lidar>
+      <visualize>true</visualize>
+    </sensor>
+  </gazebo>
+
+  <gazebo reference="ir_front_left_link">
+    <sensor name="ir_front_left" type="gpu_lidar">
+      <pose>0 0 0 0 -1.5707963267949 0</pose>
+      <always_on>true</always_on>
+      <update_rate>10</update_rate>
+      <topic>/ir_front_left/scan</topic>
+      <lidar>
+        <scan>
+          <horizontal>
+            <samples>10</samples>
+            <resolution>1</resolution>
+            <min_angle>-0.30543</min_angle>
+            <max_angle>0.30543</max_angle>
+          </horizontal>
+          <vertical>
+            <samples>1</samples>
+            <resolution>1</resolution>
+            <min_angle>0</min_angle>
+            <max_angle>0</max_angle>
+          </vertical>
+        </scan>
+        <range>
+          <min>0.05</min>
+          <max>0.30</max>
+          <resolution>0.01</resolution>
+        </range>
+        <noise>
+          <type>gaussian</type>
+          <mean>0.0</mean>
+          <stddev>0.005</stddev>
+        </noise>
+      </lidar>
+      <visualize>true</visualize>
+    </sensor>
+  </gazebo>
+
+  <gazebo reference="ir_left_link">
+    <sensor name="ir_left" type="gpu_lidar">
+      <pose>0 0 0 0 -1.5707963267949 0</pose>
+      <always_on>true</always_on>
+      <update_rate>10</update_rate>
+      <topic>/ir_left/scan</topic>
+      <lidar>
+        <scan>
+          <horizontal>
+            <samples>10</samples>
+            <resolution>1</resolution>
+            <min_angle>-0.30543</min_angle>
+            <max_angle>0.30543</max_angle>
+          </horizontal>
+          <vertical>
+            <samples>1</samples>
+            <resolution>1</resolution>
+            <min_angle>0</min_angle>
+            <max_angle>0</max_angle>
+          </vertical>
+        </scan>
+        <range>
+          <min>0.05</min>
+          <max>0.30</max>
+          <resolution>0.01</resolution>
+        </range>
+        <noise>
+          <type>gaussian</type>
+          <mean>0.0</mean>
+          <stddev>0.005</stddev>
+        </noise>
+      </lidar>
+      <visualize>true</visualize>
+    </sensor>
+  </gazebo>
+
 </robot>

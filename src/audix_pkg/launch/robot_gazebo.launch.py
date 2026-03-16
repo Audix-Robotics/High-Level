@@ -56,6 +56,12 @@ def generate_launch_description():
             '/joint_states@sensor_msgs/msg/JointState[gz.msgs.Model',
             '/imu@sensor_msgs/msg/Imu[gz.msgs.IMU',
             '/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan',
+            '/ir_back/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan',
+            '/ir_right/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan',
+            '/ir_front_right/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan',
+            '/ir_front/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan',
+            '/ir_front_left/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan',
+            '/ir_left/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan',
         ],
         remappings=[('/world/empty/model/audix/joint_state', '/joint_states')],
     )
@@ -66,9 +72,9 @@ def generate_launch_description():
         output='screen',
         arguments=[
             '-world', 'empty',
-            '-topic', 'robot_description',
+            '-string', robot_description,
             '-name', 'audix',
-            '-x', '0.0', '-y', '0.0', '-z', '0.05',
+            '-x', '0.0', '-y', '0.0', '-z', '0.025',
             '-R', '0.0', '-P', '0.0', '-Y', '0.0',
         ],
     )
@@ -81,6 +87,25 @@ def generate_launch_description():
         parameters=[ekf_config, {'use_sim_time': True}],
     )
 
+    world_to_base_link_node = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        name='world_to_base_link_publisher',
+        arguments=['0', '0', '0', '0', '0', '0', 'world', 'base_link'],
+    )
+
+    joint_state_broadcaster_spawner = Node(
+        package='controller_manager',
+        executable='spawner',
+        arguments=['joint_state_broadcaster', '--controller-manager', '/controller_manager'],
+    )
+
+    diff_drive_controller_spawner = Node(
+        package='controller_manager',
+        executable='spawner',
+        arguments=['diff_drive_controller', '--controller-manager', '/controller_manager'],
+    )
+
     return LaunchDescription([
         gz_resource_path,
         ign_resource_path,
@@ -88,5 +113,8 @@ def generate_launch_description():
         bridge_gz,
         robot_state_publisher_node,
         spawn_entity,
+        world_to_base_link_node,
         ekf_node,
+        joint_state_broadcaster_spawner,
+        diff_drive_controller_spawner,
     ])

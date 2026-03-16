@@ -35,6 +35,13 @@ def generate_launch_description():
         condition=IfCondition(LaunchConfiguration('gui')),
     )
 
+    world_to_base_node = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        name='world_to_base_link_publisher',
+        arguments=['0', '0', '0', '0', '0', '0', 'world', 'base_link'],
+    )
+
     rviz_node = Node(
         package='rviz2',
         executable='rviz2',
@@ -49,6 +56,7 @@ def generate_launch_description():
         DeclareLaunchArgument(name='rvizconfig', default_value=default_rviz_config_path, description='Absolute path to rviz config file'),
         joint_state_publisher_node,
         joint_state_publisher_gui_node,
+        world_to_base_node,
         robot_state_publisher_node,
         rviz_node,
     ])
