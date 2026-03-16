@@ -61,6 +61,8 @@ class MissionController(Node):
         self.declare_parameter('static_persistence_cycles', 12)
         self.declare_parameter('reroute_lateral_offset', 0.35)
         self.declare_parameter('dynamic_clear_cycles', 5)
+        self.declare_parameter('obstacle_sensor_warmup_sec', 2.0)
+        self.declare_parameter('obstacle_stop_timeout_sec', 4.0)
         self.declare_parameter('lift_dwell_time', 3.0)
         self.declare_parameter('lift_position_tolerance', 0.003)
         self.declare_parameter('linear_kp', 0.5)
@@ -76,6 +78,8 @@ class MissionController(Node):
         self.static_persist = self.get_parameter('static_persistence_cycles').value
         self.reroute_offset = self.get_parameter('reroute_lateral_offset').value
         self.clear_cycles = self.get_parameter('dynamic_clear_cycles').value
+        self.obstacle_warmup = self.get_parameter('obstacle_sensor_warmup_sec').value
+        self.obstacle_stop_timeout = self.get_parameter('obstacle_stop_timeout_sec').value
         self.lift_dwell = self.get_parameter('lift_dwell_time').value
         self.lift_tol = self.get_parameter('lift_position_tolerance').value
         self.lin_kp = self.get_parameter('linear_kp').value
@@ -124,6 +128,8 @@ class MissionController(Node):
         self.pre_reroute_state = None
         self.reroute_waypoints = []
         self.reroute_wp_idx = 0
+        self.obstacle_stop_start_time = None
+        self.node_start_time = self.get_clock().now()
 
         # Lift state
         self.current_lift_pos = 0.0
@@ -278,9 +284,33 @@ class MissionController(Node):
         return max(0.0, min(0.0772, carriage_x))
 
     def _front_obstacle_detected(self):
-        return (self.ir['front'] < self.safe_dist or
-                self.ir['front_left'] < self.safe_dist or
-                self.ir['front_right'] < self.safe_dist)
+        # Ignore early sensor transients right after startup/spawn.
+        elapsed = (self.get_clock().now() - self.node_start_time).nanoseconds / 1e9
+        if elapsed < self.obstacle_warmup:
+            return False
+
+        front_hit = self.ir['front'] < self.safe_dist
+        side_pair_hit = (
+            self.ir['front_left'] < self.safe_dist and
+            self.ir['front_right'] < self.safe_dist
+        )
+        return front_hit or side_pair_hit
+
+    def _enter_reroute(self):
+        self.get_logger().warn('Static obstacle detected — REROUTING')
+        offset = self.reroute_offset
+        perp_angle = self.yaw + math.pi / 2  # left of heading
+        bx1 = self.x + offset * math.cos(perp_angle)
+        by1 = self.y + offset * math.sin(perp_angle)
+        bx2 = bx1 + 0.4 * math.cos(self.yaw)  # advance past obstacle
+        by2 = by1 + 0.4 * math.sin(self.yaw)
+        bx3 = bx2 - offset * math.cos(perp_angle)  # return to original line
+        by3 = by2 - offset * math.sin(perp_angle)
+        self.reroute_waypoints = [(bx1, by1), (bx2, by2), (bx3, by3)]
+        self.reroute_wp_idx = 0
+        self.state = State.OBSTACLE_REROUTE
+        self.front_obstacle_history.clear()
+        self.obstacle_stop_start_time = None
 
     def _classify_obstacle(self):
         """Returns 'dynamic', 'static', or 'none'."""
@@ -290,13 +320,23 @@ class MissionController(Node):
         if not detected:
             return 'none'
 
-        # Count how many of the last N cycles had an obstacle
         recent = list(self.front_obstacle_history)
+
+        # Static: obstacle present in 80% of last static_persist cycles
         if len(recent) >= self.static_persist:
             persistence = sum(recent[-self.static_persist:])
             if persistence >= self.static_persist * 0.8:
                 return 'static'
-        return 'dynamic'
+
+        # Dynamic: require at least 3 consecutive detections to avoid
+        # triggering on sensor init artifacts or single-sample noise
+        min_confirm = 3
+        if len(recent) < min_confirm:
+            return 'none'
+        if sum(recent[-min_confirm:]) >= min_confirm:
+            return 'dynamic'
+
+        return 'none'
 
     # ================================================================
     # Main control loop
@@ -343,30 +383,18 @@ class MissionController(Node):
         final_yaw_error = self._normalize(tyaw - self.yaw)
 
         # ---- Check obstacles during movement states ----
-        if self.state in (State.MOVE_FORWARD, State.ROTATE_TO_TARGET):
+        if self.state in (State.MOVE_FORWARD,):
             obs_type = self._classify_obstacle()
             if obs_type == 'dynamic':
                 self.pre_reroute_state = self.state
                 self.state = State.OBSTACLE_STOP
                 self._publish_stop()
                 self.consecutive_clear = 0
+                self.obstacle_stop_start_time = self.get_clock().now()
                 self.get_logger().warn('Dynamic obstacle detected — STOPPING')
                 return
             elif obs_type == 'static':
-                self.get_logger().warn('Static obstacle detected — REROUTING')
-                # Compute bypass waypoints: strafe left, advance, strafe back
-                offset = self.reroute_offset
-                perp_angle = self.yaw + math.pi / 2  # left of heading
-                bx1 = self.x + offset * math.cos(perp_angle)
-                by1 = self.y + offset * math.sin(perp_angle)
-                bx2 = bx1 + 0.4 * math.cos(self.yaw)  # advance past obstacle
-                by2 = by1 + 0.4 * math.sin(self.yaw)
-                bx3 = bx2 - offset * math.cos(perp_angle)  # return to original line
-                by3 = by2 - offset * math.sin(perp_angle)
-                self.reroute_waypoints = [(bx1, by1), (bx2, by2), (bx3, by3)]
-                self.reroute_wp_idx = 0
-                self.state = State.OBSTACLE_REROUTE
-                self.front_obstacle_history.clear()
+                self._enter_reroute()
                 return
 
         # ---- OBSTACLE_STOP (dynamic) ----
@@ -376,9 +404,22 @@ class MissionController(Node):
                 self.consecutive_clear += 1
             else:
                 self.consecutive_clear = 0
+
+            if self.obstacle_stop_start_time is not None:
+                stop_elapsed = (
+                    self.get_clock().now() - self.obstacle_stop_start_time
+                ).nanoseconds / 1e9
+                if stop_elapsed >= self.obstacle_stop_timeout:
+                    self.get_logger().warn(
+                        'Obstacle stop timeout reached — escalating to reroute'
+                    )
+                    self._enter_reroute()
+                    return
+
             if self.consecutive_clear >= self.clear_cycles:
                 self.state = self.pre_reroute_state or State.MOVE_FORWARD
                 self.front_obstacle_history.clear()
+                self.obstacle_stop_start_time = None
                 self.get_logger().info('Dynamic obstacle cleared — resuming')
             return
 

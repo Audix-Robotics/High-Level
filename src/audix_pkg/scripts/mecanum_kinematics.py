@@ -32,10 +32,12 @@ class MecanumKinematics(Node):
         self.declare_parameter('wheel_radius', 0.0485)
         self.declare_parameter('wheel_base_half', 0.09)
         self.declare_parameter('track_width_half', 0.1574)
+        self.declare_parameter('robot_body_frame_flip_180', True)
 
         self.r = self.get_parameter('wheel_radius').value
         self.lx = self.get_parameter('wheel_base_half').value
         self.ly = self.get_parameter('track_width_half').value
+        self.flip_180 = self.get_parameter('robot_body_frame_flip_180').value
 
         # Subscribers
         self.create_subscription(Twist, '/cmd_vel', self.cmd_vel_cb, 10)
@@ -74,6 +76,12 @@ class MecanumKinematics(Node):
         vy = msg.linear.y
         wz = msg.angular.z
 
+        # Mission controller works in RobotBody frame. The physical wheel model is
+        # aligned with base_link, which is rotated by pi from RobotBody.
+        if self.flip_180:
+            vx = -vx
+            vy = -vy
+
         k = self.lx + self.ly
 
         # Mecanum IK (wheel angular velocities in rad/s)
@@ -109,10 +117,15 @@ class MecanumKinematics(Node):
 
         w_fl, w_fr, w_bl, w_br = vels
 
-        # Mecanum FK (body velocities)
+        # Mecanum FK (body velocities in base_link frame)
         vx = (self.r / 4.0) * (w_fl + w_fr + w_bl + w_br)
         vy = (self.r / 4.0) * (-w_fl + w_fr + w_bl - w_br)
         wz = (self.r / (4.0 * (self.lx + self.ly))) * (-w_fl + w_fr - w_bl + w_br)
+
+        # Convert odometry to RobotBody frame for EKF/mission consistency.
+        if self.flip_180:
+            vx = -vx
+            vy = -vy
 
         # Integrate in world frame
         self.yaw += wz * dt

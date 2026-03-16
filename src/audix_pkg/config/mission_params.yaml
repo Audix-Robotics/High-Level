@@ -11,6 +11,8 @@ mission_controller:
     static_persistence_cycles: 12  # scans before classifying as static
     reroute_lateral_offset: 0.35   # m — strafe offset to bypass static obstacle
     dynamic_clear_cycles: 5        # consecutive clear readings to resume
+    obstacle_sensor_warmup_sec: 2.0  # ignore startup sensor transients
+    obstacle_stop_timeout_sec: 4.0   # escalate stuck stop -> reroute
 
     # --- Scissor lift ---
     lift_dwell_time: 3.0           # seconds to hold at scan height
@@ -29,6 +31,7 @@ mecanum_kinematics:
     wheel_radius: 0.0485           # m
     wheel_base_half: 0.09          # m  (half front-to-back axle distance)
     track_width_half: 0.1574       # m  (half left-to-right wheel distance)
+    robot_body_frame_flip_180: true  # RobotBody is pi-rotated from base_link
 
 start_stop_node:
   ros__parameters:
