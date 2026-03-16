@@ -25,7 +25,16 @@ from nav_msgs.msg import Odometry
 from sensor_msgs.msg import Imu, LaserScan
 from std_msgs.msg import Bool, Float64MultiArray
 from std_srvs.srv import Trigger
-import tf_transformations
+def _euler_from_quat(x, y, z, w):
+    t0 = 2.0 * (w * x + y * z)
+    t1 = 1.0 - 2.0 * (x * x + y * y)
+    roll = math.atan2(t0, t1)
+    t2 = max(-1.0, min(1.0, 2.0 * (w * y - z * x)))
+    pitch = math.asin(t2)
+    t3 = 2.0 * (w * z + x * y)
+    t4 = 1.0 - 2.0 * (y * y + z * z)
+    yaw = math.atan2(t3, t4)
+    return roll, pitch, yaw
 
 
 class State(Enum):
@@ -46,7 +55,7 @@ class MissionController(Node):
         super().__init__('mission_controller')
 
         # --- Declare ALL parameters ---
-        self.declare_parameter('waypoints', [])
+        self.declare_parameter('waypoints', [0.0])
         self.declare_parameter('safe_distance', 0.25)
         self.declare_parameter('side_safe_distance', 0.15)
         self.declare_parameter('static_persistence_cycles', 12)
@@ -79,7 +88,7 @@ class MissionController(Node):
         # Parse waypoints from YAML: flat list [x,y,yaw,h, x,y,yaw,h, ...]
         wp_flat = self.get_parameter('waypoints').value
         self.waypoints = []
-        if wp_flat:
+        if wp_flat and len(wp_flat) >= 4:
             # Could be list-of-lists or flat
             if isinstance(wp_flat[0], (list, tuple)):
                 for wp in wp_flat:
@@ -162,18 +171,19 @@ class MissionController(Node):
     # Callbacks
     # ================================================================
     def _ir_cb(self, key: str, msg: LaserScan):
-        ranges = np.array(msg.ranges)
-        ranges = np.nan_to_num(ranges, nan=float('inf'), posinf=float('inf'))
-        if len(ranges) > 0:
-            self.ir[key] = float(np.min(ranges))
-        else:
-            self.ir[key] = float('inf')
+        ranges = np.array(msg.ranges, dtype=float)
+        # Mask readings outside [range_min, range_max) — Gazebo returns range_max for "no hit"
+        rmin = msg.range_min if msg.range_min > 0 else 0.01
+        rmax = msg.range_max if msg.range_max > 0 else float('inf')
+        ranges[(ranges < rmin) | (ranges >= rmax) | np.isnan(ranges)] = np.inf
+        valid = ranges[np.isfinite(ranges)]
+        self.ir[key] = float(np.min(valid)) if len(valid) > 0 else float('inf')
 
     def _odom_cb(self, msg: Odometry):
         self.x = msg.pose.pose.position.x
         self.y = msg.pose.pose.position.y
         q = msg.pose.pose.orientation
-        _, _, yaw = tf_transformations.euler_from_quaternion([q.x, q.y, q.z, q.w])
+        _, _, yaw = _euler_from_quat(q.x, q.y, q.z, q.w)
         self.yaw = yaw
 
     def _imu_cb(self, msg: Imu):
@@ -403,7 +413,7 @@ class MissionController(Node):
         # ---- ROTATE_TO_TARGET ----
         if self.state == State.ROTATE_TO_TARGET:
             if abs(angle_error) > self.ang_tol:
-                self._publish_cmd(wz=-self.ang_kp * angle_error)
+                self._publish_cmd(wz=self.ang_kp * angle_error)
             else:
                 self.state = State.MOVE_FORWARD
                 self.get_logger().info(
@@ -418,7 +428,7 @@ class MissionController(Node):
                 # Small angular correction while moving
                 self._publish_cmd(
                     vx=speed,
-                    wz=-self.ang_kp * angle_error * 0.3,
+                    wz=self.ang_kp * angle_error * 0.3,
                 )
             else:
                 self.state = State.ROTATE_TO_FINAL
@@ -428,7 +438,7 @@ class MissionController(Node):
         # ---- ROTATE_TO_FINAL ----
         if self.state == State.ROTATE_TO_FINAL:
             if abs(final_yaw_error) > self.ang_tol:
-                self._publish_cmd(wz=-self.ang_kp * final_yaw_error)
+                self._publish_cmd(wz=self.ang_kp * final_yaw_error)
             else:
                 self._publish_stop()
                 self.target_lift_pos = self._height_to_carriage(tlift)

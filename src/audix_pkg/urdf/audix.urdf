@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<robot name="audix">
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="audix">
+  <xacro:arg name="controllers_yaml" default=""/>
 
   <!-- ============================================================ -->
   <!-- BASE LINK                                                     -->
@@ -16,9 +17,10 @@
       <geometry><mesh filename="package://audix/meshes/base_link.STL"/></geometry>
       <material name=""><color rgba="0.792 0.820 0.933 1"/></material>
     </visual>
+    <!-- dartsim does not support mesh collision — use box approximation -->
     <collision>
-      <origin xyz="0 0 0" rpy="0 0 0"/>
-      <geometry><mesh filename="package://audix/meshes/base_link.STL"/></geometry>
+      <origin xyz="-0.165 -0.150 0.055" rpy="0 0 0"/>
+      <geometry><box size="0.32 0.35 0.11"/></geometry>
     </collision>
   </link>
 
@@ -47,7 +49,7 @@
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
-      <geometry><mesh filename="package://audix/meshes/front_left_wheel_link.STL"/></geometry>
+      <geometry><cylinder radius="0.0485" length="0.025"/></geometry>
     </collision>
   </link>
   <joint name="front_left_wheel_joint" type="continuous">
@@ -71,7 +73,7 @@
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
-      <geometry><mesh filename="package://audix/meshes/front_right_wheel_link.STL"/></geometry>
+      <geometry><cylinder radius="0.0485" length="0.025"/></geometry>
     </collision>
   </link>
   <joint name="front_right_wheel_joint" type="continuous">
@@ -95,7 +97,7 @@
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
-      <geometry><mesh filename="package://audix/meshes/back_right_wheel_link.STL"/></geometry>
+      <geometry><cylinder radius="0.0485" length="0.025"/></geometry>
     </collision>
   </link>
   <joint name="back_right_wheel_joint" type="continuous">
@@ -119,7 +121,7 @@
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
-      <geometry><mesh filename="package://audix/meshes/back_left_wheel_link.STL"/></geometry>
+      <geometry><cylinder radius="0.0485" length="0.025"/></geometry>
     </collision>
   </link>
   <joint name="back_left_wheel_joint" type="continuous">
@@ -145,8 +147,8 @@
       <material name=""><color rgba="0.792 0.820 0.933 1"/></material>
     </visual>
     <collision>
-      <origin xyz="0 0 0" rpy="0 0 0"/>
-      <geometry><mesh filename="package://audix/meshes/scissors_lift_base.STL"/></geometry>
+      <origin xyz="0.064 0.0 0.041" rpy="0 0 0"/>
+      <geometry><box size="0.22 0.10 0.08"/></geometry>
     </collision>
   </link>
   <joint name="scissors_lift_base_fix" type="fixed">
@@ -170,7 +172,7 @@
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
-      <geometry><mesh filename="package://audix/meshes/bottom_stud_link.STL"/></geometry>
+      <geometry><cylinder radius="0.004" length="0.015"/></geometry>
     </collision>
   </link>
   <joint name="bottom_stud_joint" type="prismatic">
@@ -189,7 +191,7 @@
       <inertia ixx="3.585E-07" ixy="-1.513E-06" ixz="0" iyy="7.863E-06" iyz="0" izz="8.195E-06"/>
     </inertial>
     <visual><origin xyz="0 0 0" rpy="0 0 0"/><geometry><mesh filename="package://audix/meshes/right_link1.STL"/></geometry><material name=""><color rgba="0.792 0.820 0.933 1"/></material></visual>
-    <collision><origin xyz="0 0 0" rpy="0 0 0"/><geometry><mesh filename="package://audix/meshes/right_link1.STL"/></geometry></collision>
+    <collision><origin xyz="0.059 0.011 0.0" rpy="0 0 0"/><geometry><box size="0.12 0.015 0.012"/></geometry></collision>
   </link>
   <joint name="right_joint1" type="revolute">
     <origin xyz="0 -0.0428492805920998 0" rpy="1.5707963267949 -1.5707963267949 0"/>
@@ -202,7 +204,7 @@
     <inertial><origin xyz="0.0589 0.01143 0" rpy="0 0 0"/><mass value="0.006154"/>
       <inertia ixx="3.585E-07" ixy="-1.513E-06" ixz="0" iyy="7.863E-06" iyz="0" izz="8.195E-06"/></inertial>
     <visual><origin xyz="0 0 0" rpy="0 0 0"/><geometry><mesh filename="package://audix/meshes/right_link4.STL"/></geometry><material name=""><color rgba="0.792 0.820 0.933 1"/></material></visual>
-    <collision><origin xyz="0 0 0" rpy="0 0 0"/><geometry><mesh filename="package://audix/meshes/right_link4.STL"/></geometry></collision>
+    <collision><origin xyz="0.059 0.011 0.0" rpy="0 0 0"/><geometry><box size="0.12 0.015 0.012"/></geometry></collision>
   </link>
   <joint name="right_joint4" type="revolute">
     <origin xyz="0.117803138552677 0.022856520888779 -0.00500000000000089" rpy="3.14159265358979 0 3.14159265358979"/>
@@ -215,7 +217,7 @@
     <inertial><origin xyz="0.0589 0.01104 0.00297" rpy="0 0 0"/><mass value="0.006154"/>
       <inertia ixx="3.585E-07" ixy="-1.461E-06" ixz="-3.929E-07" iyy="7.885E-06" iyz="-8.347E-08" izz="8.173E-06"/></inertial>
     <visual><origin xyz="0 0 0" rpy="0 0 0"/><geometry><mesh filename="package://audix/meshes/right_link5.STL"/></geometry><material name=""><color rgba="0.792 0.820 0.933 1"/></material></visual>
-    <collision><origin xyz="0 0 0" rpy="0 0 0"/><geometry><mesh filename="package://audix/meshes/right_link5.STL"/></geometry></collision>
+    <collision><origin xyz="0.059 0.011 0.003" rpy="0 0 0"/><geometry><box size="0.12 0.015 0.012"/></geometry></collision>
   </link>
   <joint name="right_joint5" type="revolute">
     <origin xyz="0.117803138552938 0.0228565208873703 -0.00499999999999845" rpy="3.14159265358979 0 3.14159265358979"/>
@@ -229,7 +231,7 @@
     <inertial><origin xyz="0.0589 0.01143 0" rpy="0 0 0"/><mass value="0.006154"/>
       <inertia ixx="3.585E-07" ixy="-1.513E-06" ixz="0" iyy="7.863E-06" iyz="0" izz="8.195E-06"/></inertial>
     <visual><origin xyz="0 0 0" rpy="0 0 0"/><geometry><mesh filename="package://audix/meshes/left_link1.STL"/></geometry><material name=""><color rgba="0.792 0.820 0.933 1"/></material></visual>
-    <collision><origin xyz="0 0 0" rpy="0 0 0"/><geometry><mesh filename="package://audix/meshes/left_link1.STL"/></geometry></collision>
+    <collision><origin xyz="0.059 0.011 0.0" rpy="0 0 0"/><geometry><box size="0.12 0.015 0.012"/></geometry></collision>
   </link>
   <joint name="left_joint1" type="revolute">
     <origin xyz="0 0.0421507194079047 0" rpy="1.5707963267949 -1.5707963267949 0"/>
@@ -242,7 +244,7 @@
     <inertial><origin xyz="0.0589 0.01143 0" rpy="0 0 0"/><mass value="0.006154"/>
       <inertia ixx="3.585E-07" ixy="-1.513E-06" ixz="0" iyy="7.863E-06" iyz="0" izz="8.195E-06"/></inertial>
     <visual><origin xyz="0 0 0" rpy="0 0 0"/><geometry><mesh filename="package://audix/meshes/left_link4.STL"/></geometry><material name=""><color rgba="0.792 0.820 0.933 1"/></material></visual>
-    <collision><origin xyz="0 0 0" rpy="0 0 0"/><geometry><mesh filename="package://audix/meshes/left_link4.STL"/></geometry></collision>
+    <collision><origin xyz="0.059 0.011 0.0" rpy="0 0 0"/><geometry><box size="0.12 0.015 0.012"/></geometry></collision>
   </link>
   <joint name="left_joint4" type="revolute">
     <origin xyz="0.117803138552674 0.0228565208888156 0.00500000000000111" rpy="3.14159265358979 0 3.14159265358979"/>
@@ -255,7 +257,7 @@
     <inertial><origin xyz="0.0589 0.01143 0" rpy="0 0 0"/><mass value="0.006154"/>
       <inertia ixx="3.585E-07" ixy="-1.513E-06" ixz="0" iyy="7.863E-06" iyz="0" izz="8.195E-06"/></inertial>
     <visual><origin xyz="0 0 0" rpy="0 0 0"/><geometry><mesh filename="package://audix/meshes/left_link5.STL"/></geometry><material name=""><color rgba="0.792 0.820 0.933 1"/></material></visual>
-    <collision><origin xyz="0 0 0" rpy="0 0 0"/><geometry><mesh filename="package://audix/meshes/left_link5.STL"/></geometry></collision>
+    <collision><origin xyz="0.059 0.011 0.0" rpy="0 0 0"/><geometry><box size="0.12 0.015 0.012"/></geometry></collision>
   </link>
   <joint name="left_joint5" type="revolute">
     <origin xyz="0.11780313855294 0.0228565208874148 0.00499999999999923" rpy="3.14159265358979 0 3.14159265358979"/>
@@ -273,7 +275,7 @@
                iyy="0.000709" iyz="-3.643E-09" izz="0.000434"/>
     </inertial>
     <visual><origin xyz="0 0 0" rpy="0 0 0"/><geometry><mesh filename="package://audix/meshes/camera_link.STL"/></geometry><material name=""><color rgba="0.792 0.820 0.933 1"/></material></visual>
-    <collision><origin xyz="0 0 0" rpy="0 0 0"/><geometry><mesh filename="package://audix/meshes/camera_link.STL"/></geometry></collision>
+    <collision><origin xyz="-0.068 0.022 -0.043" rpy="0 0 0"/><geometry><box size="0.15 0.12 0.10"/></geometry></collision>
   </link>
   <joint name="camera_joint" type="revolute">
     <origin xyz="0.11780313855266 0.0228565208888024 0.0850000000000067" rpy="0 0 0"/>
@@ -287,7 +289,7 @@
     <inertial><origin xyz="0.0589 0.01143 0" rpy="0 0 0"/><mass value="0.006154"/>
       <inertia ixx="3.585E-07" ixy="-1.513E-06" ixz="0" iyy="7.863E-06" iyz="0" izz="8.195E-06"/></inertial>
     <visual><origin xyz="0 0 0" rpy="0 0 0"/><geometry><mesh filename="package://audix/meshes/right_link2.STL"/></geometry><material name=""><color rgba="0.792 0.820 0.933 1"/></material></visual>
-    <collision><origin xyz="0 0 0" rpy="0 0 0"/><geometry><mesh filename="package://audix/meshes/right_link2.STL"/></geometry></collision>
+    <collision><origin xyz="0.059 0.011 0.0" rpy="0 0 0"/><geometry><box size="0.12 0.015 0.012"/></geometry></collision>
   </link>
   <joint name="right_joint2" type="revolute">
     <origin xyz="0.0199999999999953 0.037499999999994 0.0424999999999847" rpy="1.5707963267949 0 0"/>
@@ -300,7 +302,7 @@
     <inertial><origin xyz="0.0589 0.01143 0" rpy="0 0 0"/><mass value="0.006154"/>
       <inertia ixx="3.585E-07" ixy="-1.513E-06" ixz="0" iyy="7.863E-06" iyz="0" izz="8.195E-06"/></inertial>
     <visual><origin xyz="0 0 0" rpy="0 0 0"/><geometry><mesh filename="package://audix/meshes/right_link3.STL"/></geometry><material name=""><color rgba="0.792 0.820 0.933 1"/></material></visual>
-    <collision><origin xyz="0 0 0" rpy="0 0 0"/><geometry><mesh filename="package://audix/meshes/right_link3.STL"/></geometry></collision>
+    <collision><origin xyz="0.059 0.011 0.0" rpy="0 0 0"/><geometry><box size="0.12 0.015 0.012"/></geometry></collision>
   </link>
   <joint name="right_joint3" type="revolute">
     <origin xyz="0.117803138552934 0.0228565208874355 -0.00500000000000012" rpy="3.14159265358979 0 3.14159265358979"/>
@@ -313,7 +315,7 @@
     <inertial><origin xyz="0.0589 0.01143 0" rpy="0 0 0"/><mass value="0.006154"/>
       <inertia ixx="3.585E-07" ixy="-1.513E-06" ixz="0" iyy="7.863E-06" iyz="0" izz="8.195E-06"/></inertial>
     <visual><origin xyz="0 0 0" rpy="0 0 0"/><geometry><mesh filename="package://audix/meshes/right_link6.STL"/></geometry><material name=""><color rgba="0.792 0.820 0.933 1"/></material></visual>
-    <collision><origin xyz="0 0 0" rpy="0 0 0"/><geometry><mesh filename="package://audix/meshes/right_link6.STL"/></geometry></collision>
+    <collision><origin xyz="0.059 0.011 0.0" rpy="0 0 0"/><geometry><box size="0.12 0.015 0.012"/></geometry></collision>
   </link>
   <joint name="right_joint6" type="revolute">
     <origin xyz="0.11780313855268 0.0228565208887971 -0.00500000000000211" rpy="-3.14159265358979 0 -3.14159265358979"/>
@@ -327,7 +329,7 @@
     <inertial><origin xyz="0.0589 0.01143 0" rpy="0 0 0"/><mass value="0.006154"/>
       <inertia ixx="3.585E-07" ixy="-1.513E-06" ixz="0" iyy="7.863E-06" iyz="0" izz="8.195E-06"/></inertial>
     <visual><origin xyz="0 0 0" rpy="0 0 0"/><geometry><mesh filename="package://audix/meshes/left_link2.STL"/></geometry><material name=""><color rgba="0.792 0.820 0.933 1"/></material></visual>
-    <collision><origin xyz="0 0 0" rpy="0 0 0"/><geometry><mesh filename="package://audix/meshes/left_link2.STL"/></geometry></collision>
+    <collision><origin xyz="0.059 0.011 0.0" rpy="0 0 0"/><geometry><box size="0.12 0.015 0.012"/></geometry></collision>
   </link>
   <joint name="left_joint2" type="revolute">
     <origin xyz="0.0199999999999877 -0.037500000000009 0.0424999999999793" rpy="1.5707963267949 0 0"/>
@@ -340,7 +342,7 @@
     <inertial><origin xyz="0.0589 0.01143 0" rpy="0 0 0"/><mass value="0.006154"/>
       <inertia ixx="3.585E-07" ixy="-1.513E-06" ixz="0" iyy="7.863E-06" iyz="0" izz="8.195E-06"/></inertial>
     <visual><origin xyz="0 0 0" rpy="0 0 0"/><geometry><mesh filename="package://audix/meshes/left_link3.STL"/></geometry><material name=""><color rgba="0.792 0.820 0.933 1"/></material></visual>
-    <collision><origin xyz="0 0 0" rpy="0 0 0"/><geometry><mesh filename="package://audix/meshes/left_link3.STL"/></geometry></collision>
+    <collision><origin xyz="0.059 0.011 0.0" rpy="0 0 0"/><geometry><box size="0.12 0.015 0.012"/></geometry></collision>
   </link>
   <joint name="left_joint3" type="revolute">
     <origin xyz="0.117803138552934 0.0228565208874119 0.00500000000000156" rpy="3.14159265358979 0 3.14159265358979"/>
@@ -353,7 +355,7 @@
     <inertial><origin xyz="0.0589 0.01143 0" rpy="0 0 0"/><mass value="0.006154"/>
       <inertia ixx="3.585E-07" ixy="-1.513E-06" ixz="0" iyy="7.863E-06" iyz="0" izz="8.195E-06"/></inertial>
     <visual><origin xyz="0 0 0" rpy="0 0 0"/><geometry><mesh filename="package://audix/meshes/left_link6.STL"/></geometry><material name=""><color rgba="0.792 0.820 0.933 1"/></material></visual>
-    <collision><origin xyz="0 0 0" rpy="0 0 0"/><geometry><mesh filename="package://audix/meshes/left_link6.STL"/></geometry></collision>
+    <collision><origin xyz="0.059 0.011 0.0" rpy="0 0 0"/><geometry><box size="0.12 0.015 0.012"/></geometry></collision>
   </link>
   <joint name="left_joint6" type="revolute">
     <origin xyz="0.117803138552671 0.0228565208888066 0.00500000000000234" rpy="-3.14159265358979 0 -3.14159265358979"/>
@@ -367,7 +369,7 @@
     <inertial><origin xyz="-7.501E-08 -7.194E-07 -1.618E-06" rpy="0 0 0"/><mass value="0.001371"/>
       <inertia ixx="1.363E-06" ixy="1.136E-11" ixz="-2.262E-13" iyy="2.721E-09" iyz="0" izz="1.363E-06"/></inertial>
     <visual><origin xyz="0 0 0" rpy="0 0 0"/><geometry><mesh filename="package://audix/meshes/top_stud_link.STL"/></geometry><material name=""><color rgba="0.776 0.757 0.737 1"/></material></visual>
-    <collision><origin xyz="0 0 0" rpy="0 0 0"/><geometry><mesh filename="package://audix/meshes/top_stud_link.STL"/></geometry></collision>
+    <collision><origin xyz="0 0 0" rpy="0 0 0"/><geometry><cylinder radius="0.004" length="0.015"/></geometry></collision>
   </link>
   <joint name="top_stud_joint" type="prismatic">
     <origin xyz="0.117801346067551 0.022856657474836 -0.0371507194079034" rpy="-1.5707963267949 0 1.5707963267949"/>
@@ -486,6 +488,7 @@
   <!-- ============================================================ -->
   <gazebo>
     <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+      <parameters>$(arg controllers_yaml)</parameters>
       <ros><remapping>~/robot_description:=robot_description</remapping></ros>
     </plugin>
   </gazebo>

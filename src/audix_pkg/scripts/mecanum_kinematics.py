@@ -16,7 +16,12 @@ from nav_msgs.msg import Odometry
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Float64MultiArray
-import tf_transformations
+def _quat_from_euler(roll, pitch, yaw):
+    cy, sy = math.cos(yaw * 0.5), math.sin(yaw * 0.5)
+    cp, sp = math.cos(pitch * 0.5), math.sin(pitch * 0.5)
+    cr, sr = math.cos(roll * 0.5), math.sin(roll * 0.5)
+    return [sr*cp*cy - cr*sp*sy, cr*sp*cy + sr*cp*sy,
+            cr*cp*sy - sr*sp*cy, cr*cp*cy + sr*sp*sy]
 
 
 class MecanumKinematics(Node):
@@ -122,7 +127,7 @@ class MecanumKinematics(Node):
         odom.child_frame_id = 'RobotBody'
         odom.pose.pose.position.x = self.x
         odom.pose.pose.position.y = self.y
-        q = tf_transformations.quaternion_from_euler(0.0, 0.0, self.yaw)
+        q = _quat_from_euler(0.0, 0.0, self.yaw)
         odom.pose.pose.orientation.x = q[0]
         odom.pose.pose.orientation.y = q[1]
         odom.pose.pose.orientation.z = q[2]

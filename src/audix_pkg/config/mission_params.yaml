@@ -2,10 +2,8 @@ mission_controller:
   ros__parameters:
     # --- Waypoints: [x, y, yaw_rad, lift_height_m] ---
     # 3 targets (excluding home) as required by rubric
-    waypoints:
-      - [1.5, 0.5, 1.5708, 0.10]
-      - [3.0, -0.5, 0.0, 0.20]
-      - [4.5, 0.5, -1.5708, 0.30]
+    # Flat list: [x, y, yaw_rad, lift_height_m,  x, y, yaw_rad, lift_height_m, ...]
+    waypoints: [1.5, 0.5, 1.5708, 0.10,  3.0, -0.5, 0.0, 0.20,  4.5, 0.5, -1.5708, 0.30]
 
     # --- Obstacle avoidance ---
     safe_distance: 0.25            # m — trigger threshold for front sensors
@@ -18,11 +16,6 @@ mission_controller:
     lift_dwell_time: 3.0           # seconds to hold at scan height
     lift_position_tolerance: 0.003 # m — when to consider lift at target
 
-    # --- Mecanum kinematics ---
-    wheel_radius: 0.0485           # m
-    wheel_base_half: 0.09          # m  (half front-to-back axle distance)
-    track_width_half: 0.1574       # m  (half left-to-right wheel distance)
-
     # --- Navigation tuning ---
     linear_kp: 0.5
     angular_kp: 1.5
@@ -31,14 +24,14 @@ mission_controller:
     position_tolerance: 0.05       # m
     angle_tolerance: 0.05          # rad
 
-    # --- Start/stop ---
+mecanum_kinematics:
+  ros__parameters:
+    wheel_radius: 0.0485           # m
+    wheel_base_half: 0.09          # m  (half front-to-back axle distance)
+    track_width_half: 0.1574       # m  (half left-to-right wheel distance)
+
+start_stop_node:
+  ros__parameters:
     auto_start: true
     start_delay: 6.0               # seconds after launch
 
-obstacle_spawner:
-  ros__parameters:
-    static_obstacles:
-      - {x: 2.2, y: 0.0, z: 0.15, sx: 0.25, sy: 0.25, sz: 0.30}
-    dynamic_obstacles:
-      - {x: 3.8, y: -1.0, z: 0.15, sx: 0.25, sy: 0.25, sz: 0.30,
-         path_axis: "y", path_range: 2.0, speed: 0.2}

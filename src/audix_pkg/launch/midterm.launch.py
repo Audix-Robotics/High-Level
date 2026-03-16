@@ -39,7 +39,12 @@ def generate_launch_description():
     ekf_config = os.path.join(pkg_share, 'config', 'ekf.yaml')
     mission_config = os.path.join(pkg_share, 'config', 'mission_params.yaml')
 
-    robot_description = Command(['xacro ', urdf_path])
+    controllers_yaml = os.path.join(pkg_share, 'config', 'controllers.yaml')
+    obstacles_config = os.path.join(pkg_share, 'config', 'obstacles.yaml')
+    robot_description = Command([
+        'xacro ', urdf_path,
+        ' controllers_yaml:=', controllers_yaml,
+    ])
 
     # --- Environment ---
     gz_resource = SetEnvironmentVariable(
@@ -71,18 +76,21 @@ def generate_launch_description():
         }],
     )
 
-    # --- Spawn robot ---
-    spawn = Node(
-        package='ros_gz_sim',
-        executable='create',
-        output='screen',
-        arguments=[
-            '-world', 'warehouse',
-            '-topic', 'robot_description',
-            '-name', 'audix',
-            '-x', '0.5', '-y', '1.1', '-z', '0.06',
-            '-R', '0.0', '-P', '0.0', '-Y', '3.14159',
-        ],
+    # --- Spawn robot (delayed: Gazebo needs ~5s to load the world) ---
+    spawn = TimerAction(
+        period=5.0,
+        actions=[Node(
+            package='ros_gz_sim',
+            executable='create',
+            output='screen',
+            arguments=[
+                '-world', 'warehouse',
+                '-topic', 'robot_description',
+                '-name', 'audix',
+                '-x', '0.5', '-y', '1.1', '-z', '0.06',
+                '-R', '0.0', '-P', '0.0', '-Y', '3.14159',
+            ],
+        )],
     )
 
     # --- GZ Bridge ---
@@ -92,7 +100,8 @@ def generate_launch_description():
         output='screen',
         arguments=[
             '/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
-            '/joint_states@sensor_msgs/msg/JointState[gz.msgs.Model',
+            # joint_states: published directly to ROS by joint_state_broadcaster
+            # via gz_ros2_control — do NOT bridge it here (gz.msgs.Model is wrong type)
             '/imu@sensor_msgs/msg/Imu[gz.msgs.IMU',
             # 6 IR sensors
             '/ir_front/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan',
@@ -102,31 +111,39 @@ def generate_launch_description():
             '/ir_right/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan',
             '/ir_back/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan',
         ],
-        remappings=[
-            ('/world/warehouse/model/audix/joint_state', '/joint_states'),
-        ],
     )
 
     # --- Controller spawners ---
-    jsb_spawner = Node(
-        package='controller_manager',
-        executable='spawner',
-        arguments=['joint_state_broadcaster'],
-        parameters=[{'use_sim_time': True}],
+    # Delayed: controller_manager (inside gz_ros2_control) needs Gazebo fully loaded
+    # + robot spawned before it appears. 10s is conservative but reliable.
+    jsb_spawner = TimerAction(
+        period=10.0,
+        actions=[Node(
+            package='controller_manager',
+            executable='spawner',
+            arguments=['joint_state_broadcaster'],
+            parameters=[{'use_sim_time': True}],
+        )],
     )
 
-    mecanum_spawner = Node(
-        package='controller_manager',
-        executable='spawner',
-        arguments=['mecanum_velocity_controller'],
-        parameters=[{'use_sim_time': True}],
+    mecanum_spawner = TimerAction(
+        period=11.0,
+        actions=[Node(
+            package='controller_manager',
+            executable='spawner',
+            arguments=['mecanum_velocity_controller'],
+            parameters=[{'use_sim_time': True}],
+        )],
     )
 
-    scissor_spawner = Node(
-        package='controller_manager',
-        executable='spawner',
-        arguments=['scissor_position_controller'],
-        parameters=[{'use_sim_time': True}],
+    scissor_spawner = TimerAction(
+        period=11.0,
+        actions=[Node(
+            package='controller_manager',
+            executable='spawner',
+            arguments=['scissor_position_controller'],
+            parameters=[{'use_sim_time': True}],
+        )],
     )
 
     # --- EKF ---
@@ -180,9 +197,8 @@ def generate_launch_description():
     # --- Obstacle spawning from YAML ---
     obstacle_nodes = []
     try:
-        with open(mission_config, 'r') as f:
-            params = yaml.safe_load(f)
-        spawner_params = params.get('obstacle_spawner', {}).get('ros__parameters', {})
+        with open(obstacles_config, 'r') as f:
+            spawner_params = yaml.safe_load(f)
 
         for i, obs in enumerate(spawner_params.get('static_obstacles', [])):
             sdf_str = f'''<?xml version="1.0"?>

@@ -22,32 +22,34 @@ class GoalSenderNode(Node):
         self.client = self.create_client(Trigger, '/send_mission')
         self.get_logger().info('Waiting for /send_mission service...')
 
-        # Wait then call
-        self.create_timer(3.0, self._send_once)
         self.sent = False
+        self.pending = False
+        self.create_timer(3.0, self._send_once)
 
     def _send_once(self):
-        if self.sent:
+        if self.sent or self.pending:
             return
 
         if not self.client.service_is_ready():
             self.get_logger().info('Service not ready yet, retrying...')
             return
 
-        self.sent = True
+        self.pending = True
         request = Trigger.Request()
         future = self.client.call_async(request)
         future.add_done_callback(self._response_cb)
 
     def _response_cb(self, future):
+        self.pending = False
         try:
             resp = future.result()
             if resp.success:
+                self.sent = True
                 self.get_logger().info(f'Mission activated: {resp.message}')
             else:
-                self.get_logger().error(f'Mission failed: {resp.message}')
+                self.get_logger().warn(f'Mission not ready ({resp.message}) — will retry')
         except Exception as e:
-            self.get_logger().error(f'Service call failed: {e}')
+            self.get_logger().error(f'Service call failed: {e} — will retry')
 
 
 def main(args=None):
