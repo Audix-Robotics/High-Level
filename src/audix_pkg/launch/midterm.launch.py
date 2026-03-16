@@ -1,0 +1,257 @@
+"""
+Audix midterm master launch file.
+
+Launches:
+  1. Gazebo Harmonic with warehouse world
+  2. Robot state publisher
+  3. Robot spawn
+  4. gz_ros2_bridge (all topics including 6 IR sensors)
+  5. Controller spawners (joint_state_broadcaster, mecanum_velocity, scissor_position)
+  6. EKF (robot_localization)
+  7. Mecanum kinematics node
+  8. Mission controller
+  9. Start/stop node
+  10. Goal sender node
+  11. Static/dynamic obstacle spawning from YAML
+"""
+
+import os
+import yaml
+
+from launch import LaunchDescription
+from launch.actions import (
+    IncludeLaunchDescription, SetEnvironmentVariable,
+    TimerAction, ExecuteProcess,
+)
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import Command
+from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
+from ament_index_python.packages import get_package_share_directory
+
+
+def generate_launch_description():
+    pkg_share = get_package_share_directory('audix')
+    pkg_parent = os.path.dirname(pkg_share)
+
+    urdf_path = os.path.join(pkg_share, 'urdf', 'audix.urdf')
+    world_path = os.path.join(pkg_share, 'world', 'warehouse.sdf')
+    ekf_config = os.path.join(pkg_share, 'config', 'ekf.yaml')
+    mission_config = os.path.join(pkg_share, 'config', 'mission_params.yaml')
+
+    robot_description = Command(['xacro ', urdf_path])
+
+    # --- Environment ---
+    gz_resource = SetEnvironmentVariable(
+        name='GZ_SIM_RESOURCE_PATH',
+        value=f'{pkg_parent}:{pkg_share}'
+    )
+    ign_resource = SetEnvironmentVariable(
+        name='IGN_GAZEBO_RESOURCE_PATH',
+        value=f'{pkg_parent}:{pkg_share}'
+    )
+
+    # --- Gazebo ---
+    gazebo = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([
+            os.path.join(get_package_share_directory('ros_gz_sim'),
+                         'launch', 'gz_sim.launch.py')
+        ]),
+        launch_arguments={'gz_args': f'-r -v 4 {world_path}'}.items(),
+    )
+
+    # --- Robot State Publisher ---
+    rsp = Node(
+        package='robot_state_publisher',
+        executable='robot_state_publisher',
+        output='screen',
+        parameters=[{
+            'robot_description': ParameterValue(robot_description, value_type=str),
+            'use_sim_time': True,
+        }],
+    )
+
+    # --- Spawn robot ---
+    spawn = Node(
+        package='ros_gz_sim',
+        executable='create',
+        output='screen',
+        arguments=[
+            '-world', 'warehouse',
+            '-topic', 'robot_description',
+            '-name', 'audix',
+            '-x', '0.5', '-y', '1.1', '-z', '0.06',
+            '-R', '0.0', '-P', '0.0', '-Y', '3.14159',
+        ],
+    )
+
+    # --- GZ Bridge ---
+    bridge = Node(
+        package='ros_gz_bridge',
+        executable='parameter_bridge',
+        output='screen',
+        arguments=[
+            '/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
+            '/joint_states@sensor_msgs/msg/JointState[gz.msgs.Model',
+            '/imu@sensor_msgs/msg/Imu[gz.msgs.IMU',
+            # 6 IR sensors
+            '/ir_front/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan',
+            '/ir_front_left/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan',
+            '/ir_front_right/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan',
+            '/ir_left/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan',
+            '/ir_right/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan',
+            '/ir_back/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan',
+        ],
+        remappings=[
+            ('/world/warehouse/model/audix/joint_state', '/joint_states'),
+        ],
+    )
+
+    # --- Controller spawners ---
+    jsb_spawner = Node(
+        package='controller_manager',
+        executable='spawner',
+        arguments=['joint_state_broadcaster'],
+        parameters=[{'use_sim_time': True}],
+    )
+
+    mecanum_spawner = Node(
+        package='controller_manager',
+        executable='spawner',
+        arguments=['mecanum_velocity_controller'],
+        parameters=[{'use_sim_time': True}],
+    )
+
+    scissor_spawner = Node(
+        package='controller_manager',
+        executable='spawner',
+        arguments=['scissor_position_controller'],
+        parameters=[{'use_sim_time': True}],
+    )
+
+    # --- EKF ---
+    ekf = Node(
+        package='robot_localization',
+        executable='ekf_node',
+        name='ekf_filter_node',
+        output='screen',
+        parameters=[ekf_config, {'use_sim_time': True}],
+    )
+
+    # --- Mecanum kinematics ---
+    mecanum_kin = Node(
+        package='audix',
+        executable='mecanum_kinematics.py',
+        name='mecanum_kinematics',
+        output='screen',
+        parameters=[mission_config, {'use_sim_time': True}],
+    )
+
+    # --- Mission controller ---
+    mission = Node(
+        package='audix',
+        executable='mission_controller.py',
+        name='mission_controller',
+        output='screen',
+        parameters=[mission_config, {'use_sim_time': True}],
+    )
+
+    # --- Start/stop ---
+    start_stop = Node(
+        package='audix',
+        executable='start_stop_node.py',
+        name='start_stop_node',
+        output='screen',
+        parameters=[mission_config, {'use_sim_time': True}],
+    )
+
+    # --- Goal sender (delayed to let everything initialize) ---
+    goal_sender = TimerAction(
+        period=4.0,
+        actions=[Node(
+            package='audix',
+            executable='goal_sender_node.py',
+            name='goal_sender_node',
+            output='screen',
+            parameters=[{'use_sim_time': True}],
+        )],
+    )
+
+    # --- Obstacle spawning from YAML ---
+    obstacle_nodes = []
+    try:
+        with open(mission_config, 'r') as f:
+            params = yaml.safe_load(f)
+        spawner_params = params.get('obstacle_spawner', {}).get('ros__parameters', {})
+
+        for i, obs in enumerate(spawner_params.get('static_obstacles', [])):
+            sdf_str = f'''<?xml version="1.0"?>
+            <sdf version="1.8"><model name="static_obs_{i}"><static>true</static>
+            <link name="link"><collision name="c"><geometry><box>
+            <size>{obs["sx"]} {obs["sy"]} {obs["sz"]}</size>
+            </box></geometry></collision>
+            <visual name="v"><geometry><box>
+            <size>{obs["sx"]} {obs["sy"]} {obs["sz"]}</size>
+            </box></geometry>
+            <material><ambient>0.8 0.2 0.2 1</ambient><diffuse>0.8 0.2 0.2 1</diffuse></material>
+            </visual></link></model></sdf>'''
+
+            obstacle_nodes.append(Node(
+                package='ros_gz_sim', executable='create', output='screen',
+                arguments=[
+                    '-world', 'warehouse',
+                    '-string', sdf_str,
+                    '-name', f'static_obs_{i}',
+                    '-x', str(obs['x']), '-y', str(obs['y']), '-z', str(obs['z']),
+                ],
+            ))
+
+        for i, obs in enumerate(spawner_params.get('dynamic_obstacles', [])):
+            # Dynamic obstacle with velocity plugin
+            vel_x = obs['speed'] if obs.get('path_axis', 'x') == 'x' else 0.0
+            vel_y = obs['speed'] if obs.get('path_axis', 'y') == 'y' else 0.0
+            sdf_str = f'''<?xml version="1.0"?>
+            <sdf version="1.8"><model name="dynamic_obs_{i}">
+            <link name="link">
+            <inertial><mass>5.0</mass>
+            <inertia><ixx>0.1</ixx><iyy>0.1</iyy><izz>0.1</izz></inertia>
+            </inertial>
+            <collision name="c"><geometry><box>
+            <size>{obs["sx"]} {obs["sy"]} {obs["sz"]}</size>
+            </box></geometry></collision>
+            <visual name="v"><geometry><box>
+            <size>{obs["sx"]} {obs["sy"]} {obs["sz"]}</size>
+            </box></geometry>
+            <material><ambient>0.9 0.6 0.1 1</ambient><diffuse>0.9 0.6 0.1 1</diffuse></material>
+            </visual></link>
+            <plugin filename="gz-sim-linear-battery-plugin" name="gz::sim::systems::LinearBattery"/>
+            </model></sdf>'''
+
+            obstacle_nodes.append(Node(
+                package='ros_gz_sim', executable='create', output='screen',
+                arguments=[
+                    '-world', 'warehouse',
+                    '-string', sdf_str,
+                    '-name', f'dynamic_obs_{i}',
+                    '-x', str(obs['x']), '-y', str(obs['y']), '-z', str(obs['z']),
+                ],
+            ))
+    except Exception:
+        pass  # If YAML parsing fails, just skip obstacle spawning
+
+    return LaunchDescription([
+        gz_resource,
+        ign_resource,
+        gazebo,
+        rsp,
+        bridge,
+        spawn,
+        jsb_spawner,
+        mecanum_spawner,
+        scissor_spawner,
+        ekf,
+        mecanum_kin,
+        mission,
+        start_stop,
+        goal_sender,
+    ] + obstacle_nodes)

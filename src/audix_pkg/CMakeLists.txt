@@ -1,26 +1,24 @@
 cmake_minimum_required(VERSION 3.8)
-
 project(audix)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-	add_compile_options(-Wall -Wextra -Wpedantic)
+  add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
 find_package(ament_cmake REQUIRED)
 
 install(
-	DIRECTORY config launch meshes urdf rviz world scripts
-	DESTINATION share/${PROJECT_NAME}
+  DIRECTORY config launch meshes urdf rviz world scripts
+  DESTINATION share/${PROJECT_NAME}
 )
 
 install(
-	PROGRAMS
-		scripts/obstacle_avoidance.py
-		scripts/scissor_lift_mapper.py
-		scripts/scissor_slider_gui.py
-		scripts/waypoints_control.py
-		scripts/waypoints_final.py
-	DESTINATION lib/${PROJECT_NAME}
+  PROGRAMS
+    scripts/mission_controller.py
+    scripts/mecanum_kinematics.py
+    scripts/start_stop_node.py
+    scripts/goal_sender_node.py
+  DESTINATION lib/${PROJECT_NAME}
 )
 
 ament_package()
