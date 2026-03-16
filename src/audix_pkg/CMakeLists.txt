@@ -16,6 +16,8 @@ install(
 install(
 	PROGRAMS
 		scripts/obstacle_avoidance.py
+		scripts/scissor_lift_mapper.py
+		scripts/scissor_slider_gui.py
 		scripts/waypoints_control.py
 		scripts/waypoints_final.py
 	DESTINATION lib/${PROJECT_NAME}

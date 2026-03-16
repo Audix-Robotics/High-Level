@@ -22,7 +22,7 @@ diff_drive_controller:
 
     publish_rate: 50.0
     odom_frame_id: odom
-    base_frame_id: RobotBody
+    base_frame_id: base_link
     pose_covariance_diagonal: [0.001, 0.001, 0.001, 0.001, 0.001, 0.01]
     twist_covariance_diagonal: [0.001, 0.001, 0.001, 0.001, 0.001, 0.01]
     open_loop: true
@@ -49,3 +49,21 @@ diff_drive_controller:
     angular.z.min_acceleration: -1.0
     angular.z.max_jerk: 0.0
     angular.z.min_jerk: 0.0
+
+scissor_position_controller:
+  ros__parameters:
+    joints:
+      - bottom_stud_joint
+      - left_joint1
+      - right_joint1
+      - left_joint2
+      - right_joint2
+      - left_joint3
+      - right_joint3
+      - left_joint4
+      - right_joint4
+      - left_joint5
+      - right_joint5
+      - left_joint6
+      - right_joint6
+    interface_name: position
