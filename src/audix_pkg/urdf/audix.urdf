@@ -4,6 +4,15 @@
      For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
 <robot
   name="audix">
+  <!-- Root frame for the robot TF tree (no inertia/geometry) -->
+  <link name="base_footprint"/>
+
+  <joint name="base_footprint_joint" type="fixed">
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <parent link="base_footprint"/>
+    <child link="base_link"/>
+  </joint>
+
   <link
     name="base_link">
     <inertial>
@@ -502,7 +511,7 @@
     <visual>
       <origin
         xyz="0 0 0"
-        rpy="0 0 0" />
+        rpy="-0.2626891593 0 0" />
       <geometry>
         <mesh
           filename="package://audix/meshes/right_link5.STL" />
@@ -516,7 +525,7 @@
     <collision>
       <origin
         xyz="0 0 0"
-        rpy="0 0 0" />
+        rpy="-0.2626891593 0 0" />
       <geometry>
         <mesh
           filename="package://audix/meshes/right_link5.STL" />
@@ -527,7 +536,7 @@
     name="right_joint5"
     type="revolute">
     <origin
-      xyz="0.117803138552938 0.0228565208873703 -0.00499999999999845"
+      xyz="0.11780313855294 0.0228565208874148 -0.00499999999999923"
       rpy="3.14159265358979 0 3.14159265358979" />
     <parent
       link="right_link4" />
@@ -1277,6 +1286,11 @@
       <state_interface name="position"/>
       <state_interface name="velocity"/>
     </joint>
+    <joint name="top_stud_joint">
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
     <joint name="left_joint1">
       <command_interface name="position"/>
       <state_interface name="position"/>
@@ -1353,6 +1367,8 @@
       <ros>
         <remapping>~/robot_description:=robot_description</remapping>
       </ros>
+      <!-- Controller manager / ros2_control parameters -->
+      <parameters>$(find audix)/config/controllers.yaml</parameters>
     </plugin>
   </gazebo>
 

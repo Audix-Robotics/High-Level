@@ -30,25 +30,26 @@ def main(args=None):
     spin_thread.start()
 
     root = tk.Tk()
-    root.title('Scissor Lift Slider')
-    root.geometry('360x140')
+    root.title('Scissor Lift')
+    root.geometry('380x170')
 
-    label = tk.Label(root, text='scissor_lift/slider (-1.0 to 1.0)')
+    label = tk.Label(root, text='Scissor Lift (0–100%)')
     label.pack(pady=8)
 
     value_label = tk.Label(root, text='0.00')
     value_label.pack(pady=2)
 
     def on_change(v: str) -> None:
-        node.current_value = float(v)
-        value_label.config(text=f'{node.current_value:.2f}')
+        percent = float(v)
+        node.current_value = max(0.0, min(1.0, percent / 100.0))
+        value_label.config(text=f'{percent:.0f}%')
         node.publish_value(node.current_value)
 
     slider = tk.Scale(
         root,
-        from_=-1.0,
-        to=1.0,
-        resolution=0.01,
+        from_=0.0,
+        to=100.0,
+        resolution=1.0,
         orient='horizontal',
         length=300,
         command=on_change,

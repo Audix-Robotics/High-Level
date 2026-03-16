@@ -8,6 +8,9 @@ controller_manager:
     diff_drive_controller:
       type: diff_drive_controller/DiffDriveController
 
+    scissor_position_controller:
+      type: forward_command_controller/ForwardCommandController
+
 diff_drive_controller:
   ros__parameters:
     left_wheel_names: ['front_left_wheel_joint', 'back_left_wheel_joint']
@@ -22,7 +25,7 @@ diff_drive_controller:
 
     publish_rate: 50.0
     odom_frame_id: odom
-    base_frame_id: base_link
+    base_frame_id: base_footprint
     pose_covariance_diagonal: [0.001, 0.001, 0.001, 0.001, 0.001, 0.01]
     twist_covariance_diagonal: [0.001, 0.001, 0.001, 0.001, 0.001, 0.01]
     open_loop: true
@@ -54,6 +57,7 @@ scissor_position_controller:
   ros__parameters:
     joints:
       - bottom_stud_joint
+      - top_stud_joint
       - left_joint1
       - right_joint1
       - left_joint2
@@ -66,4 +70,5 @@ scissor_position_controller:
       - right_joint5
       - left_joint6
       - right_joint6
+      - camera_joint
     interface_name: position

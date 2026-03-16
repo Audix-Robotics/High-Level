@@ -1,43 +1,66 @@
 #!/usr/bin/env python3
 
 import math
+import os
+import xml.etree.ElementTree as ET
 
 import rclpy
+from ament_index_python.packages import get_package_share_directory
 from rclpy.node import Node
-from std_msgs.msg import Float64
+from sensor_msgs.msg import JointState
+from std_msgs.msg import Float64, Float64MultiArray
 
 
 class ScissorLiftMapper(Node):
     def __init__(self):
         super().__init__('scissor_lift_mapper')
 
-        # Nominal target pose from your manual calibration:
-        # bottom stud = 35 mm, level1/2 = 30 deg, upper levels = 60 deg.
-        # This nominal pose is reached at slider = 0.75.
-        self.declare_parameter('nominal_stroke_m', 0.035)
-        self.declare_parameter('nominal_theta_level12_rad', math.radians(30.0))
-        self.declare_parameter('nominal_theta_upper_rad', math.radians(60.0))
-        self.declare_parameter('nominal_slider_value', 0.75)
+        # Slider input is expected in [0.0, 1.0] (GUI publishes percent/100).
+        # Mapping is defined as DELTAS from the baseline pose captured at startup.
+        # This ensures the motion is exactly the requested travel/angles regardless
+        # of the current joint state when the node starts.
+        deg40 = math.radians(40.0)
+        deg80 = math.radians(80.0)
 
-        self.nominal_stroke = float(self.get_parameter('nominal_stroke_m').value)
-        self.nominal_theta_level12 = float(self.get_parameter('nominal_theta_level12_rad').value)
-        self.nominal_theta_upper = float(self.get_parameter('nominal_theta_upper_rad').value)
-        self.nominal_slider = float(self.get_parameter('nominal_slider_value').value)
+        # Order is aligned with controllers.yaml scissor_position_controller.joints.
+        self._delta_at_full = {
+            # Prismatic stroke: +40.14 mm
+            'bottom_stud_joint': 0.04014,
+            'top_stud_joint': 0.0,
+            # Replace 30deg (0.522 rad) with 40deg
+            'left_joint1': deg40,
+            'right_joint1': deg40,
+            'left_joint2': deg40,
+            'right_joint2': deg40,
+            # Replace 60deg (1.044 rad) with 80deg (preserve signs)
+            'left_joint3': -deg80,
+            'right_joint3': -deg80,
+            'left_joint4': deg80,
+            'right_joint4': deg80,
+            'left_joint5': -deg80,
+            'right_joint5': -deg80,
+            'left_joint6': -deg80,
+            'right_joint6': -deg80,
+            'camera_joint': -deg40,
+        }
 
-        if self.nominal_slider <= 0.0:
-            self.nominal_slider = 0.75
-
+        self._joint_order = list(self._delta_at_full.keys())
         self._latest_slider = 0.0
 
-        # Scale factors from slider units to joint targets.
-        self.stroke_per_slider = self.nominal_stroke / self.nominal_slider
-        self.theta12_per_slider = self.nominal_theta_level12 / self.nominal_slider
-        self.theta3456_per_slider = self.nominal_theta_upper / self.nominal_slider
+        self._baseline_joint_positions = None
+        self._joint_limits = self._load_joint_limits()
 
         self.slider_sub = self.create_subscription(
             Float64,
             '/scissor_lift/slider',
             self.slider_callback,
+            10,
+        )
+
+        self.joint_state_sub = self.create_subscription(
+            JointState,
+            '/joint_states',
+            self.joint_state_callback,
             10,
         )
 
@@ -55,73 +78,102 @@ class ScissorLiftMapper(Node):
             10,
         )
 
-        self.joint_publishers = {
-            'bottom_stud_joint': self.create_publisher(Float64, '/model/audix/joint/bottom_stud_joint/cmd_pos', 10),
-            'left_joint1': self.create_publisher(Float64, '/model/audix/joint/left_joint1/cmd_pos', 10),
-            'right_joint1': self.create_publisher(Float64, '/model/audix/joint/right_joint1/cmd_pos', 10),
-            'left_joint2': self.create_publisher(Float64, '/model/audix/joint/left_joint2/cmd_pos', 10),
-            'right_joint2': self.create_publisher(Float64, '/model/audix/joint/right_joint2/cmd_pos', 10),
-            'left_joint3': self.create_publisher(Float64, '/model/audix/joint/left_joint3/cmd_pos', 10),
-            'right_joint3': self.create_publisher(Float64, '/model/audix/joint/right_joint3/cmd_pos', 10),
-            'left_joint4': self.create_publisher(Float64, '/model/audix/joint/left_joint4/cmd_pos', 10),
-            'right_joint4': self.create_publisher(Float64, '/model/audix/joint/right_joint4/cmd_pos', 10),
-            'left_joint5': self.create_publisher(Float64, '/model/audix/joint/left_joint5/cmd_pos', 10),
-            'right_joint5': self.create_publisher(Float64, '/model/audix/joint/right_joint5/cmd_pos', 10),
-            'left_joint6': self.create_publisher(Float64, '/model/audix/joint/left_joint6/cmd_pos', 10),
-            'right_joint6': self.create_publisher(Float64, '/model/audix/joint/right_joint6/cmd_pos', 10),
-            'camera_joint': self.create_publisher(Float64, '/model/audix/joint/camera_joint/cmd_pos', 10),
-        }
+        # Publishes to the ros2_control forward_command_controller.
+        # Joint order MUST match the scissor_position_controller joints list in controllers.yaml.
+        self.cmd_publisher = self.create_publisher(
+            Float64MultiArray,
+            '/scissor_position_controller/commands',
+            10,
+        )
 
         # Republish at a fixed rate so Gazebo controller always has a fresh command.
         self.timer = self.create_timer(0.05, self.publish_mapped_command)
 
         self.get_logger().info(
-            'Scissor mapper ready. Send Float64 slider to /scissor_lift/slider in [-1, 1]. '
-            f'At slider={self.nominal_slider:.2f}: stroke={self.nominal_stroke:.3f} m, '
-            f'level12={math.degrees(self.nominal_theta_level12):.1f} deg, '
-            f'upper={math.degrees(self.nominal_theta_upper):.1f} deg.'
+            'Scissor mapper ready. Send Float64 slider to /scissor_lift/slider in [0, 1]. '
+            'Mapping: baseline + slider * requested deltas (40.14mm stroke, 40deg/80deg joints).'
         )
 
     def slider_callback(self, msg: Float64) -> None:
-        self._latest_slider = max(-1.0, min(1.0, float(msg.data)))
+        self._latest_slider = max(0.0, min(1.0, float(msg.data)))
+
+    def joint_state_callback(self, msg: JointState) -> None:
+        if self._baseline_joint_positions is not None:
+            return
+
+        name_to_pos = dict(zip(msg.name, msg.position))
+        baseline = {}
+        for joint_name in self._joint_order:
+            if joint_name in name_to_pos:
+                baseline[joint_name] = float(name_to_pos[joint_name])
+
+        # Only lock baseline once we have at least the primary prismatic joint.
+        if 'bottom_stud_joint' in baseline:
+            self._baseline_joint_positions = baseline
 
     def legacy_stroke_callback(self, msg: Float64) -> None:
-        # Convert legacy meter command to slider units.
-        stroke = float(msg.data)
-        if self.stroke_per_slider > 0.0:
-            self._latest_slider = max(-1.0, min(1.0, stroke / self.stroke_per_slider))
+        # Back-compat: treat legacy command as "slider" in [0, 1].
+        self._latest_slider = max(0.0, min(1.0, float(msg.data)))
 
     def publish_mapped_command(self) -> None:
         slider = self._latest_slider
 
-        # Coupled mathematical mapping from one slider to all scissor joints.
-        stroke = slider * self.stroke_per_slider
-        theta12 = slider * self.theta12_per_slider
-        theta3456 = slider * self.theta3456_per_slider
+        baseline = self._baseline_joint_positions or {}
 
-        targets = {
-            'bottom_stud_joint': stroke,
-            'left_joint1': theta12,
-            'right_joint1': theta12,
-            'left_joint2': theta12,
-            'right_joint2': theta12,
-            'left_joint3': -theta3456,
-            'right_joint3': -theta3456,
-            'left_joint4': theta3456,
-            'right_joint4': theta3456,
-            'left_joint5': -theta3456,
-            'right_joint5': -theta3456,
-            'left_joint6': -theta3456,
-            'right_joint6': -theta3456,
-            # Camera counter-rotates to stay level: compensates the net rotation
-            # accumulated through the scissor chain (level-1 + upper levels).
-            'camera_joint': -(theta12 + theta3456),
-        }
+        # Linear mapping:
+        # - slider=0.0 -> baseline pose (current pose treated as "zero")
+        # - slider=1.0 -> baseline + requested deltas
+        commands = []
+        for joint_name in self._joint_order:
+            base = float(baseline.get(joint_name, 0.0))
+            delta = float(self._delta_at_full[joint_name])
+            target = base + delta * slider
 
-        for joint_name, value in targets.items():
-            msg = Float64()
-            msg.data = float(value)
-            self.joint_publishers[joint_name].publish(msg)
+            # Final clamp to limits.
+            limit = self._joint_limits.get(joint_name)
+            if limit is not None:
+                lower, upper = limit
+                target = min(upper, max(lower, target))
+
+            commands.append(float(target))
+
+        msg = Float64MultiArray()
+        msg.data = commands
+        self.cmd_publisher.publish(msg)
+
+    def _load_joint_limits(self) -> dict:
+        """Returns {joint_name: (lower, upper)} for controlled joints that define limits."""
+        try:
+            pkg_share = get_package_share_directory('audix')
+            urdf_path = os.path.join(pkg_share, 'urdf', 'audix.urdf')
+            tree = ET.parse(urdf_path)
+            root = tree.getroot()
+        except Exception as exc:  # noqa: BLE001
+            self.get_logger().warn(f'Failed to parse URDF for joint limits: {exc}')
+            return {}
+
+        limits = {}
+        for joint in root.findall('joint'):
+            name = joint.get('name')
+            if name not in self._delta_at_full:
+                continue
+
+            limit = joint.find('limit')
+            if limit is None:
+                continue
+
+            try:
+                lower = float(limit.get('lower', 'nan'))
+                upper = float(limit.get('upper', 'nan'))
+            except ValueError:
+                continue
+
+            if math.isnan(lower) or math.isnan(upper):
+                continue
+
+            limits[name] = (lower, upper)
+
+        return limits
 
 
 def main(args=None):
