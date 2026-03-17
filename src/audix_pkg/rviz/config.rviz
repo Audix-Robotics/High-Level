@@ -1,15 +1,15 @@
 Panels:
   - Class: rviz_common/Displays
-    Help Height: 78
+    Help Height: 70
     Name: Displays
     Property Tree Widget:
       Expanded:
         - /Global Options1
         - /Status1
-        - /RobotModel1/Links1
         - /TF1
+        - /TF1/Status1
       Splitter Ratio: 0.5
-      Tree Height: 557
+    Tree Height: 1280
 Visualization Manager:
   Class: ""
   Displays:
@@ -18,9 +18,24 @@ Visualization Manager:
       Class: rviz_default_plugins/Grid
       Color: 160; 160; 164
       Enabled: true
+      Line Style:
+        Line Width: 0.029999999329447746
+        Value: Lines
       Name: Grid
-    - Alpha: 0.6
+      Normal Cell Count: 0
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Plane: XY
+      Plane Cell Count: 10
+      Reference Frame: <Fixed Frame>
+      Value: true
+    - Alpha: 0.6000000238418579
       Class: rviz_default_plugins/RobotModel
+      Collision Enabled: false
+      Description File: ""
+      Description Source: Topic
       Description Topic:
         Depth: 5
         Durability Policy: Volatile
@@ -28,175 +43,348 @@ Visualization Manager:
         Reliability Policy: Reliable
         Value: /robot_description
       Enabled: true
+      Links:
+        All Links Enabled: true
+        Expand Joint Details: false
+        Expand Link Details: false
+        Expand Tree: false
+        Link Tree Style: Links in Alphabetic Order
+        back_left_wheel_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        back_right_wheel_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        base_footprint:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        base_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        bottom_stud_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        camera_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        camera_optical_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        front_left_wheel_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        front_right_wheel_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        imu_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        ir_back_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        ir_front_left_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        ir_front_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        ir_front_right_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        ir_left_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        ir_right_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        left_link1:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        left_link2:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        left_link3:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        left_link4:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        left_link5:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        left_link6:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        right_link1:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        right_link2:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        right_link3:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        right_link4:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        right_link5:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        right_link6:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        scissors_lift_base:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        top_stud_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+      Mass Properties:
+        Inertia: false
+        Mass: false
       Name: RobotModel
+      TF Prefix: ""
+      Update Interval: 0
+      Value: true
       Visual Enabled: true
     - Class: rviz_default_plugins/TF
       Enabled: true
-      Marker Scale: 0.3
+      Filter (blacklist): ""
+      Filter (whitelist): ""
+      Frame Timeout: 15
+      Frames:
+        All Enabled: true
+        back_left_wheel_link:
+          Value: true
+        back_right_wheel_link:
+          Value: true
+        base_footprint:
+          Value: true
+        base_link:
+          Value: true
+        bottom_stud_link:
+          Value: true
+        camera_link:
+          Value: true
+        camera_optical_link:
+          Value: true
+        front_left_wheel_link:
+          Value: true
+        front_right_wheel_link:
+          Value: true
+        imu_link:
+          Value: true
+        ir_back_link:
+          Value: true
+        ir_front_left_link:
+          Value: true
+        ir_front_link:
+          Value: true
+        ir_front_right_link:
+          Value: true
+        ir_left_link:
+          Value: true
+        ir_right_link:
+          Value: true
+        left_link1:
+          Value: true
+        left_link2:
+          Value: true
+        left_link3:
+          Value: true
+        left_link4:
+          Value: true
+        left_link5:
+          Value: true
+        left_link6:
+          Value: true
+        odom:
+          Value: true
+        right_link1:
+          Value: true
+        right_link2:
+          Value: true
+        right_link3:
+          Value: true
+        right_link4:
+          Value: true
+        right_link5:
+          Value: true
+        right_link6:
+          Value: true
+        scissors_lift_base:
+          Value: true
+        top_stud_link:
+          Value: true
+        warehouse:
+          Value: true
+      Marker Scale: 0.30000001192092896
       Name: TF
       Show Arrows: true
       Show Axes: true
       Show Names: true
+      Tree:
+        base_footprint:
+          base_link:
+            back_left_wheel_link:
+              {}
+            back_right_wheel_link:
+              {}
+            front_left_wheel_link:
+              {}
+            front_right_wheel_link:
+              {}
+            imu_link:
+              {}
+            ir_back_link:
+              {}
+            ir_front_left_link:
+              {}
+            ir_front_link:
+              {}
+            ir_front_right_link:
+              {}
+            ir_left_link:
+              {}
+            ir_right_link:
+              {}
+            scissors_lift_base:
+              bottom_stud_link:
+                left_link1:
+                  left_link4:
+                    left_link5:
+                      camera_link:
+                        camera_optical_link:
+                          {}
+                right_link1:
+                  right_link4:
+                    right_link5:
+                      {}
+              left_link2:
+                left_link3:
+                  left_link6:
+                    top_stud_link:
+                      {}
+              right_link2:
+                right_link3:
+                  right_link6:
+                    {}
+        warehouse:
+          odom:
+            {}
+      Update Interval: 0
+      Value: true
     - Alpha: 1
       Buffer Length: 1
       Class: rviz_default_plugins/Path
-      Color: 0; 255; 170
+      Color: 255; 214; 0
       Enabled: true
-      Head Diameter: 0.1
-      Head Length: 0.1
-      Length: 0.2
+      Head Diameter: 0.05000000074505806
+      Head Length: 0.05000000074505806
+      Length: 0.30000001192092896
       Line Style: Lines
-      Line Width: 0.04
-      Name: RobotPath
-      Offset:
-        X: 0
-        Y: 0
-        Z: 0
-      Pose Color: 255; 85; 255
-      Pose Style: None
-      Radius: 0.03
-      Shaft Diameter: 0.05
-      Shaft Length: 0.05
-      Topic:
-        Depth: 5
-        Durability Policy: Volatile
-        History Policy: Keep Last
-        Reliability Policy: Reliable
-        Value: /debug/robot_path
-    - Alpha: 0.8
-      Buffer Length: 1
-      Class: rviz_default_plugins/Path
-      Color: 255; 219; 88
-      Enabled: true
-      Head Diameter: 0.1
-      Head Length: 0.1
-      Length: 0.2
-      Line Style: Billboards
-      Line Width: 0.06
+      Line Width: 0.03999999910593033
       Name: PlannedPath
       Offset:
         X: 0
         Y: 0
-        Z: 0
-      Pose Color: 255; 85; 255
+        Z: 0.019999999552965164
+      Pose Color: 255; 85; 0
       Pose Style: None
-      Radius: 0.03
-      Shaft Diameter: 0.05
-      Shaft Length: 0.05
+      Radius: 0.029999999329447746
+      Shaft Diameter: 0.019999999552965164
+      Shaft Length: 0.029999999329447746
       Topic:
         Depth: 5
         Durability Policy: Volatile
+        Filter size: 10
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /debug/planned_path
-    - Class: rviz_default_plugins/MarkerArray
+      Value: true
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz_default_plugins/Path
+      Color: 0; 255; 140
       Enabled: true
+      Head Diameter: 0.05000000074505806
+      Head Length: 0.05000000074505806
+      Length: 0.30000001192092896
+      Line Style: Lines
+      Line Width: 0.05999999865889549
+      Name: RobotPath
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0.029999999329447746
+      Pose Color: 25; 255; 240
+      Pose Style: None
+      Radius: 0.029999999329447746
+      Shaft Diameter: 0.019999999552965164
+      Shaft Length: 0.029999999329447746
       Topic:
         Depth: 5
         Durability Policy: Volatile
+        Filter size: 10
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /debug/targets
-      Name: WaypointMarkers
-      Namespaces:
-        mission_labels: true
-        mission_targets: true
-        reroute_targets: true
-      Queue Size: 10
-    - Class: rviz_default_plugins/LaserScan
-      Color: 255; 55; 55
-      Enabled: true
-      Name: IR_Front
-      Queue Size: 100
-      Size (Pixels): 3
-      Size (m): 0.03
-      Style: Flat Squares
-      Topic:
-        Depth: 5
-        Durability Policy: Volatile
-        History Policy: Keep Last
-        Reliability Policy: Best Effort
-        Value: /ir_front/scan
-      Use Fixed Frame: false
-    - Class: rviz_default_plugins/LaserScan
-      Color: 255; 120; 0
-      Enabled: true
-      Name: IR_FrontLeft
-      Queue Size: 100
-      Size (Pixels): 3
-      Size (m): 0.03
-      Style: Flat Squares
-      Topic:
-        Depth: 5
-        Durability Policy: Volatile
-        History Policy: Keep Last
-        Reliability Policy: Best Effort
-        Value: /ir_front_left/scan
-      Use Fixed Frame: false
-    - Class: rviz_default_plugins/LaserScan
-      Color: 255; 170; 0
-      Enabled: true
-      Name: IR_FrontRight
-      Queue Size: 100
-      Size (Pixels): 3
-      Size (m): 0.03
-      Style: Flat Squares
-      Topic:
-        Depth: 5
-        Durability Policy: Volatile
-        History Policy: Keep Last
-        Reliability Policy: Best Effort
-        Value: /ir_front_right/scan
-      Use Fixed Frame: false
-    - Class: rviz_default_plugins/LaserScan
-      Color: 95; 195; 255
-      Enabled: true
-      Name: IR_Left
-      Queue Size: 100
-      Size (Pixels): 3
-      Size (m): 0.03
-      Style: Flat Squares
-      Topic:
-        Depth: 5
-        Durability Policy: Volatile
-        History Policy: Keep Last
-        Reliability Policy: Best Effort
-        Value: /ir_left/scan
-      Use Fixed Frame: false
-    - Class: rviz_default_plugins/LaserScan
-      Color: 95; 255; 195
-      Enabled: true
-      Name: IR_Right
-      Queue Size: 100
-      Size (Pixels): 3
-      Size (m): 0.03
-      Style: Flat Squares
-      Topic:
-        Depth: 5
-        Durability Policy: Volatile
-        History Policy: Keep Last
-        Reliability Policy: Best Effort
-        Value: /ir_right/scan
-      Use Fixed Frame: false
-    - Class: rviz_default_plugins/LaserScan
-      Color: 180; 180; 255
-      Enabled: true
-      Name: IR_Back
-      Queue Size: 100
-      Size (Pixels): 3
-      Size (m): 0.03
-      Style: Flat Squares
-      Topic:
-        Depth: 5
-        Durability Policy: Volatile
-        History Policy: Keep Last
-        Reliability Policy: Best Effort
-        Value: /ir_back/scan
-      Use Fixed Frame: false
+        Value: /debug/robot_path
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
-    Fixed Frame: odom
+    Fixed Frame: base_footprint
     Frame Rate: 30
   Name: root
   Tools:
@@ -210,15 +398,37 @@ Visualization Manager:
   Transformation:
     Current:
       Class: rviz_default_plugins/TF
-      Value: true
+  Value: true
   Views:
     Current:
-      Angle: 0
-      Class: rviz_default_plugins/TopDownOrtho
+      Class: rviz_default_plugins/Orbit
+      Distance: 2.8459231853485107
+      Enable Stereo Rendering:
+        Stereo Eye Separation: 0.05999999865889549
+        Stereo Focal Distance: 1
+        Swap Stereo Eyes: false
+        Value: false
+      Focal Point:
+        X: -0.09251687675714493
+        Y: 0.08983611315488815
+        Z: 0.15390832722187042
+      Focal Shape Fixed Size: true
+      Focal Shape Size: 0.05000000074505806
+      Invert Z Axis: false
       Name: Current View
-      Scale: 12
-      Target Frame: odom
-      Value: TopDownOrtho (rviz)
-      X: 2.5
-      Y: 0
-  Saved: ~
+      Near Clip Distance: 0.009999999776482582
+      Pitch: 0.45539820194244385
+      Target Frame: <Fixed Frame>
+      Value: Orbit (rviz)
+      Yaw: 1.380397915840149
+    Saved: ~
+Window Geometry:
+  Displays:
+    collapsed: false
+  Height: 1495
+  Hide Left Dock: false
+  Hide Right Dock: false
+  QMainWindow State: 000000ff00000000fd00000001000000000000015600000581fc0200000001fb000000100044006900730070006c006100790073010000003b00000581000000c700ffffff000003980000058100000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  Width: 1268
+  X: -32
+  Y: -32

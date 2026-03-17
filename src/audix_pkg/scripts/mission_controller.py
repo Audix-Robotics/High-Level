@@ -317,25 +317,25 @@ class MissionController(Node):
         # Joint angles (simplified — all links rotate by same angle offset from initial)
         angle = theta - theta_min
 
-        # Order matches scissor_position_controller joints config:
-        # bottom_stud, R1, R2, R3, R4, R5, R6, L1, L2, L3, L4, L5, L6, cam, top_stud
+        # Order must match controllers.yaml:
+        # bottom, top, L1, R1, L2, R2, L3, R3, L4, R4, L5, R5, L6, R6, camera
         msg = Float64MultiArray()
         msg.data = [
             clamped,     # bottom_stud_joint
-            angle,       # right_joint1
-            angle,       # right_joint2
-            -angle,      # right_joint3
-            -angle,      # right_joint4
-            angle,       # right_joint5
-            angle,       # right_joint6
-            angle,       # left_joint1
-            angle,       # left_joint2
-            -angle,      # left_joint3
-            -angle,      # left_joint4
-            angle,       # left_joint5
-            angle,       # left_joint6
-            0.0,         # camera_joint (keep level)
             0.0,         # top_stud_joint
+            angle,       # left_joint1
+            angle,       # right_joint1
+            angle,       # left_joint2
+            angle,       # right_joint2
+            -angle,      # left_joint3
+            -angle,      # right_joint3
+            angle,       # left_joint4
+            angle,       # right_joint4
+            -angle,      # left_joint5
+            -angle,      # right_joint5
+            -angle,      # left_joint6
+            -angle,      # right_joint6
+            -angle,      # camera_joint
         ]
         self.lift_pub.publish(msg)
 
