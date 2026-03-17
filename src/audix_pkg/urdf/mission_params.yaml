@@ -25,14 +25,10 @@ mission_controller:
     angle_tolerance: 0.05          # rad
     scan_turn_degrees: 90.0
     scan_turn_direction: left
-    scripted_skid_scan_mode: true
-    skid_lateral_distance: 0.6
-    end_goal_distance: 4.0
-    scan_use_lift: false
-    straight_line_only: false
+    straight_line_only: true
     straight_line_distance: 3.0
     enable_obstacle_avoidance: false
-    enable_stop_scan: true
+    enable_stop_scan: false
     status_log_to_terminal: true
     status_log_period_sec: 0.5
     debug_visualization: true

@@ -16,12 +16,11 @@ Launches:
 """
 
 import os
-import yaml
 
 from launch import LaunchDescription
 from launch.actions import (
     IncludeLaunchDescription, SetEnvironmentVariable,
-    TimerAction, ExecuteProcess,
+    TimerAction,
 )
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import Command
@@ -35,12 +34,13 @@ def generate_launch_description():
     pkg_parent = os.path.dirname(pkg_share)
 
     urdf_path = os.path.join(pkg_share, 'urdf', 'audix.urdf')
-    world_path = os.path.join(pkg_share, 'world', 'warehouse.sdf')
+    world_path = os.path.join(pkg_share, 'world', 'debug_empty.sdf')
+    rviz_config = os.path.join(pkg_share, 'rviz', 'config.rviz')
     ekf_config = os.path.join(pkg_share, 'config', 'ekf.yaml')
     mission_config = os.path.join(pkg_share, 'config', 'mission_params.yaml')
 
     controllers_yaml = os.path.join(pkg_share, 'config', 'controllers.yaml')
-    obstacles_config = os.path.join(pkg_share, 'config', 'obstacles.yaml')
+    # Obstacles disabled in straight-line debug mode.
     robot_description = Command([
         'xacro ', urdf_path,
         ' controllers_yaml:=', controllers_yaml,
@@ -194,66 +194,20 @@ def generate_launch_description():
         )],
     )
 
-    # --- Obstacle spawning from YAML ---
+    # --- RViz debug view (robot path, planned path, waypoints, IR scans) ---
+    rviz = TimerAction(
+        period=2.0,
+        actions=[Node(
+            package='rviz2',
+            executable='rviz2',
+            name='rviz2_audix_debug',
+            output='screen',
+            arguments=['-d', rviz_config],
+            parameters=[{'use_sim_time': True}],
+        )],
+    )
+
     obstacle_nodes = []
-    try:
-        with open(obstacles_config, 'r') as f:
-            spawner_params = yaml.safe_load(f)
-
-        for i, obs in enumerate(spawner_params.get('static_obstacles', [])):
-            sdf_str = f'''<?xml version="1.0"?>
-            <sdf version="1.8"><model name="static_obs_{i}"><static>true</static>
-            <link name="link"><collision name="c"><geometry><box>
-            <size>{obs["sx"]} {obs["sy"]} {obs["sz"]}</size>
-            </box></geometry></collision>
-            <visual name="v"><geometry><box>
-            <size>{obs["sx"]} {obs["sy"]} {obs["sz"]}</size>
-            </box></geometry>
-            <material><ambient>0.8 0.2 0.2 1</ambient><diffuse>0.8 0.2 0.2 1</diffuse></material>
-            </visual></link></model></sdf>'''
-
-            obstacle_nodes.append(Node(
-                package='ros_gz_sim', executable='create', output='screen',
-                arguments=[
-                    '-world', 'warehouse',
-                    '-string', sdf_str,
-                    '-name', f'static_obs_{i}',
-                    '-x', str(obs['x']), '-y', str(obs['y']), '-z', str(obs['z']),
-                ],
-            ))
-
-        for i, obs in enumerate(spawner_params.get('dynamic_obstacles', [])):
-            # Dynamic obstacle with velocity plugin
-            vel_x = obs['speed'] if obs.get('path_axis', 'x') == 'x' else 0.0
-            vel_y = obs['speed'] if obs.get('path_axis', 'y') == 'y' else 0.0
-            sdf_str = f'''<?xml version="1.0"?>
-            <sdf version="1.8"><model name="dynamic_obs_{i}">
-            <link name="link">
-            <inertial><mass>5.0</mass>
-            <inertia><ixx>0.1</ixx><iyy>0.1</iyy><izz>0.1</izz></inertia>
-            </inertial>
-            <collision name="c"><geometry><box>
-            <size>{obs["sx"]} {obs["sy"]} {obs["sz"]}</size>
-            </box></geometry></collision>
-            <visual name="v"><geometry><box>
-            <size>{obs["sx"]} {obs["sy"]} {obs["sz"]}</size>
-            </box></geometry>
-            <material><ambient>0.9 0.6 0.1 1</ambient><diffuse>0.9 0.6 0.1 1</diffuse></material>
-            </visual></link>
-            <plugin filename="gz-sim-linear-battery-plugin" name="gz::sim::systems::LinearBattery"/>
-            </model></sdf>'''
-
-            obstacle_nodes.append(Node(
-                package='ros_gz_sim', executable='create', output='screen',
-                arguments=[
-                    '-world', 'warehouse',
-                    '-string', sdf_str,
-                    '-name', f'dynamic_obs_{i}',
-                    '-x', str(obs['x']), '-y', str(obs['y']), '-z', str(obs['z']),
-                ],
-            ))
-    except Exception:
-        pass  # If YAML parsing fails, just skip obstacle spawning
 
     return LaunchDescription([
         gz_resource,
@@ -270,4 +224,5 @@ def generate_launch_description():
         mission,
         start_stop,
         goal_sender,
+        rviz,
     ] + obstacle_nodes)

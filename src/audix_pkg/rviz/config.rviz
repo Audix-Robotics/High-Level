@@ -37,6 +37,162 @@ Visualization Manager:
       Show Arrows: true
       Show Axes: true
       Show Names: true
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz_default_plugins/Path
+      Color: 0; 255; 170
+      Enabled: true
+      Head Diameter: 0.1
+      Head Length: 0.1
+      Length: 0.2
+      Line Style: Lines
+      Line Width: 0.04
+      Name: RobotPath
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Pose Color: 255; 85; 255
+      Pose Style: None
+      Radius: 0.03
+      Shaft Diameter: 0.05
+      Shaft Length: 0.05
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /debug/robot_path
+    - Alpha: 0.8
+      Buffer Length: 1
+      Class: rviz_default_plugins/Path
+      Color: 255; 219; 88
+      Enabled: true
+      Head Diameter: 0.1
+      Head Length: 0.1
+      Length: 0.2
+      Line Style: Billboards
+      Line Width: 0.06
+      Name: PlannedPath
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Pose Color: 255; 85; 255
+      Pose Style: None
+      Radius: 0.03
+      Shaft Diameter: 0.05
+      Shaft Length: 0.05
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /debug/planned_path
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /debug/targets
+      Name: WaypointMarkers
+      Namespaces:
+        mission_labels: true
+        mission_targets: true
+        reroute_targets: true
+      Queue Size: 10
+    - Class: rviz_default_plugins/LaserScan
+      Color: 255; 55; 55
+      Enabled: true
+      Name: IR_Front
+      Queue Size: 100
+      Size (Pixels): 3
+      Size (m): 0.03
+      Style: Flat Squares
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+        Value: /ir_front/scan
+      Use Fixed Frame: false
+    - Class: rviz_default_plugins/LaserScan
+      Color: 255; 120; 0
+      Enabled: true
+      Name: IR_FrontLeft
+      Queue Size: 100
+      Size (Pixels): 3
+      Size (m): 0.03
+      Style: Flat Squares
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+        Value: /ir_front_left/scan
+      Use Fixed Frame: false
+    - Class: rviz_default_plugins/LaserScan
+      Color: 255; 170; 0
+      Enabled: true
+      Name: IR_FrontRight
+      Queue Size: 100
+      Size (Pixels): 3
+      Size (m): 0.03
+      Style: Flat Squares
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+        Value: /ir_front_right/scan
+      Use Fixed Frame: false
+    - Class: rviz_default_plugins/LaserScan
+      Color: 95; 195; 255
+      Enabled: true
+      Name: IR_Left
+      Queue Size: 100
+      Size (Pixels): 3
+      Size (m): 0.03
+      Style: Flat Squares
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+        Value: /ir_left/scan
+      Use Fixed Frame: false
+    - Class: rviz_default_plugins/LaserScan
+      Color: 95; 255; 195
+      Enabled: true
+      Name: IR_Right
+      Queue Size: 100
+      Size (Pixels): 3
+      Size (m): 0.03
+      Style: Flat Squares
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+        Value: /ir_right/scan
+      Use Fixed Frame: false
+    - Class: rviz_default_plugins/LaserScan
+      Color: 180; 180; 255
+      Enabled: true
+      Name: IR_Back
+      Queue Size: 100
+      Size (Pixels): 3
+      Size (m): 0.03
+      Style: Flat Squares
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+        Value: /ir_back/scan
+      Use Fixed Frame: false
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -57,8 +213,12 @@ Visualization Manager:
       Value: true
   Views:
     Current:
-      Class: rviz_default_plugins/Orbit
+      Angle: 0
+      Class: rviz_default_plugins/TopDownOrtho
       Name: Current View
-      Target Frame: <Fixed Frame>
-      Value: Orbit (rviz)
+      Scale: 12
+      Target Frame: odom
+      Value: TopDownOrtho (rviz)
+      X: 2.5
+      Y: 0
   Saved: ~
