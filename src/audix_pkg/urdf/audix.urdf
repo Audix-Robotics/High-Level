@@ -1262,22 +1262,18 @@
       <plugin>gz_ros2_control/GazeboSimSystem</plugin>
     </hardware>
     <joint name="front_left_wheel_joint">
-      <command_interface name="velocity"/>
       <state_interface name="velocity"/>
       <state_interface name="position"/>
     </joint>
     <joint name="front_right_wheel_joint">
-      <command_interface name="velocity"/>
       <state_interface name="velocity"/>
       <state_interface name="position"/>
     </joint>
     <joint name="back_left_wheel_joint">
-      <command_interface name="velocity"/>
       <state_interface name="velocity"/>
       <state_interface name="position"/>
     </joint>
     <joint name="back_right_wheel_joint">
-      <command_interface name="velocity"/>
       <state_interface name="velocity"/>
       <state_interface name="position"/>
     </joint>
@@ -1374,26 +1370,57 @@
 
   <!-- ============================================================ -->
   <!-- Gazebo: wheel surface friction                               -->
+  <!-- mu1 = traction (rolling/X direction), mu2 ≈ 0 (lateral slip) -->
+  <!-- fdir1="1 0 0" = rolling direction in link-local frame         -->
   <!-- ============================================================ -->
   <gazebo reference="front_left_wheel_link">
     <mu1>1.0</mu1>
-    <mu2>1.0</mu2>
+    <mu2>0.01</mu2>
+    <fdir1>1 0 0</fdir1>
     <material>Gazebo/DarkGray</material>
   </gazebo>
   <gazebo reference="front_right_wheel_link">
     <mu1>1.0</mu1>
-    <mu2>1.0</mu2>
+    <mu2>0.01</mu2>
+    <fdir1>1 0 0</fdir1>
     <material>Gazebo/DarkGray</material>
   </gazebo>
   <gazebo reference="back_left_wheel_link">
     <mu1>1.0</mu1>
-    <mu2>1.0</mu2>
+    <mu2>0.01</mu2>
+    <fdir1>1 0 0</fdir1>
     <material>Gazebo/DarkGray</material>
   </gazebo>
   <gazebo reference="back_right_wheel_link">
     <mu1>1.0</mu1>
-    <mu2>1.0</mu2>
+    <mu2>0.01</mu2>
+    <fdir1>1 0 0</fdir1>
     <material>Gazebo/DarkGray</material>
+  </gazebo>
+
+  <!-- ============================================================ -->
+  <!-- Gazebo: VelocityControl – directly sets robot body velocity  -->
+  <!-- so the robot moves in all 4 directions (mecanum simulation)  -->
+  <!-- ============================================================ -->
+  <gazebo>
+    <plugin filename="gz-sim-velocity-control-system"
+            name="gz::sim::systems::VelocityControl">
+      <topic>/cmd_vel</topic>
+    </plugin>
+  </gazebo>
+
+  <!-- ============================================================ -->
+  <!-- Gazebo: Odometry publisher for EKF + mission stack           -->
+  <!-- ============================================================ -->
+  <gazebo>
+    <plugin filename="gz-sim-odometry-publisher-system"
+            name="gz::sim::systems::OdometryPublisher">
+      <dimensions>2</dimensions>
+      <odom_frame>odom</odom_frame>
+      <robot_base_frame>base_footprint</robot_base_frame>
+      <odom_topic>/odom</odom_topic>
+      <odom_publish_frequency>30</odom_publish_frequency>
+    </plugin>
   </gazebo>
 
   <!-- ============================================================ -->

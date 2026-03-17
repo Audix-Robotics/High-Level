@@ -15,9 +15,15 @@ install(
 
 install(
 	PROGRAMS
+		scripts/cardinal_motion_debug.py
+		scripts/drive_test.py
+		scripts/goal_sender_node.py
+		scripts/mecanum_kinematics.py
+		scripts/mission_controller.py
 		scripts/obstacle_avoidance.py
 		scripts/scissor_lift_mapper.py
 		scripts/scissor_slider_gui.py
+		scripts/start_stop_node.py
 		scripts/waypoints_control.py
 		scripts/waypoints_final.py
 	DESTINATION lib/${PROJECT_NAME}

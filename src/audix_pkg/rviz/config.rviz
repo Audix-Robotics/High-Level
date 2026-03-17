@@ -7,6 +7,7 @@ Panels:
         - /Global Options1
         - /Status1
         - /TF1
+        - /TF1/Status1
       Splitter Ratio: 0.5
     Tree Height: 1280
 Visualization Manager:
@@ -58,6 +59,10 @@ Visualization Manager:
           Show Axes: false
           Show Trail: false
           Value: true
+        base_footprint:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
         base_link:
           Alpha: 1
           Show Axes: false
@@ -204,6 +209,8 @@ Visualization Manager:
           Value: true
         back_right_wheel_link:
           Value: true
+        base_footprint:
+          Value: true
         base_link:
           Value: true
         bottom_stud_link:
@@ -242,6 +249,8 @@ Visualization Manager:
           Value: true
         left_link6:
           Value: true
+        odom:
+          Value: true
         right_link1:
           Value: true
         right_link2:
@@ -258,7 +267,7 @@ Visualization Manager:
           Value: true
         top_stud_link:
           Value: true
-        world:
+        warehouse:
           Value: true
       Marker Scale: 0.30000001192092896
       Name: TF
@@ -266,7 +275,7 @@ Visualization Manager:
       Show Axes: true
       Show Names: true
       Tree:
-        world:
+        base_footprint:
           base_link:
             back_left_wheel_link:
               {}
@@ -311,7 +320,66 @@ Visualization Manager:
                 right_link3:
                   right_link6:
                     {}
+        warehouse:
+          odom:
+            {}
       Update Interval: 0
+      Value: true
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz_default_plugins/Path
+      Color: 255; 214; 0
+      Enabled: true
+      Head Diameter: 0.05000000074505806
+      Head Length: 0.05000000074505806
+      Length: 0.30000001192092896
+      Line Style: Lines
+      Line Width: 0.03999999910593033
+      Name: PlannedPath
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0.019999999552965164
+      Pose Color: 255; 85; 0
+      Pose Style: None
+      Radius: 0.029999999329447746
+      Shaft Diameter: 0.019999999552965164
+      Shaft Length: 0.029999999329447746
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /debug/planned_path
+      Value: true
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz_default_plugins/Path
+      Color: 0; 255; 140
+      Enabled: true
+      Head Diameter: 0.05000000074505806
+      Head Length: 0.05000000074505806
+      Length: 0.30000001192092896
+      Line Style: Lines
+      Line Width: 0.05999999865889549
+      Name: RobotPath
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0.029999999329447746
+      Pose Color: 25; 255; 240
+      Pose Style: None
+      Radius: 0.029999999329447746
+      Shaft Diameter: 0.019999999552965164
+      Shaft Length: 0.029999999329447746
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /debug/robot_path
       Value: true
   Enabled: true
   Global Options:
@@ -334,25 +402,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 0.6472489237785339
+      Distance: 2.8459231853485107
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0
-        Y: 0
-        Z: 0
+        X: -0.09251687675714493
+        Y: 0.08983611315488815
+        Z: 0.15390832722187042
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.3253982365131378
+      Pitch: 0.45539820194244385
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 0.8453980088233948
+      Yaw: 1.380397915840149
     Saved: ~
 Window Geometry:
   Displays:
@@ -360,7 +428,7 @@ Window Geometry:
   Height: 1495
   Hide Left Dock: false
   Hide Right Dock: false
-  QMainWindow State: 000000ff00000000fd00000001000000000000015600000581fc0200000001fb000000100044006900730070006c006100790073010000003b00000581000000c700ffffff000008980000058100000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
-  Width: 2548
-  X: 0
-  Y: 0
+  QMainWindow State: 000000ff00000000fd00000001000000000000015600000581fc0200000001fb000000100044006900730070006c006100790073010000003b00000581000000c700ffffff000003980000058100000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  Width: 1268
+  X: -32
+  Y: -32

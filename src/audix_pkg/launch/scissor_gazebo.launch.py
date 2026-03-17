@@ -21,9 +21,15 @@ def generate_launch_description():
     pkg_share_parent = os.path.dirname(pkg_share)
 
     model_path = os.path.join(pkg_share, 'urdf', 'audix.urdf')
-    world_file_path = os.path.join(pkg_share, 'world', 'empty_world.sdf')
     rviz_config = os.path.join(pkg_share, 'rviz', 'config.rviz')
     controllers_yaml = os.path.join(pkg_share, 'config', 'controllers.yaml')
+
+    world_file_path = LaunchConfiguration('world_file')
+    world_name = LaunchConfiguration('world_name')
+    spawn_x = LaunchConfiguration('spawn_x')
+    spawn_y = LaunchConfiguration('spawn_y')
+    spawn_z = LaunchConfiguration('spawn_z')
+    spawn_yaw = LaunchConfiguration('spawn_yaw')
 
     robot_description = Command(['xacro ', model_path])
 
@@ -51,14 +57,14 @@ def generate_launch_description():
     )
 
     # ── Static TF: world → odom ─────────────────────────────────────
-    # diff_drive_controller publishes odom → base_link. Publishing world → base_link
-    # would give base_link two parents and break TF. This keeps a valid chain:
-    # world → odom → base_link → ...
+    # Gazebo odometry publishes odom → base_footprint. Keeping a static
+    # world/world_name → odom transform gives a valid chain:
+    # world_name → odom → base_footprint → base_link → ...
     world_to_odom_node = Node(
         package='tf2_ros',
         executable='static_transform_publisher',
         name='world_to_odom_publisher',
-        arguments=['0', '0', '0', '0', '0', '0', 'world', 'odom'],
+        arguments=['0', '0', '0', '0', '0', '0', world_name, 'odom'],
         parameters=[{'use_sim_time': True}],
     )
 
@@ -69,7 +75,7 @@ def generate_launch_description():
                 get_package_share_directory('ros_gz_sim'), 'launch', 'gz_sim.launch.py'
             )
         ]),
-        launch_arguments={'gz_args': f'-r -v 2 {world_file_path}'}.items(),
+        launch_arguments={'gz_args': ['-r -v 2 ', world_file_path]}.items(),
     )
 
     # ── Spawn robot into Gazebo ───────────────────────────────────────
@@ -80,11 +86,11 @@ def generate_launch_description():
         executable='create',
         output='screen',
         arguments=[
-            '-world', 'empty',
+            '-world', world_name,
             '-string', robot_description,
             '-name', 'audix',
-            '-x', '0.0', '-y', '0.0', '-z', '0.025',
-            '-R', '0.0', '-P', '0.0', '-Y', '0.0',
+            '-x', spawn_x, '-y', spawn_y, '-z', spawn_z,
+            '-R', '0.0', '-P', '0.0', '-Y', spawn_yaw,
         ],
     )
 
@@ -96,12 +102,20 @@ def generate_launch_description():
         arguments=['/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock'],
     )
 
+    # ── cmd_vel bridge: ROS geometry_msgs/Twist → Gz VelocityControl ─
+    bridge_cmd_vel = Node(
+        package='ros_gz_bridge',
+        executable='parameter_bridge',
+        output='screen',
+        arguments=['/cmd_vel@geometry_msgs/msg/Twist]gz.msgs.Twist'],
+    )
+
     # ── Controller spawners ───────────────────────────────────────────
     # gz_ros2_control plugin creates /controller_manager when the robot spawns.
     # Each spawner retries for up to 30 s waiting for controller_manager to appear.
     #
     # joint_state_broadcaster  → publishes /joint_states → RSP → TF  ✅
-    # diff_drive_controller    → subscribes /cmd_vel, drives wheels
+    # Wheel motion is handled by Gazebo VelocityControl plugin (cmd_vel).
     # scissor_position_controller → subscribes /scissor_position_controller/commands
     #                               (Float64MultiArray), moves scissor+camera joints
     joint_state_broadcaster_spawner = Node(
@@ -110,18 +124,6 @@ def generate_launch_description():
         output='screen',
         arguments=[
             'joint_state_broadcaster',
-            '--param-file', controllers_yaml,
-            '--controller-manager', '/controller_manager',
-            '--controller-manager-timeout', '30',
-        ],
-    )
-
-    diff_drive_spawner = Node(
-        package='controller_manager',
-        executable='spawner',
-        output='screen',
-        arguments=[
-            'diff_drive_controller',
             '--param-file', controllers_yaml,
             '--controller-manager', '/controller_manager',
             '--controller-manager-timeout', '30',
@@ -167,9 +169,9 @@ def generate_launch_description():
         condition=IfCondition(LaunchConfiguration('use_rviz')),
     )
 
-    start_rviz_after_diff = RegisterEventHandler(
+    start_rviz_after_scissor = RegisterEventHandler(
         OnProcessExit(
-            target_action=diff_drive_spawner,
+            target_action=scissor_controller_spawner,
             on_exit=[rviz_node],
         )
     )
@@ -181,16 +183,9 @@ def generate_launch_description():
         )
     )
 
-    start_diff_after_jsb = RegisterEventHandler(
+    start_scissor_after_jsb = RegisterEventHandler(
         OnProcessExit(
             target_action=joint_state_broadcaster_spawner,
-            on_exit=[diff_drive_spawner],
-        )
-    )
-
-    start_scissor_after_diff = RegisterEventHandler(
-        OnProcessExit(
-            target_action=diff_drive_spawner,
             on_exit=[scissor_controller_spawner],
         )
     )
@@ -205,6 +200,16 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('use_rviz', default_value='true', description='Launch RViz2'),
         DeclareLaunchArgument('use_slider_gui', default_value='true', description='Launch scissor slider GUI'),
+        DeclareLaunchArgument(
+            'world_file',
+            default_value=os.path.join(pkg_share, 'world', 'empty_world.sdf'),
+            description='Absolute path to the Gazebo world file',
+        ),
+        DeclareLaunchArgument('world_name', default_value='empty', description='Gazebo world name'),
+        DeclareLaunchArgument('spawn_x', default_value='0.0', description='Robot spawn X'),
+        DeclareLaunchArgument('spawn_y', default_value='0.0', description='Robot spawn Y'),
+        DeclareLaunchArgument('spawn_z', default_value='0.025', description='Robot spawn Z'),
+        DeclareLaunchArgument('spawn_yaw', default_value='0.0', description='Robot spawn yaw'),
 
         gz_resource_path,
         ign_resource_path,
@@ -213,9 +218,9 @@ def generate_launch_description():
         spawn_entity,
         world_to_odom_node,
         bridge_clock,
+        bridge_cmd_vel,
         start_jsb_after_spawn,
-        start_diff_after_jsb,
-        start_scissor_after_diff,
+        start_scissor_after_jsb,
         start_mapper_after_controller,
-        start_rviz_after_diff,
+        start_rviz_after_scissor,
     ])
