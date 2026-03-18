@@ -15,6 +15,9 @@ install(
 
 install(
 	PROGRAMS
+		scripts/arena_obstacle_manager.py
+		scripts/arena_roamer.py
+		scripts/arena_spawn_panel.py
 		scripts/cardinal_motion_debug.py
 		scripts/drive_test.py
 		scripts/goal_sender_node.py

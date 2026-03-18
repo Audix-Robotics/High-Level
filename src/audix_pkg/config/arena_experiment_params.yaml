@@ -1,0 +1,71 @@
+arena_roamer:
+  ros__parameters:
+    arena_min_x: -4.35
+    arena_max_x: 4.35
+    arena_min_y: -4.35
+    arena_max_y: 4.35
+    goal_margin: 0.80
+    min_goal_separation: 1.20
+    goal_reached_tolerance: 0.32
+    goal_timeout_sec: 18.0
+    sensor_warmup_sec: 2.0
+    control_period_sec: 0.05
+    max_linear_speed: 0.42
+    max_lateral_speed: 0.42
+    max_angular_speed: 1.0
+    goal_gain: 0.95
+    wall_gain: 1.15
+    repulsion_gain: 1.75
+    escape_gain: 1.25
+    angular_kp: 1.6
+    obstacle_detect_distance: 0.42
+    obstacle_danger_distance: 0.20
+    obstacle_clear_distance: 0.48
+    startup_clearance_distance: 0.24
+    hard_escape_distance: 0.12
+    hard_escape_speed: 0.10
+    caution_speed: 0.18
+    wall_influence_distance: 0.90
+    obstacle_side_min: 0.14
+    robot_center_offset_x: -0.16
+    robot_center_offset_y: -0.15
+    debug_frame_id: arena10
+    ir_filter_alpha_rise: 0.16
+    ir_filter_alpha_fall: 0.72
+    path_point_spacing: 0.05
+    random_seed: 7
+    reorient_heading_threshold_deg: 115.0
+    forward_heading_allowance_deg: 70.0
+    rotate_clearance_bias: 0.35
+    forward_clearance_distance: 0.55
+    lateral_clearance_distance: 0.20
+    escape_hold_sec: 0.9
+    stuck_timeout_sec: 1.0
+    stuck_distance_epsilon: 0.04
+    cmd_forward_sign: -1.0
+    cmd_lateral_sign: 1.0
+    goal_keepout_radius: 0.95
+
+arena_obstacle_manager:
+  ros__parameters:
+    world_name: arena10
+    click_topic: /clicked_point
+    preset_topic: /arena_spawn_preset
+    command_topic: /arena_spawn_command
+    arena_min_x: -4.55
+    arena_max_x: 4.55
+    arena_min_y: -4.55
+    arena_max_y: 4.55
+    obstacle_z_margin: 0.01
+    dynamic_update_period: 0.12
+    dynamic_speed_min: 0.16
+    dynamic_speed_max: 0.45
+    small_box_size: [0.25, 0.25, 0.35]
+    medium_box_size: [0.45, 0.45, 0.60]
+    large_box_size: [0.80, 0.55, 0.95]
+    random_min_size: [0.20, 0.20, 0.25]
+    random_max_size: [1.10, 0.90, 1.10]
+
+arena_spawn_panel:
+  ros__parameters:
+    default_preset: dynamic_medium

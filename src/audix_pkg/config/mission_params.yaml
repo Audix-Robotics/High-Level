@@ -29,6 +29,10 @@ mission_controller:
     reroute_return_tolerance: 0.05   # m tolerance to consider path line rejoined
     obstacle_return_tolerance: 0.02  # m tighter lateral tolerance used during offset/rejoin transitions
     reroute_timeout: 20.0            # s maximum reroute duration
+    reroute_wall_follow_distance: 0.70   # m obstacle can extend alongside the bypass before treating it like a wall
+    reroute_rotation_search_angle_deg: 55.0  # deg in-place scan used when lateral reroute behaves like a wall
+    reroute_rotation_clear_distance: 0.28    # m front clearance that ends the rotation search early
+    reroute_rotation_max_attempts: 2         # avoid endless rotate-replan loops during one obstacle event
     obstacle_sensor_warmup_sec: 2.0  # ignore startup sensor transients
     ir_filter_alpha_rise: 0.18       # slower rise so sudden clear readings need confirmation
     ir_filter_alpha_fall: 0.70       # faster fall so approaching obstacles are trusted quickly

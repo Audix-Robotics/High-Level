@@ -86,6 +86,10 @@ class MissionController(Node):
         self.declare_parameter('reroute_side_clear_cycles', 6)
         self.declare_parameter('obstacle_halt_timeout', 2.5)
         self.declare_parameter('reroute_timeout', 12.0)
+        self.declare_parameter('reroute_wall_follow_distance', 0.70)
+        self.declare_parameter('reroute_rotation_search_angle_deg', 55.0)
+        self.declare_parameter('reroute_rotation_clear_distance', 0.28)
+        self.declare_parameter('reroute_rotation_max_attempts', 2)
         self.declare_parameter('obstacle_sensor_warmup_sec', 2.0)
         self.declare_parameter('ir_filter_alpha_rise', 0.18)
         self.declare_parameter('ir_filter_alpha_fall', 0.70)
@@ -156,6 +160,12 @@ class MissionController(Node):
         self.reroute_side_clear_cycles = int(self.get_parameter('reroute_side_clear_cycles').value)
         self.obstacle_halt_timeout = float(self.get_parameter('obstacle_halt_timeout').value)
         self.reroute_timeout = float(self.get_parameter('reroute_timeout').value)
+        self.reroute_wall_follow_distance = float(self.get_parameter('reroute_wall_follow_distance').value)
+        self.reroute_rotation_search_angle = math.radians(
+            float(self.get_parameter('reroute_rotation_search_angle_deg').value)
+        )
+        self.reroute_rotation_clear_distance = float(self.get_parameter('reroute_rotation_clear_distance').value)
+        self.reroute_rotation_max_attempts = int(self.get_parameter('reroute_rotation_max_attempts').value)
         self.obstacle_warmup = self.get_parameter('obstacle_sensor_warmup_sec').value
         self.ir_filter_alpha_rise = float(self.get_parameter('ir_filter_alpha_rise').value)
         self.ir_filter_alpha_fall = float(self.get_parameter('ir_filter_alpha_fall').value)
@@ -280,6 +290,9 @@ class MissionController(Node):
         self.reroute_required_pass_distance = 0.0
         self.reroute_obstacle_side = None
         self.reroute_trigger_sensor = None
+        self.reroute_rotation_target_yaw = 0.0
+        self.reroute_rotation_direction = 0.0
+        self.reroute_rotation_attempts = 0
 
         # Lift state
         self.current_lift_pos = 0.0
@@ -1412,6 +1425,9 @@ class MissionController(Node):
         self.reroute_required_pass_distance = 0.0
         self.reroute_obstacle_side = None
         self.reroute_trigger_sensor = None
+        self.reroute_rotation_target_yaw = self.yaw
+        self.reroute_rotation_direction = 0.0
+        self.reroute_rotation_attempts = 0
 
     def _point_to_line_distance(self, px, py):
         if self.path_line_start is None or self.path_line_end is None:
@@ -1760,6 +1776,70 @@ class MissionController(Node):
             return min(self.ir_raw['right'], self.ir_raw['front_right'])
         return min(self.ir_raw['left'], self.ir_raw['front_left'])
 
+    def _reroute_distance_from_start(self):
+        return math.hypot(
+            self.center_x - self.reroute_start_x,
+            self.center_y - self.reroute_start_y,
+        )
+
+    def _choose_rotation_search_direction(self):
+        left_clearance = min(self.ir_raw['left'], self.ir_raw['front_left'])
+        right_clearance = min(self.ir_raw['right'], self.ir_raw['front_right'])
+        if left_clearance > right_clearance + self.reroute_side_clear_hysteresis:
+            return 1.0
+        if right_clearance > left_clearance + self.reroute_side_clear_hysteresis:
+            return -1.0
+        if abs(self.reroute_direction) > 1e-6:
+            return self.reroute_direction
+        return 1.0 if left_clearance >= right_clearance else -1.0
+
+    def _reroute_wall_detected(self, envelope):
+        if envelope is None:
+            return False
+        if self.reroute_rotation_attempts >= self.reroute_rotation_max_attempts:
+            return False
+        if self._reroute_distance_from_start() < self.reroute_wall_follow_distance:
+            return False
+        return (
+            self._reroute_obstacle_side_distance() < self.reroute_side_clearance
+            or not self._front_path_clear()
+        )
+
+    def _start_reroute_rotation_search(self, reason):
+        self.reroute_step = 4
+        self.reroute_rotation_direction = self._choose_rotation_search_direction()
+        self.reroute_rotation_target_yaw = self._normalize(
+            self.yaw + self.reroute_rotation_direction * self.reroute_rotation_search_angle
+        )
+        self.reroute_rotation_attempts += 1
+        self.clear_count = 0
+        self.reroute_side_clear_count = 0
+        self.get_logger().warn(reason)
+
+    def _replan_reroute_after_rotation_search(self, envelope):
+        self.reroute_start_x = self.center_x
+        self.reroute_start_y = self.center_y
+        self.reroute_start_progress = self._path_progress(self.center_x, self.center_y)
+        self.reroute_plan_optimized = False
+        trigger_sensor = self._choose_trigger_sensor(self.obstacle_clear_distance)
+        if trigger_sensor is None:
+            trigger_sensor = self.reroute_trigger_sensor or self._choose_trigger_sensor() or 'front'
+        _, obstacle_side, self.reroute_direction, self.reroute_target_offset = self._select_reroute_plan(
+            envelope,
+            trigger_sensor,
+        )
+        self.reroute_obstacle_side = obstacle_side
+        self.reroute_rejoin_min_progress = self._geometry_based_rejoin_progress(envelope)
+        self.reroute_required_pass_distance = max(
+            self.reroute_rejoin_min_progress - self.reroute_start_progress,
+            0.5 * self.robot_length + self.obstacle_safety_margin,
+        )
+        self.reroute_step = 1
+        self.clear_count = 0
+        self.reroute_side_clear_count = 0
+        self._update_reroute_debug_points()
+        self.get_logger().info('Rotation search found a clearer sector — replanning the reroute lane')
+
     def _update_reroute_side_clear_count(self):
         if self._reroute_obstacle_side_distance() >= self.reroute_side_clearance + self.reroute_side_clear_hysteresis:
             self.reroute_side_clear_count += 1
@@ -1823,6 +1903,9 @@ class MissionController(Node):
         self.state = State.OBSTACLE_REROUTE
         self.reroute_step = 1
         self.reroute_plan_optimized = False
+        self.reroute_rotation_attempts = 0
+        self.reroute_rotation_direction = 0.0
+        self.reroute_rotation_target_yaw = self.yaw
         self.reroute_start_x = self.center_x
         self.reroute_start_y = self.center_y
         self.reroute_start_progress = self._path_progress(self.center_x, self.center_y)
@@ -1849,6 +1932,13 @@ class MissionController(Node):
                 self.active_leg_profile['name'],
                 self.active_leg_profile['remove_after_reroute'],
             )
+        left_clearance = min(self.ir_raw['left'], self.ir_raw['front_left'])
+        right_clearance = min(self.ir_raw['right'], self.ir_raw['front_right'])
+        if max(left_clearance, right_clearance) < self.reroute_side_clearance:
+            self._start_reroute_rotation_search(
+                'Obstacle blocks both lateral lanes — rotating first to find a clearer bypass'
+            )
+            return
         self.get_logger().warn(
             'Obstacle remained blocked — shifting %s with footprint clearance' %
             ('left' if self.reroute_direction > 0.0 else 'right')
@@ -1936,6 +2026,12 @@ class MissionController(Node):
             )
             return
 
+        if self.reroute_step in (1, 2) and self._reroute_wall_detected(current_envelope):
+            self._start_reroute_rotation_search(
+                'Obstacle keeps extending along the bypass lane — rotating to reacquire a clearer opening'
+            )
+            return
+
         if self.reroute_step <= 1:
             shift_progress = max(
                 current_progress,
@@ -2001,6 +2097,28 @@ class MissionController(Node):
                 self.reroute_step = 3
                 self.clear_count = 0
                 self.get_logger().info('Offset lane is clear — rejoining center path')
+            return
+
+        if self.reroute_step == 4:
+            rotation_error = self._normalize(self.reroute_rotation_target_yaw - self.yaw)
+            front_clear = min(
+                self.ir_raw['front'],
+                self.ir_raw['front_left'],
+                self.ir_raw['front_right'],
+            ) >= self.reroute_rotation_clear_distance
+            if not front_clear and abs(rotation_error) > self.scan_ang_tol:
+                self._publish_motion(
+                    wz=self._rotation_command(
+                        rotation_error,
+                        speed_scale=self.scan_rotation_kp_scale,
+                        min_speed=self.scan_rotation_min_speed,
+                        max_speed=self.scan_rotation_max_speed,
+                    ),
+                    apply_speed_zone=False,
+                )
+                return
+
+            self._replan_reroute_after_rotation_search(current_envelope)
             return
 
         rejoin_lookahead = self._rejoin_lookahead(line_error)
