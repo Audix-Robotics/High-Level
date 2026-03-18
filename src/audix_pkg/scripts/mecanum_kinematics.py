@@ -33,12 +33,14 @@ class MecanumKinematics(Node):
         self.declare_parameter('wheel_base_half', 0.09)
         self.declare_parameter('track_width_half', 0.1574)
         self.declare_parameter('robot_body_frame_flip_180', True)
+        self.declare_parameter('invert_linear_x', True)
         self.declare_parameter('publish_odom', False)
 
         self.r = self.get_parameter('wheel_radius').value
         self.lx = self.get_parameter('wheel_base_half').value
         self.ly = self.get_parameter('track_width_half').value
         self.flip_180 = self.get_parameter('robot_body_frame_flip_180').value
+        self.invert_linear_x = bool(self.get_parameter('invert_linear_x').value)
         self.publish_odom = bool(self.get_parameter('publish_odom').value)
 
         # Subscribers
@@ -85,6 +87,10 @@ class MecanumKinematics(Node):
             vx = -vx
             vy = -vy
 
+        # Wheel joint positive velocity is opposite the robot's forward direction.
+        if self.invert_linear_x:
+            vx = -vx
+
         k = self.lx + self.ly
 
         # Mecanum IK for O-wheel roller orientation (wheel angular velocities in rad/s)
@@ -127,6 +133,9 @@ class MecanumKinematics(Node):
         vx = (self.r / 4.0) * (w_fl + w_fr + w_bl + w_br)
         vy = (self.r / 4.0) * (-w_fl + w_fr + w_bl - w_br)
         wz = (self.r / (4.0 * (self.lx + self.ly))) * (-w_fl + w_fr - w_bl + w_br)
+
+        if self.invert_linear_x:
+            vx = -vx
 
         # Convert odometry to RobotBody frame for EKF/mission consistency.
         if self.flip_180:

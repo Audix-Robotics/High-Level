@@ -25,6 +25,7 @@ def generate_launch_description():
     model_path = os.path.join(pkg_share, 'urdf', 'audix.urdf')
     rviz_config = os.path.join(pkg_share, 'rviz', 'config.rviz')
     controllers_yaml = os.path.join(pkg_share, 'config', 'controllers.yaml')
+    mission_config = os.path.join(pkg_share, 'config', 'mission_params.yaml')
     world_file_path = LaunchConfiguration('world_file')
     world_name = LaunchConfiguration('world_name')
     spawn_x = LaunchConfiguration('spawn_x')
@@ -156,7 +157,7 @@ def generate_launch_description():
     # Each spawner retries for up to 30 s waiting for controller_manager to appear.
     #
     # joint_state_broadcaster  → publishes /joint_states → RSP → TF  ✅
-    # Wheel motion is handled by Gazebo VelocityControl plugin (cmd_vel).
+    # mecanum_velocity_controller → subscribes /mecanum_velocity_controller/commands
     # scissor_position_controller → subscribes /scissor_position_controller/commands
     joint_state_broadcaster_spawner = Node(
         package='controller_manager',
@@ -164,6 +165,18 @@ def generate_launch_description():
         output='screen',
         arguments=[
             'joint_state_broadcaster',
+            '--param-file', controllers_yaml,
+            '--controller-manager', '/controller_manager',
+            '--controller-manager-timeout', '30',
+        ],
+    )
+
+    mecanum_controller_spawner = Node(
+        package='controller_manager',
+        executable='spawner',
+        output='screen',
+        arguments=[
+            'mecanum_velocity_controller',
             '--param-file', controllers_yaml,
             '--controller-manager', '/controller_manager',
             '--controller-manager-timeout', '30',
@@ -180,6 +193,13 @@ def generate_launch_description():
             '--controller-manager', '/controller_manager',
             '--controller-manager-timeout', '30',
         ],
+    )
+
+    mecanum_kinematics_node = Node(
+        package='audix',
+        executable='mecanum_kinematics.py',
+        output='screen',
+        parameters=[mission_config, {'use_sim_time': True, 'publish_odom': False}],
     )
 
     # ── Scissor mapper (converts single slider → all joint commands) ──
@@ -227,6 +247,7 @@ def generate_launch_description():
         OnProcessExit(
             target_action=joint_state_broadcaster_spawner,
             on_exit=[
+                mecanum_controller_spawner,
                 scissor_controller_spawner,
             ],
         )
@@ -236,6 +257,13 @@ def generate_launch_description():
         OnProcessExit(
             target_action=scissor_controller_spawner,
             on_exit=[scissor_mapper_node, scissor_slider_node],
+        )
+    )
+
+    start_mecanum_after_controller = RegisterEventHandler(
+        OnProcessExit(
+            target_action=mecanum_controller_spawner,
+            on_exit=[mecanum_kinematics_node],
         )
     )
 
@@ -269,5 +297,6 @@ def generate_launch_description():
         start_jsb_after_spawn,
         start_scissor_after_jsb,
         start_mapper_after_controller,
+        start_mecanum_after_controller,
         start_rviz_after_scissor,
     ])

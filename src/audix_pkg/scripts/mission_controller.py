@@ -21,7 +21,7 @@ from enum import Enum, auto
 import numpy as np
 import rclpy
 from rclpy.node import Node
-from geometry_msgs.msg import Twist, PoseStamped
+from geometry_msgs.msg import Point, Twist, PoseStamped
 from nav_msgs.msg import Odometry, Path
 from sensor_msgs.msg import Imu, LaserScan
 from std_msgs.msg import Bool, Float64, String
@@ -69,6 +69,7 @@ class MissionController(Node):
         self.declare_parameter('obstacle_speed_slow', 0.18)
         self.declare_parameter('obstacle_speed_creep', 0.08)
         self.declare_parameter('obstacle_detect_distance', 0.25)
+        self.declare_parameter('obstacle_clear_distance', 0.30)
         self.declare_parameter('obstacle_danger_distance', 0.15)
         self.declare_parameter('obstacle_side_min', 0.15)
         self.declare_parameter('front_blocked_threshold', 3)
@@ -81,11 +82,13 @@ class MissionController(Node):
         self.declare_parameter('reroute_return_tolerance', 0.03)
         self.declare_parameter('reroute_rejoin_extra_distance', 0.30)
         self.declare_parameter('reroute_side_clearance', 0.20)
+        self.declare_parameter('reroute_side_clear_hysteresis', 0.03)
         self.declare_parameter('reroute_side_clear_cycles', 6)
         self.declare_parameter('obstacle_halt_timeout', 2.5)
         self.declare_parameter('reroute_timeout', 12.0)
         self.declare_parameter('obstacle_sensor_warmup_sec', 2.0)
-        self.declare_parameter('obstacle_half_size', 0.05)
+        self.declare_parameter('ir_filter_alpha_rise', 0.18)
+        self.declare_parameter('ir_filter_alpha_fall', 0.70)
         self.declare_parameter('obstacle_safety_margin', 0.06)
         self.declare_parameter('obstacle_return_tolerance', 0.02)
         self.declare_parameter('lift_dwell_time', 3.0)
@@ -118,13 +121,21 @@ class MissionController(Node):
         self.declare_parameter('debug_path_max_points', 2500)
         self.declare_parameter('robot_center_offset_x', -0.16)
         self.declare_parameter('robot_center_offset_y', -0.15)
+        self.declare_parameter('robot_body_frame_flip_180', True)
         self.declare_parameter('straight_line_lift_height', 0.0)
+        self.declare_parameter('cmd_linear_accel_limit', 0.9)
+        self.declare_parameter('cmd_linear_decel_limit', 1.8)
+        self.declare_parameter('cmd_lateral_accel_limit', 1.1)
+        self.declare_parameter('cmd_lateral_decel_limit', 2.2)
+        self.declare_parameter('cmd_angular_accel_limit', 2.8)
+        self.declare_parameter('cmd_angular_decel_limit', 4.5)
 
         # Load parameters
         self.obstacle_speed_full = float(self.get_parameter('obstacle_speed_full').value)
         self.obstacle_speed_slow = float(self.get_parameter('obstacle_speed_slow').value)
         self.obstacle_speed_creep = float(self.get_parameter('obstacle_speed_creep').value)
         self.obstacle_detect_distance = float(self.get_parameter('obstacle_detect_distance').value)
+        self.obstacle_clear_distance = float(self.get_parameter('obstacle_clear_distance').value)
         self.obstacle_danger_distance = float(self.get_parameter('obstacle_danger_distance').value)
         self.obstacle_side_min = float(self.get_parameter('obstacle_side_min').value)
         self.front_blocked_threshold = int(self.get_parameter('front_blocked_threshold').value)
@@ -137,11 +148,13 @@ class MissionController(Node):
         self.reroute_return_tolerance = float(self.get_parameter('reroute_return_tolerance').value)
         self.reroute_rejoin_extra_distance = float(self.get_parameter('reroute_rejoin_extra_distance').value)
         self.reroute_side_clearance = float(self.get_parameter('reroute_side_clearance').value)
+        self.reroute_side_clear_hysteresis = float(self.get_parameter('reroute_side_clear_hysteresis').value)
         self.reroute_side_clear_cycles = int(self.get_parameter('reroute_side_clear_cycles').value)
         self.obstacle_halt_timeout = float(self.get_parameter('obstacle_halt_timeout').value)
         self.reroute_timeout = float(self.get_parameter('reroute_timeout').value)
         self.obstacle_warmup = self.get_parameter('obstacle_sensor_warmup_sec').value
-        self.obstacle_half_size = float(self.get_parameter('obstacle_half_size').value)
+        self.ir_filter_alpha_rise = float(self.get_parameter('ir_filter_alpha_rise').value)
+        self.ir_filter_alpha_fall = float(self.get_parameter('ir_filter_alpha_fall').value)
         self.obstacle_safety_margin = float(self.get_parameter('obstacle_safety_margin').value)
         self.obstacle_return_tolerance = float(self.get_parameter('obstacle_return_tolerance').value)
         self.lift_dwell = self.get_parameter('lift_dwell_time').value
@@ -174,7 +187,14 @@ class MissionController(Node):
         self.debug_path_max_points = self.get_parameter('debug_path_max_points').value
         self.robot_center_offset_x = float(self.get_parameter('robot_center_offset_x').value)
         self.robot_center_offset_y = float(self.get_parameter('robot_center_offset_y').value)
+        self.robot_body_frame_flip_180 = bool(self.get_parameter('robot_body_frame_flip_180').value)
         self.straight_line_lift_height = float(self.get_parameter('straight_line_lift_height').value)
+        self.cmd_linear_accel_limit = float(self.get_parameter('cmd_linear_accel_limit').value)
+        self.cmd_linear_decel_limit = float(self.get_parameter('cmd_linear_decel_limit').value)
+        self.cmd_lateral_accel_limit = float(self.get_parameter('cmd_lateral_accel_limit').value)
+        self.cmd_lateral_decel_limit = float(self.get_parameter('cmd_lateral_decel_limit').value)
+        self.cmd_angular_accel_limit = float(self.get_parameter('cmd_angular_accel_limit').value)
+        self.cmd_angular_decel_limit = float(self.get_parameter('cmd_angular_decel_limit').value)
 
         # Parse waypoints from YAML: flat list [x,y,yaw,h, x,y,yaw,h, ...]
         wp_flat = self.get_parameter('waypoints').value
@@ -210,10 +230,13 @@ class MissionController(Node):
             'right': float('inf'),
             'back': float('inf'),
         }
+        self.ir_raw = dict(self.ir)
+        self.ir_range_max = {key: float('inf') for key in self.ir}
 
         # Obstacle tracking
         self.front_blocked_count = 0
         self.clear_count = 0
+        self.raw_clear_count = 0
         self.pre_obstacle_state = None
         self.reroute_waypoints = []
         self.reroute_step = 0
@@ -240,6 +263,7 @@ class MissionController(Node):
         self.pending_obstacle_removals = []
         self.parking_mode = False
         self.active_leg_spawned = False
+        self.active_leg_present = False
         self.active_leg_trigger_progress = None
         self.post_lift_state = None
         self.use_resume_heading_for_target_rotate = False
@@ -268,15 +292,23 @@ class MissionController(Node):
             'front_left': (-0.34189, -0.27041),
             'left': (-0.16403, -0.30425),
         }
+        self.ir_half_fov = 0.30543
+        self.ir_default_range_min = 0.05
+        self.ir_default_range_max = 0.30
         self.front_extent = abs(self.sensor_positions['front'][0] - self.robot_center_offset_x)
         self.back_extent = abs(self.sensor_positions['back'][0] - self.robot_center_offset_x)
         self.left_extent = abs(self.sensor_positions['left'][1] - self.robot_center_offset_y)
         self.right_extent = abs(self.sensor_positions['right'][1] - self.robot_center_offset_y)
         self.robot_length = self.front_extent + self.back_extent
+        self.robot_width = self.left_extent + self.right_extent
 
         # Debug visualization state
         self.robot_path_points = []
         self.last_path_point = None
+        self.last_cmd_vx = 0.0
+        self.last_cmd_vy = 0.0
+        self.last_cmd_wz = 0.0
+        self.last_cmd_time = None
 
         # --- Publishers ---
         self.cmd_pub = self.create_publisher(Twist, '/cmd_vel', 10)
@@ -341,7 +373,30 @@ class MissionController(Node):
         rmax = msg.range_max if msg.range_max > 0 else float('inf')
         ranges[(ranges < rmin) | (ranges >= rmax) | np.isnan(ranges)] = np.inf
         valid = ranges[np.isfinite(ranges)]
-        self.ir[key] = float(np.min(valid)) if len(valid) > 0 else float('inf')
+        raw_value = float(np.min(valid)) if len(valid) > 0 else float('inf')
+        self.ir_raw[key] = raw_value
+        self.ir_range_max[key] = rmax
+
+        if not math.isfinite(raw_value):
+            raw_proxy = rmax
+        else:
+            raw_proxy = raw_value
+
+        prev_filtered = self.ir[key]
+        if not math.isfinite(prev_filtered):
+            if math.isfinite(raw_value):
+                self.ir[key] = raw_value
+            else:
+                self.ir[key] = float('inf')
+            return
+
+        prev_proxy = prev_filtered
+        alpha = self.ir_filter_alpha_fall if raw_proxy < prev_proxy else self.ir_filter_alpha_rise
+        filtered_proxy = alpha * raw_proxy + (1.0 - alpha) * prev_proxy
+        if not math.isfinite(raw_value) and filtered_proxy >= rmax * 0.98:
+            self.ir[key] = float('inf')
+        else:
+            self.ir[key] = filtered_proxy
 
     def _odom_cb(self, msg: Odometry):
         self.x = msg.pose.pose.position.x
@@ -437,6 +492,8 @@ class MissionController(Node):
             check=False,
         )
         if result.returncode == 0:
+            if self.active_leg_profile and self.active_leg_profile.get('name') == name:
+                self.active_leg_present = True
             self.get_logger().info(f'Spawned obstacle {name} at ({x:.2f}, {y:.2f})')
         else:
             self.get_logger().warn(
@@ -458,6 +515,8 @@ class MissionController(Node):
             check=False,
         )
         if result.returncode == 0 and 'data: true' in result.stdout:
+            if self.active_leg_profile and self.active_leg_profile.get('name') == name:
+                self.active_leg_present = False
             self.get_logger().info(f'Removed obstacle {name}')
             if (
                 self.active_leg_profile
@@ -501,6 +560,7 @@ class MissionController(Node):
     def _activate_leg(self, idx):
         self.active_leg_profile = self.leg_profiles[idx] if idx < len(self.leg_profiles) else None
         self.active_leg_spawned = False
+        self.active_leg_present = False
         self.active_leg_trigger_progress = None
         profile = self.active_leg_profile
         if profile and profile.get('surprise_spawn'):
@@ -600,16 +660,67 @@ class MissionController(Node):
     def _normalize(angle):
         return math.atan2(math.sin(angle), math.cos(angle))
 
+    @staticmethod
+    def _slew_axis(current, target, accel_limit, decel_limit, dt):
+        if dt <= 0.0:
+            return target
+        limit = decel_limit if current * target < 0.0 or abs(target) < abs(current) else accel_limit
+        max_delta = max(0.0, limit) * dt
+        if target > current:
+            return min(target, current + max_delta)
+        return max(target, current - max_delta)
+
     def _publish_stop(self):
         cmd = Twist()
         self.cmd_pub.publish(cmd)
+        self.last_cmd_vx = 0.0
+        self.last_cmd_vy = 0.0
+        self.last_cmd_wz = 0.0
+        self.last_cmd_time = self.get_clock().now()
 
     def _publish_cmd(self, vx=0.0, vy=0.0, wz=0.0):
+        now = self.get_clock().now()
+        target_vx = max(-self.max_lin, min(self.max_lin, vx))
+        target_vy = max(-self.max_lin, min(self.max_lin, vy))
+        target_wz = max(-self.max_ang, min(self.max_ang, wz))
+
+        if self.last_cmd_time is None:
+            cmd_vx = target_vx
+            cmd_vy = target_vy
+            cmd_wz = target_wz
+        else:
+            dt = (now - self.last_cmd_time).nanoseconds / 1e9
+            cmd_vx = self._slew_axis(
+                self.last_cmd_vx,
+                target_vx,
+                self.cmd_linear_accel_limit,
+                self.cmd_linear_decel_limit,
+                dt,
+            )
+            cmd_vy = self._slew_axis(
+                self.last_cmd_vy,
+                target_vy,
+                self.cmd_lateral_accel_limit,
+                self.cmd_lateral_decel_limit,
+                dt,
+            )
+            cmd_wz = self._slew_axis(
+                self.last_cmd_wz,
+                target_wz,
+                self.cmd_angular_accel_limit,
+                self.cmd_angular_decel_limit,
+                dt,
+            )
+
         cmd = Twist()
-        cmd.linear.x = max(-self.max_lin, min(self.max_lin, vx))
-        cmd.linear.y = max(-self.max_lin, min(self.max_lin, vy))
-        cmd.angular.z = max(-self.max_ang, min(self.max_ang, wz))
+        cmd.linear.x = cmd_vx
+        cmd.linear.y = cmd_vy
+        cmd.angular.z = cmd_wz
         self.cmd_pub.publish(cmd)
+        self.last_cmd_vx = cmd_vx
+        self.last_cmd_vy = cmd_vy
+        self.last_cmd_wz = cmd_wz
+        self.last_cmd_time = now
 
     def _center_xy(self, base_x, base_y, yaw):
         center_x = (
@@ -627,6 +738,12 @@ class MissionController(Node):
     def _closest_front_obstacle(self):
         return min(self.ir['front'], self.ir['front_left'], self.ir['front_right'])
 
+    def _effective_detect_distance(self):
+        reaction_time = self.front_blocked_threshold * 0.05 + 0.10
+        speed_margin = min(0.05, max(0.0, self.current_planar_speed) * reaction_time)
+        sensor_cap = max(self.ir_default_range_min, self.ir_default_range_max - 0.01)
+        return min(sensor_cap, self.obstacle_detect_distance + speed_margin)
+
     def _front_sensor_names(self):
         return ['front', 'front_left', 'front_right']
 
@@ -635,9 +752,10 @@ class MissionController(Node):
             return ['front_left', 'left']
         return ['front_right', 'right']
 
-    def _choose_trigger_sensor(self):
+    def _choose_trigger_sensor(self, threshold=None):
         if not self._obstacle_detection_active():
             return None
+        threshold = self._effective_detect_distance() if threshold is None else threshold
         candidates = [
             ('front', self.ir['front']),
             ('front_left', self.ir['front_left']),
@@ -645,7 +763,7 @@ class MissionController(Node):
             ('left', self.ir['left']),
             ('right', self.ir['right']),
         ]
-        hits = [item for item in candidates if item[1] < self.obstacle_detect_distance]
+        hits = [item for item in candidates if item[1] < threshold]
         if not hits:
             return None
         hits.sort(key=lambda item: item[1])
@@ -654,13 +772,17 @@ class MissionController(Node):
     def _obstacle_side_clear(self):
         if self.reroute_obstacle_side is None:
             return True
-        return all(self.ir[name] > self.reroute_side_clearance for name in self._side_sensor_names(self.reroute_obstacle_side))
+        side_clear_threshold = self.reroute_side_clearance + self.reroute_side_clear_hysteresis
+        return all(self.ir[name] > side_clear_threshold for name in self._side_sensor_names(self.reroute_obstacle_side))
 
     def _front_path_clear(self):
-        return all(self.ir[name] > self.obstacle_detect_distance for name in self._front_sensor_names())
+        return all(self.ir[name] > self.obstacle_clear_distance for name in self._front_sensor_names())
 
     def _all_ir_clear(self):
-        threshold = min(self.reroute_side_clearance, self.obstacle_detect_distance)
+        threshold = min(
+            self.reroute_side_clearance + self.reroute_side_clear_hysteresis,
+            self.obstacle_clear_distance,
+        )
         return all(value > threshold for value in self.ir.values())
 
     def _obstacle_detection_active(self):
@@ -668,34 +790,37 @@ class MissionController(Node):
         return elapsed >= self.obstacle_warmup
 
     def _front_obstacle_detected(self):
-        return self._choose_trigger_sensor() is not None
+        return self._choose_trigger_sensor(self._effective_detect_distance()) is not None
 
     def _reset_obstacle_counters(self):
         self.front_blocked_count = 0
         self.clear_count = 0
+        self.raw_clear_count = 0
 
     def _update_obstacle_counters(self):
-        if self._choose_trigger_sensor() is not None:
+        blocked = self._choose_trigger_sensor(self._effective_detect_distance()) is not None
+        clear = self._choose_trigger_sensor(self.obstacle_clear_distance) is None
+        if blocked:
             self.front_blocked_count += 1
             self.clear_count = 0
-        else:
+        elif clear:
             self.clear_count += 1
             self.front_blocked_count = 0
 
     def _max_allowed_speed(self):
-        closest = min(self.ir.values())
+        closest = min(self.ir_raw.values())
         if closest <= self.obstacle_danger_distance:
             return self.obstacle_speed_creep
-        if closest <= self.obstacle_detect_distance:
+        if closest <= self._effective_detect_distance():
             return self.obstacle_speed_slow
         return self.obstacle_speed_full
 
     def _apply_side_collision_prevention(self, vx, vy):
-        if vy > 0.0 and min(self.ir['left'], self.ir['front_left']) < self.obstacle_side_min:
+        if vy > 0.0 and min(self.ir_raw['left'], self.ir_raw['front_left']) < self.obstacle_side_min:
             vy = 0.0
-        if vy < 0.0 and min(self.ir['right'], self.ir['front_right']) < self.obstacle_side_min:
+        if vy < 0.0 and min(self.ir_raw['right'], self.ir_raw['front_right']) < self.obstacle_side_min:
             vy = 0.0
-        if vx < 0.0 and self.ir['back'] < self.obstacle_side_min:
+        if vx < 0.0 and self.ir_raw['back'] < self.obstacle_side_min:
             vx = 0.0
         return vx, vy
 
@@ -764,6 +889,134 @@ class MissionController(Node):
         pose.pose.orientation.w = qw
         return pose
 
+    def _make_point(self, x, y, z=0.0):
+        point = Point()
+        point.x = x
+        point.y = y
+        point.z = z
+        return point
+
+    def _body_point_to_world(self, body_x, body_y):
+        world_x, world_y = self._body_to_world_vector(body_x, body_y)
+        return self.center_x + world_x, self.center_y + world_y
+
+    def _sensor_display_range(self, sensor_name):
+        range_max = self.ir_range_max.get(sensor_name, self.ir_default_range_max)
+        if not math.isfinite(range_max):
+            range_max = self.ir_default_range_max
+
+        raw_range = self.ir_raw.get(sensor_name, float('inf'))
+        if math.isfinite(raw_range):
+            return max(self.ir_default_range_min, min(raw_range, range_max))
+        return range_max
+
+    def _sensor_hit_visible(self, sensor_name):
+        raw_range = self.ir_raw.get(sensor_name, float('inf'))
+        range_max = self.ir_range_max.get(sensor_name, self.ir_default_range_max)
+        return math.isfinite(raw_range) and raw_range < range_max
+
+    def _ir_cone_color(self, sensor_name):
+        if sensor_name == 'front':
+            return (1.0, 0.35, 0.25)
+        if sensor_name in ('front_left', 'front_right'):
+            return (1.0, 0.75, 0.20)
+        if sensor_name in ('left', 'right'):
+            return (0.20, 0.85, 1.0)
+        return (0.55, 0.75, 1.0)
+
+    def _build_ir_markers(self, now):
+        markers = []
+        sensor_names = ['front', 'front_left', 'front_right', 'left', 'right', 'back']
+        arc_segments = 12
+
+        for index, sensor_name in enumerate(sensor_names):
+            origin_body_x, origin_body_y = self._sensor_origin_body(sensor_name)
+            origin_x, origin_y = self._body_point_to_world(origin_body_x, origin_body_y)
+            dir_body_x, dir_body_y = self._sensor_direction_body(sensor_name)
+            sensor_yaw = self._geometry_body_yaw() + math.atan2(dir_body_y, dir_body_x)
+            display_range = self._sensor_display_range(sensor_name)
+            color_r, color_g, color_b = self._ir_cone_color(sensor_name)
+
+            arc_points = []
+            for step in range(arc_segments + 1):
+                ratio = step / arc_segments
+                ray_angle = sensor_yaw - self.ir_half_fov + (2.0 * self.ir_half_fov * ratio)
+                arc_points.append(
+                    self._make_point(
+                        origin_x + display_range * math.cos(ray_angle),
+                        origin_y + display_range * math.sin(ray_angle),
+                        0.03,
+                    )
+                )
+
+            cone = Marker()
+            cone.header.frame_id = 'odom'
+            cone.header.stamp = now
+            cone.ns = 'ir_cones'
+            cone.id = 1000 + index
+            cone.type = Marker.TRIANGLE_LIST
+            cone.action = Marker.ADD
+            cone.pose.orientation.w = 1.0
+            cone.scale.x = 1.0
+            cone.scale.y = 1.0
+            cone.scale.z = 1.0
+            cone.color.r = color_r
+            cone.color.g = color_g
+            cone.color.b = color_b
+            cone.color.a = 0.16
+            for step in range(arc_segments):
+                cone.points.append(self._make_point(origin_x, origin_y, 0.03))
+                cone.points.append(arc_points[step])
+                cone.points.append(arc_points[step + 1])
+            markers.append(cone)
+
+            outline = Marker()
+            outline.header.frame_id = 'odom'
+            outline.header.stamp = now
+            outline.ns = 'ir_cone_edges'
+            outline.id = 1100 + index
+            outline.type = Marker.LINE_STRIP
+            outline.action = Marker.ADD
+            outline.pose.orientation.w = 1.0
+            outline.scale.x = 0.01
+            outline.color.r = color_r
+            outline.color.g = color_g
+            outline.color.b = color_b
+            outline.color.a = 0.9
+            outline.points.append(self._make_point(origin_x, origin_y, 0.035))
+            outline.points.extend(arc_points)
+            outline.points.append(self._make_point(origin_x, origin_y, 0.035))
+            markers.append(outline)
+
+            hit = Marker()
+            hit.header.frame_id = 'odom'
+            hit.header.stamp = now
+            hit.ns = 'ir_hits'
+            hit.id = 1200 + index
+            hit.type = Marker.SPHERE
+            hit.action = Marker.ADD
+            hit.pose.orientation.w = 1.0
+            hit.scale.x = 0.035
+            hit.scale.y = 0.035
+            hit.scale.z = 0.035
+            if self._sensor_hit_visible(sensor_name):
+                hit_range = self.ir_raw[sensor_name]
+                hit.pose.position.x = origin_x + hit_range * math.cos(sensor_yaw)
+                hit.pose.position.y = origin_y + hit_range * math.sin(sensor_yaw)
+                hit.pose.position.z = 0.04
+                hit.color.r = 1.0
+                hit.color.g = 0.1
+                hit.color.b = 0.1
+                hit.color.a = 0.95
+            else:
+                hit.pose.position.x = origin_x
+                hit.pose.position.y = origin_y
+                hit.pose.position.z = -10.0
+                hit.color.a = 0.0
+            markers.append(hit)
+
+        return markers
+
     def _append_robot_path(self):
         if self.last_path_point is None:
             self.last_path_point = (self.center_x, self.center_y)
@@ -796,6 +1049,68 @@ class MissionController(Node):
         path.poses = poses
         return path
 
+    def _build_obstacle_markers(self, now):
+        markers = []
+
+        if self.active_leg_profile and self.active_leg_present and self.active_leg_profile.get('pose'):
+            ox, oy = self.active_leg_profile['pose']
+            sx, sy, sz = self.active_leg_profile.get('size', (0.14, 0.14, 0.24))
+            rgba = self.active_leg_profile.get('color', (0.9, 0.2, 0.8, 1.0))
+
+            obstacle = Marker()
+            obstacle.header.frame_id = 'odom'
+            obstacle.header.stamp = now
+            obstacle.ns = 'dynamic_obstacles'
+            obstacle.id = 300
+            obstacle.type = Marker.CUBE
+            obstacle.action = Marker.ADD
+            obstacle.pose.position.x = ox
+            obstacle.pose.position.y = oy
+            obstacle.pose.position.z = 0.5 * sz
+            obstacle.pose.orientation.w = 1.0
+            obstacle.scale.x = sx
+            obstacle.scale.y = sy
+            obstacle.scale.z = sz
+            obstacle.color.r = rgba[0]
+            obstacle.color.g = rgba[1]
+            obstacle.color.b = rgba[2]
+            obstacle.color.a = 0.55
+            markers.append(obstacle)
+
+        envelope = self._estimate_obstacle_envelope_path_frame()
+        if envelope is not None and self.path_line_start is not None:
+            center_progress = 0.5 * (envelope['min_progress'] + envelope['max_progress'])
+            center_lateral = 0.5 * (envelope['min_lateral'] + envelope['max_lateral'])
+            ex, ey = self._point_on_path(center_progress, center_lateral)
+            tangent, _ = self._path_unit_vectors()
+            yaw = math.atan2(tangent[1], tangent[0])
+            qx, qy, qz, qw = _quat_from_yaw(yaw)
+
+            estimate = Marker()
+            estimate.header.frame_id = 'odom'
+            estimate.header.stamp = now
+            estimate.ns = 'detected_obstacles'
+            estimate.id = 320
+            estimate.type = Marker.CUBE
+            estimate.action = Marker.ADD
+            estimate.pose.position.x = ex
+            estimate.pose.position.y = ey
+            estimate.pose.position.z = 0.09
+            estimate.pose.orientation.x = qx
+            estimate.pose.orientation.y = qy
+            estimate.pose.orientation.z = qz
+            estimate.pose.orientation.w = qw
+            estimate.scale.x = max(0.08, envelope['max_progress'] - envelope['min_progress'])
+            estimate.scale.y = max(0.08, envelope['max_lateral'] - envelope['min_lateral'])
+            estimate.scale.z = 0.18
+            estimate.color.r = 1.0
+            estimate.color.g = 0.18
+            estimate.color.b = 0.18
+            estimate.color.a = 0.28
+            markers.append(estimate)
+
+        return markers
+
     def _build_target_markers(self):
         now = self.get_clock().now().to_msg()
         markers = []
@@ -805,6 +1120,8 @@ class MissionController(Node):
         clear.header.stamp = now
         clear.action = Marker.DELETEALL
         markers.append(clear)
+        markers.extend(self._build_ir_markers(now))
+        markers.extend(self._build_obstacle_markers(now))
 
         for i, wp in enumerate(self.waypoints):
             wx, wy, _, _ = wp
@@ -1022,7 +1339,7 @@ class MissionController(Node):
             {
                 'name': 'dynamic_obstacle_seg2',
                 'surprise_spawn': True,
-                'remove_after_detect': 1.8,
+                'remove_after_detect': 1.1,
                 'surprise_buffer': 0.16,
                 'size': (0.14, 0.14, 0.24),
                 'color': (0.10, 0.75, 0.95, 1.0),
@@ -1030,7 +1347,7 @@ class MissionController(Node):
             {
                 'name': 'dynamic_obstacle_seg3',
                 'surprise_spawn': True,
-                'remove_after_reroute': 3.0,
+                'remove_after_reroute': 1.8,
                 'surprise_buffer': 0.16,
                 'size': (0.14, 0.14, 0.24),
                 'color': (0.95, 0.70, 0.10, 1.0),
@@ -1116,17 +1433,145 @@ class MissionController(Node):
             self.path_line_start[1] + progress * tangent[1] + lateral_offset * lateral[1],
         )
 
+    def _sensor_origin_body(self, sensor_name):
+        sensor_x, sensor_y = self.sensor_positions[sensor_name]
+        return (
+            self.robot_center_offset_x - sensor_x,
+            self.robot_center_offset_y - sensor_y,
+        )
+
+    def _geometry_body_yaw(self):
+        if self.robot_body_frame_flip_180:
+            return self._normalize(self.yaw + math.pi)
+        return self.yaw
+
+    def _sensor_direction_body(self, sensor_name):
+        directions = {
+            'front': (1.0, 0.0),
+            'front_left': (1.0, 1.0),
+            'front_right': (1.0, -1.0),
+            'left': (0.0, 1.0),
+            'right': (0.0, -1.0),
+            'back': (-1.0, 0.0),
+        }
+        dir_x, dir_y = directions[sensor_name]
+        norm = math.hypot(dir_x, dir_y)
+        return dir_x / norm, dir_y / norm
+
+    def _sensor_hit_points_world(self, sensor_name, hit_range):
+        origin_body_x, origin_body_y = self._sensor_origin_body(sensor_name)
+        dir_body_x, dir_body_y = self._sensor_direction_body(sensor_name)
+        sensor_body_yaw = math.atan2(dir_body_y, dir_body_x)
+        points = []
+        for angle_offset in (-self.ir_half_fov, 0.0, self.ir_half_fov):
+            ray_body_yaw = sensor_body_yaw + angle_offset
+            hit_body_x = origin_body_x + hit_range * math.cos(ray_body_yaw)
+            hit_body_y = origin_body_y + hit_range * math.sin(ray_body_yaw)
+            hit_world_x, hit_world_y = self._body_to_world_vector(hit_body_x, hit_body_y)
+            points.append((self.center_x + hit_world_x, self.center_y + hit_world_y))
+        return points
+
+    def _estimate_obstacle_envelope_path_frame(self):
+        sensor_horizon = max(self.obstacle_clear_distance, self.reroute_side_clearance) + self.robot_length
+        progress_samples = []
+        lateral_samples = []
+        sensors = set()
+
+        for sensor_name, raw_range in self.ir_raw.items():
+            if not math.isfinite(raw_range) or raw_range > sensor_horizon:
+                continue
+
+            for hit_world_x, hit_world_y in self._sensor_hit_points_world(sensor_name, raw_range):
+                progress_samples.append(self._path_progress(hit_world_x, hit_world_y))
+                lateral_samples.append(self._point_to_line_distance(hit_world_x, hit_world_y))
+            sensors.add(sensor_name)
+
+        if not progress_samples:
+            return None
+
+        return {
+            'min_progress': min(progress_samples) - self.obstacle_safety_margin,
+            'max_progress': max(progress_samples) + self.obstacle_safety_margin,
+            'min_lateral': min(lateral_samples) - self.obstacle_safety_margin,
+            'max_lateral': max(lateral_samples) + self.obstacle_safety_margin,
+            'sensors': sensors,
+        }
+
+    def _candidate_bypass_offsets(self, envelope):
+        fallback = max(
+            self.reroute_lateral_distance,
+            self.left_extent + self.obstacle_safety_margin,
+            self.right_extent + self.obstacle_safety_margin,
+        )
+        if envelope is None:
+            return {
+                'left': fallback,
+                'right': -fallback,
+            }
+        return {
+            'left': envelope['max_lateral'] + self.right_extent + self.obstacle_safety_margin,
+            'right': envelope['min_lateral'] - self.left_extent - self.obstacle_safety_margin,
+        }
+
+    def _select_reroute_plan(self, envelope, trigger_sensor):
+        offsets = self._candidate_bypass_offsets(envelope)
+        bypass_side = None
+
+        if trigger_sensor in ('front_left', 'left'):
+            bypass_side = 'right'
+        elif trigger_sensor in ('front_right', 'right'):
+            bypass_side = 'left'
+        elif envelope is not None:
+            if envelope['max_lateral'] <= 0.0:
+                bypass_side = 'left'
+            elif envelope['min_lateral'] >= 0.0:
+                bypass_side = 'right'
+
+        if bypass_side is None:
+            left_clearance = min(self.ir_raw['left'], self.ir_raw['front_left'])
+            right_clearance = min(self.ir_raw['right'], self.ir_raw['front_right'])
+            if left_clearance > right_clearance + self.reroute_side_clear_hysteresis:
+                bypass_side = 'left'
+            elif right_clearance > left_clearance + self.reroute_side_clear_hysteresis:
+                bypass_side = 'right'
+            else:
+                bypass_side = min(offsets.items(), key=lambda item: abs(item[1]))[0]
+
+        reroute_direction = 1.0 if bypass_side == 'left' else -1.0
+        obstacle_side = 'right' if bypass_side == 'left' else 'left'
+        return bypass_side, obstacle_side, reroute_direction, offsets[bypass_side]
+
+    def _geometry_based_rejoin_progress(self, envelope):
+        base_progress = self.reroute_start_progress + self.robot_length + self.reroute_rejoin_extra_distance
+        if envelope is None:
+            return base_progress
+
+        sensors = envelope['sensors']
+        tail_clearance = self.back_extent + self.obstacle_safety_margin
+        if sensors & {'left', 'right'}:
+            tail_clearance = max(
+                tail_clearance,
+                0.5 * self.robot_length + self.obstacle_safety_margin,
+            )
+
+        return max(
+            base_progress,
+            envelope['max_progress'] + tail_clearance + self.reroute_rejoin_extra_distance,
+        )
+
     def _world_to_body_vector(self, world_x, world_y):
-        cos_y = math.cos(self.yaw)
-        sin_y = math.sin(self.yaw)
+        body_yaw = self._geometry_body_yaw()
+        cos_y = math.cos(body_yaw)
+        sin_y = math.sin(body_yaw)
         return (
             world_x * cos_y + world_y * sin_y,
             -world_x * sin_y + world_y * cos_y,
         )
 
     def _body_to_world_vector(self, body_x, body_y):
-        cos_y = math.cos(self.yaw)
-        sin_y = math.sin(self.yaw)
+        body_yaw = self._geometry_body_yaw()
+        cos_y = math.cos(body_yaw)
+        sin_y = math.sin(body_yaw)
         return (
             body_x * cos_y - body_y * sin_y,
             body_x * sin_y + body_y * cos_y,
@@ -1147,6 +1592,12 @@ class MissionController(Node):
 
     def _all_sensors_clear_for_motion(self):
         for sensor_name, sensor_range in self.ir.items():
+            if math.isfinite(sensor_range) and sensor_range < self._sensor_clearance_threshold(sensor_name):
+                return False
+        return True
+
+    def _all_sensors_raw_clear_for_motion(self):
+        for sensor_name, sensor_range in self.ir_raw.items():
             if math.isfinite(sensor_range) and sensor_range < self._sensor_clearance_threshold(sensor_name):
                 return False
         return True
@@ -1213,11 +1664,11 @@ class MissionController(Node):
 
     def _reroute_obstacle_side_distance(self):
         if self.reroute_direction > 0.0:
-            return min(self.ir['right'], self.ir['front_right'])
-        return min(self.ir['left'], self.ir['front_left'])
+            return min(self.ir_raw['right'], self.ir_raw['front_right'])
+        return min(self.ir_raw['left'], self.ir_raw['front_left'])
 
     def _update_reroute_side_clear_count(self):
-        if self._reroute_obstacle_side_distance() >= self.reroute_side_clearance:
+        if self._reroute_obstacle_side_distance() >= self.reroute_side_clearance + self.reroute_side_clear_hysteresis:
             self.reroute_side_clear_count += 1
         else:
             self.reroute_side_clear_count = 0
@@ -1260,20 +1711,12 @@ class MissionController(Node):
             wz = self.ang_kp * heading_error * 0.25
         self._publish_motion(vx=body_x, vy=body_y, wz=wz, apply_speed_zone=apply_speed_zone)
 
-    def _choose_reroute_direction(self):
-        left_clearance = min(self.ir['left'], self.ir['front_left'])
-        right_clearance = min(self.ir['right'], self.ir['front_right'])
-        if left_clearance > right_clearance:
-            return 1.0
-        if right_clearance > left_clearance:
-            return -1.0
-        return 1.0
-
     def _enter_obstacle_halt(self):
         self.pre_obstacle_state = self.state
         self.state = State.OBSTACLE_HALT
         self.reroute_entry_time = self.get_clock().now()
         self.clear_count = 0
+        self.raw_clear_count = 0
         self.reroute_trigger_sensor = self._choose_trigger_sensor()
         self._publish_stop()
         if self.active_leg_profile and self.active_leg_profile.get('remove_after_detect'):
@@ -1292,32 +1735,20 @@ class MissionController(Node):
         self.reroute_start_progress = self._path_progress(self.center_x, self.center_y)
         self.reroute_side_clear_count = 0
         self.reroute_entry_time = self.get_clock().now()
+        envelope = self._estimate_obstacle_envelope_path_frame()
 
         trigger_sensor = self.reroute_trigger_sensor or self._choose_trigger_sensor() or 'front'
-        if trigger_sensor in ('front_left', 'left'):
-            obstacle_side = 'left'
-        elif trigger_sensor in ('front_right', 'right'):
-            obstacle_side = 'right'
-        else:
-            left_min = min(self.ir['front_left'], self.ir['left'])
-            right_min = min(self.ir['front_right'], self.ir['right'])
-            obstacle_side = 'left' if right_min >= left_min else 'right'
-
-        if obstacle_side == 'left':
-            self.reroute_direction = -1.0
-            side_extent = self.left_extent
-        else:
-            self.reroute_direction = 1.0
-            side_extent = self.right_extent
-
+        _, obstacle_side, self.reroute_direction, self.reroute_target_offset = self._select_reroute_plan(
+            envelope,
+            trigger_sensor,
+        )
         self.reroute_obstacle_side = obstacle_side
-        self.reroute_target_offset = self.reroute_direction * (
-            side_extent + self.obstacle_half_size + self.obstacle_safety_margin
+        self.reroute_rejoin_min_progress = self._geometry_based_rejoin_progress(envelope)
+
+        self.reroute_required_pass_distance = max(
+            self.reroute_rejoin_min_progress - self.reroute_start_progress,
+            0.5 * self.robot_length + self.obstacle_safety_margin,
         )
-        self.reroute_required_pass_distance = (
-            self.robot_length + (2.0 * self.obstacle_half_size) + self.obstacle_safety_margin
-        )
-        self.reroute_rejoin_min_progress = self.reroute_start_progress + self.reroute_required_pass_distance
         self._update_reroute_debug_points()
         self._reset_obstacle_counters()
         if self.active_leg_profile and self.active_leg_profile.get('remove_after_reroute'):
@@ -1326,12 +1757,16 @@ class MissionController(Node):
                 self.active_leg_profile['remove_after_reroute'],
             )
         self.get_logger().warn(
-            'Obstacle remained blocked — shifting %s with shell clearance' %
+            'Obstacle remained blocked — shifting %s with footprint clearance' %
             ('left' if self.reroute_direction > 0.0 else 'right')
         )
 
     def _optimize_reroute_plan_from_current_pose(self, reason):
         self.reroute_rejoin_min_progress = self._path_progress(self.center_x, self.center_y)
+        self.reroute_required_pass_distance = max(
+            0.0,
+            self.reroute_rejoin_min_progress - self.reroute_start_progress,
+        )
         self.reroute_step = 3
         self.reroute_plan_optimized = True
         self._update_reroute_debug_points()
@@ -1374,78 +1809,100 @@ class MissionController(Node):
             self.get_logger().error('Reroute timed out — stopping mission for safety')
             return
 
-        tx, ty, _, _ = self.waypoints[self.current_wp_idx]
-        dx = tx - self.center_x
-        dy = ty - self.center_y
         current_progress = self._path_progress(self.center_x, self.center_y)
-        tangent_world_x, tangent_world_y = self._path_unit_vectors()[0]
-        tangent_body_x, tangent_body_y = self._world_to_body_vector(tangent_world_x, tangent_world_y)
-
-        desired_body_x, desired_body_y = self._world_to_body_vector(dx, dy)
-        desired_norm = math.hypot(desired_body_x, desired_body_y)
-        if desired_norm > 1e-6:
-            desired_body_x /= desired_norm
-            desired_body_y /= desired_norm
-        else:
-            desired_body_x = tangent_body_x
-            desired_body_y = tangent_body_y
-
-        repulse_body_x, repulse_body_y, active_sensors, primary_sensor = self._sensor_repulsion_body_vector()
         line_error = self._point_to_line_distance(self.center_x, self.center_y)
-        line_recovery_y = max(-self.reroute_strafe_speed, min(self.reroute_strafe_speed, -2.1 * line_error))
+        offset_error = self.reroute_target_offset - line_error
+        shift_tolerance = max(self.obstacle_return_tolerance, 0.04)
+        rejoin_tolerance = max(self.obstacle_return_tolerance, self.reroute_return_tolerance)
+        heading_wz = self.ang_kp * self._normalize(self.resume_heading_target - self.yaw) * 0.2
 
-        if active_sensors:
-            focus_sensor = self.reroute_trigger_sensor if self.reroute_trigger_sensor in active_sensors else primary_sensor
-            escape_body_x, escape_body_y = self._focused_escape_body_vector(focus_sensor)
-            threshold = self._sensor_clearance_threshold(focus_sensor)
-            sensor_range = self.ir[focus_sensor]
-            urgency = max(0.0, min(1.0, (threshold - sensor_range) / max(threshold, 1e-6)))
-            command_body_x = (1.0 + urgency) * escape_body_x + 0.8 * repulse_body_x + 0.2 * tangent_body_x
-            command_body_y = (1.0 + urgency) * escape_body_y + 0.8 * repulse_body_y + 0.2 * line_recovery_y
-        else:
-            rejoin_progress = max(
+        if self.reroute_step <= 1:
+            shift_progress = max(
+                current_progress,
+                self.reroute_start_progress,
+            )
+            shift_x, shift_y = self._point_on_path(shift_progress, self.reroute_target_offset)
+            self.reroute_waypoints = [
+                (shift_x, shift_y),
+                self._point_on_path(max(shift_progress, self.reroute_rejoin_min_progress), self.reroute_target_offset),
+                self._point_on_path(max(shift_progress, self.reroute_rejoin_min_progress) + self.reroute_return_lookahead, 0.0),
+            ]
+            self._drive_toward_point(
+                shift_x,
+                shift_y,
+                self.reroute_strafe_speed,
+                heading_target=self.resume_heading_target,
+                apply_speed_zone=False,
+            )
+            if abs(offset_error) <= shift_tolerance:
+                self.reroute_step = 2
+                self.clear_count = 0
+                self.get_logger().info('Reroute shift complete — holding offset lane past the obstacle')
+            return
+
+        if self.reroute_step == 2:
+            envelope = self._estimate_obstacle_envelope_path_frame()
+            if envelope is not None:
+                offsets = self._candidate_bypass_offsets(envelope)
+                move_side = 'left' if self.reroute_direction > 0.0 else 'right'
+                updated_offset = offsets[move_side]
+                if self.reroute_direction > 0.0:
+                    self.reroute_target_offset = max(self.reroute_target_offset, updated_offset)
+                else:
+                    self.reroute_target_offset = min(self.reroute_target_offset, updated_offset)
+                self.reroute_rejoin_min_progress = max(
+                    self.reroute_rejoin_min_progress,
+                    self._geometry_based_rejoin_progress(envelope),
+                )
+
+            lane_progress = max(
                 current_progress + self.reroute_return_lookahead,
                 self.reroute_start_progress + self.reroute_return_lookahead,
             )
-            rejoin_x, rejoin_y = self._point_on_path(rejoin_progress, 0.0)
-            rejoin_body_x, rejoin_body_y = self._world_to_body_vector(
-                rejoin_x - self.center_x,
-                rejoin_y - self.center_y,
+            lane_x, lane_y = self._point_on_path(lane_progress, self.reroute_target_offset)
+            self.reroute_waypoints = [
+                (lane_x, lane_y),
+                self._point_on_path(max(lane_progress, self.reroute_rejoin_min_progress), self.reroute_target_offset),
+                self._point_on_path(max(lane_progress, self.reroute_rejoin_min_progress) + self.reroute_return_lookahead, 0.0),
+            ]
+            lane_speed = self.reroute_creep_speed if not self._all_sensors_clear_for_motion() else min(self.obstacle_speed_slow, self.max_lin)
+            self._drive_toward_point(
+                lane_x,
+                lane_y,
+                lane_speed,
+                heading_target=self.resume_heading_target,
+                apply_speed_zone=False,
             )
-            rejoin_norm = math.hypot(rejoin_body_x, rejoin_body_y)
-            if rejoin_norm > 1e-6:
-                rejoin_body_x /= rejoin_norm
-                rejoin_body_y /= rejoin_norm
-            else:
-                rejoin_body_x = tangent_body_x
-                rejoin_body_y = 0.0
-
-            command_body_x = 0.25 * desired_body_x + 0.95 * rejoin_body_x + 0.30 * tangent_body_x
-            command_body_y = 1.35 * rejoin_body_y + 1.85 * line_recovery_y
-
-        command_norm = math.hypot(command_body_x, command_body_y)
-        if command_norm < 1e-6:
-            self._publish_stop()
+            if envelope is None and self._all_sensors_raw_clear_for_motion() and current_progress >= self.reroute_rejoin_min_progress:
+                self.reroute_step = 3
+                self.clear_count = 0
+                self.get_logger().info('Offset lane is clear — rejoining center path')
             return
 
-        speed = self.reroute_creep_speed if active_sensors else min(self.obstacle_speed_full, self.max_lin)
-        if not active_sensors and abs(line_error) > self.obstacle_return_tolerance:
-            speed = max(speed, min(self.max_lin, self.obstacle_speed_full * 0.9))
-        body_vx = speed * command_body_x / command_norm
-        body_vy = speed * command_body_y / command_norm
-        self._update_reactive_reroute_preview(body_vx, body_vy)
-        self._publish_motion(
-            vx=body_vx,
-            vy=body_vy,
-            wz=self.ang_kp * self._normalize(self.resume_heading_target - self.yaw) * 0.2,
+        rejoin_progress = max(
+            current_progress + self.reroute_return_lookahead,
+            self.reroute_rejoin_min_progress,
+        )
+        rejoin_x, rejoin_y = self._point_on_path(rejoin_progress, 0.0)
+        self.reroute_waypoints = [
+            self._point_on_path(current_progress, self.reroute_target_offset),
+            (rejoin_x, rejoin_y),
+            self._point_on_path(rejoin_progress + self.reroute_return_lookahead, 0.0),
+        ]
+        self._drive_toward_point(
+            rejoin_x,
+            rejoin_y,
+            min(self.obstacle_speed_full, self.max_lin),
+            heading_target=self.resume_heading_target,
             apply_speed_zone=False,
         )
 
-        if (
-            self._all_sensors_clear_for_motion()
-            and abs(line_error) <= max(self.obstacle_return_tolerance, self.reroute_return_tolerance)
-            and current_progress >= self.reroute_rejoin_min_progress
-        ):
+        if not self._all_sensors_raw_clear_for_motion():
+            self.reroute_step = 2
+            self.clear_count = 0
+            return
+
+        if abs(line_error) <= rejoin_tolerance and self._all_sensors_clear_for_motion():
             self.clear_count += 1
         else:
             self.clear_count = 0
@@ -1523,6 +1980,22 @@ class MissionController(Node):
         if self.state == State.OBSTACLE_HALT:
             self._publish_stop()
             self._update_obstacle_counters()
+            if self._all_sensors_raw_clear_for_motion():
+                self.raw_clear_count += 1
+            else:
+                self.raw_clear_count = 0
+
+            if (
+                self.active_leg_profile
+                and self.active_leg_profile.get('remove_after_detect')
+                and self.raw_clear_count >= 2
+            ):
+                self._reset_obstacle_counters()
+                self.state = self.pre_obstacle_state or State.MOVE_FORWARD
+                self.reroute_entry_time = None
+                self.get_logger().info('Transient obstacle despawned during halt — resuming without reroute')
+                return
+
             if self.clear_count >= self.clear_threshold:
                 self._reset_obstacle_counters()
                 self.state = self.pre_obstacle_state or State.MOVE_FORWARD

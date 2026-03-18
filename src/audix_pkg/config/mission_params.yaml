@@ -8,6 +8,7 @@ mission_controller:
     obstacle_speed_slow: 0.18        # m/s when obstacle is within detect distance
     obstacle_speed_creep: 0.08       # m/s when obstacle is within danger distance
     obstacle_detect_distance: 0.25   # m — front obstacle detection threshold
+    obstacle_clear_distance: 0.30    # m — larger threshold to confirm the front path is clear
     obstacle_danger_distance: 0.15   # m — front obstacle creep threshold
     obstacle_side_min: 0.15          # m — minimum allowed side/back clearance
     front_blocked_threshold: 3       # consecutive blocked cycles before halting
@@ -19,11 +20,14 @@ mission_controller:
     reroute_return_lookahead: 0.18   # m forward lookahead while rejoining the path
     reroute_rejoin_extra_distance: 0.30  # m additional forward pass before rejoin is allowed
     reroute_side_clearance: 0.20     # m required obstacle-side IR clearance before rejoin
+    reroute_side_clear_hysteresis: 0.03  # m extra margin before a side is considered safely clear again
     reroute_side_clear_cycles: 6     # consecutive control cycles with side clearance before rejoin
     obstacle_halt_timeout: 3.0       # s to wait after detection before deciding to reroute
     reroute_return_tolerance: 0.05   # m tolerance to consider path line rejoined
     reroute_timeout: 20.0            # s maximum reroute duration
     obstacle_sensor_warmup_sec: 2.0  # ignore startup sensor transients
+    ir_filter_alpha_rise: 0.18       # slower rise so sudden clear readings need confirmation
+    ir_filter_alpha_fall: 0.70       # faster fall so approaching obstacles are trusted quickly
 
     # --- Scissor lift ---
     lift_dwell_time: 2.0           # seconds to hold at scan height
@@ -59,6 +63,12 @@ mission_controller:
     debug_path_max_points: 2500
     robot_center_offset_x: -0.16
     robot_center_offset_y: -0.15
+    cmd_linear_accel_limit: 0.9     # m/s^2 forward acceleration limit
+    cmd_linear_decel_limit: 1.8     # m/s^2 forward braking limit
+    cmd_lateral_accel_limit: 1.1    # m/s^2 lateral acceleration limit
+    cmd_lateral_decel_limit: 2.2    # m/s^2 lateral braking limit
+    cmd_angular_accel_limit: 2.8    # rad/s^2 angular acceleration limit
+    cmd_angular_decel_limit: 4.5    # rad/s^2 angular braking limit
 
 mecanum_kinematics:
   ros__parameters:
@@ -66,6 +76,7 @@ mecanum_kinematics:
     wheel_base_half: 0.09          # m  (half front-to-back axle distance)
     track_width_half: 0.1574       # m  (half left-to-right wheel distance)
     robot_body_frame_flip_180: true  # RobotBody is pi-rotated from base_link
+    invert_linear_x: true            # Positive wheel spin drives the chassis backward in this model
 
 start_stop_node:
   ros__parameters:

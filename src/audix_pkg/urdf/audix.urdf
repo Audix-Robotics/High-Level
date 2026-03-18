@@ -1415,8 +1415,8 @@
   </gazebo>
 
   <!-- ============================================================ -->
-  <!-- Gazebo: VelocityControl – directly sets robot body velocity  -->
-  <!-- so the robot moves in all 4 directions (mecanum simulation)  -->
+  <!-- Gazebo: VelocityControl – stable body motion path            -->
+  <!-- cmd_vel still also feeds wheel animation through ros2_control -->
   <!-- ============================================================ -->
   <gazebo>
     <plugin filename="gz-sim-velocity-control-system"
@@ -1425,6 +1425,7 @@
     </plugin>
   </gazebo>
 
+  <!-- ============================================================ -->
   <!-- ============================================================ -->
   <!-- Gazebo: Odometry publisher for EKF + mission stack           -->
   <!-- ============================================================ -->

@@ -385,6 +385,11 @@ Visualization Manager:
       Enabled: true
       Name: WaypointMarkers
       Namespaces:
+        detected_obstacles: true
+        dynamic_obstacles: true
+        ir_cone_edges: true
+        ir_cones: true
+        ir_hits: true
         mission_labels: true
         mission_state: true
         mission_targets: true
