@@ -26,6 +26,8 @@ class ArenaRoamer(Node):
     def __init__(self):
         super().__init__('arena_roamer')
 
+        self.sensor_names = ['front', 'front_left', 'front_right', 'left', 'right', 'back']
+
         self.declare_parameter('arena_min_x', -4.35)
         self.declare_parameter('arena_max_x', 4.35)
         self.declare_parameter('arena_min_y', -4.35)
@@ -35,6 +37,8 @@ class ArenaRoamer(Node):
         self.declare_parameter('goal_reached_tolerance', 0.32)
         self.declare_parameter('goal_timeout_sec', 18.0)
         self.declare_parameter('sensor_warmup_sec', 2.0)
+        self.declare_parameter('sensor_timeout_sec', 0.35)
+        self.declare_parameter('odom_timeout_sec', 0.35)
         self.declare_parameter('control_period_sec', 0.05)
         self.declare_parameter('max_linear_speed', 0.42)
         self.declare_parameter('max_lateral_speed', 0.42)
@@ -73,6 +77,22 @@ class ArenaRoamer(Node):
         self.declare_parameter('cmd_forward_sign', -1.0)
         self.declare_parameter('cmd_lateral_sign', 1.0)
         self.declare_parameter('goal_keepout_radius', 0.95)
+        self.declare_parameter('ir_low_sample_count', 3)
+        self.declare_parameter('cmd_linear_accel_limit', 0.70)
+        self.declare_parameter('cmd_linear_decel_limit', 1.20)
+        self.declare_parameter('cmd_lateral_accel_limit', 0.85)
+        self.declare_parameter('cmd_lateral_decel_limit', 1.40)
+        self.declare_parameter('cmd_angular_accel_limit', 2.20)
+        self.declare_parameter('cmd_angular_decel_limit', 3.50)
+        self.declare_parameter('cmd_deadband_linear', 0.015)
+        self.declare_parameter('cmd_deadband_lateral', 0.015)
+        self.declare_parameter('cmd_deadband_angular', 0.035)
+        self.declare_parameter('control_mode', 'acceptance_path')
+        self.declare_parameter('route_name', 'double_pinch_figure8')
+        self.declare_parameter('route_loop', False)
+        self.declare_parameter('route_waypoint_tolerance', 0.24)
+        self.declare_parameter('route_waypoint_dwell_sec', 0.35)
+        self.declare_parameter('route_fail_on_timeout', True)
 
         self.arena_min_x = float(self.get_parameter('arena_min_x').value)
         self.arena_max_x = float(self.get_parameter('arena_max_x').value)
@@ -83,6 +103,8 @@ class ArenaRoamer(Node):
         self.goal_reached_tolerance = float(self.get_parameter('goal_reached_tolerance').value)
         self.goal_timeout_sec = float(self.get_parameter('goal_timeout_sec').value)
         self.sensor_warmup_sec = float(self.get_parameter('sensor_warmup_sec').value)
+        self.sensor_timeout_sec = float(self.get_parameter('sensor_timeout_sec').value)
+        self.odom_timeout_sec = float(self.get_parameter('odom_timeout_sec').value)
         self.control_period = float(self.get_parameter('control_period_sec').value)
         self.max_linear_speed = float(self.get_parameter('max_linear_speed').value)
         self.max_lateral_speed = float(self.get_parameter('max_lateral_speed').value)
@@ -125,6 +147,22 @@ class ArenaRoamer(Node):
         self.cmd_forward_sign = float(self.get_parameter('cmd_forward_sign').value)
         self.cmd_lateral_sign = float(self.get_parameter('cmd_lateral_sign').value)
         self.goal_keepout_radius = float(self.get_parameter('goal_keepout_radius').value)
+        self.ir_low_sample_count = max(1, int(self.get_parameter('ir_low_sample_count').value))
+        self.cmd_linear_accel_limit = float(self.get_parameter('cmd_linear_accel_limit').value)
+        self.cmd_linear_decel_limit = float(self.get_parameter('cmd_linear_decel_limit').value)
+        self.cmd_lateral_accel_limit = float(self.get_parameter('cmd_lateral_accel_limit').value)
+        self.cmd_lateral_decel_limit = float(self.get_parameter('cmd_lateral_decel_limit').value)
+        self.cmd_angular_accel_limit = float(self.get_parameter('cmd_angular_accel_limit').value)
+        self.cmd_angular_decel_limit = float(self.get_parameter('cmd_angular_decel_limit').value)
+        self.cmd_deadband_linear = float(self.get_parameter('cmd_deadband_linear').value)
+        self.cmd_deadband_lateral = float(self.get_parameter('cmd_deadband_lateral').value)
+        self.cmd_deadband_angular = float(self.get_parameter('cmd_deadband_angular').value)
+        self.control_mode = str(self.get_parameter('control_mode').value).strip().lower()
+        self.route_name = str(self.get_parameter('route_name').value).strip().lower()
+        self.route_loop = bool(self.get_parameter('route_loop').value)
+        self.route_waypoint_tolerance = float(self.get_parameter('route_waypoint_tolerance').value)
+        self.route_waypoint_dwell_sec = float(self.get_parameter('route_waypoint_dwell_sec').value)
+        self.route_fail_on_timeout = bool(self.get_parameter('route_fail_on_timeout').value)
 
         self.cmd_pub = self.create_publisher(Twist, '/cmd_vel', 10)
         self.path_pub = self.create_publisher(Path, '/debug/planned_path', 10)
@@ -143,16 +181,10 @@ class ArenaRoamer(Node):
         }.items():
             self.create_subscription(LaserScan, topic, lambda msg, k=key: self._ir_cb(k, msg), 10)
 
-        self.ir = {
-            'front': float('inf'),
-            'front_left': float('inf'),
-            'front_right': float('inf'),
-            'left': float('inf'),
-            'right': float('inf'),
-            'back': float('inf'),
-        }
+        self.ir = {name: float('inf') for name in self.sensor_names}
         self.ir_raw = dict(self.ir)
         self.ir_range_max = {key: 0.30 for key in self.ir}
+        self.sensor_last_update_sec = {key: None for key in self.ir}
         self.ir_default_range_min = 0.05
         self.ir_default_range_max = 0.30
         self.ir_half_fov = 0.30543
@@ -175,6 +207,7 @@ class ArenaRoamer(Node):
         self.goal_y = None
         self.goal_started_sec = 0.0
         self.node_started_sec = self.get_clock().now().nanoseconds / 1e9
+        self.last_odom_sec = None
         self.last_path_point = None
         self.robot_path = []
         self.randomizer = random.Random(self.random_seed)
@@ -186,6 +219,15 @@ class ArenaRoamer(Node):
         self.stuck_motion_name = None
         self.stuck_motion_started_sec = None
         self.stuck_motion_start_xy = None
+        self.last_cmd_time_sec = None
+        self.last_cmd_vx = 0.0
+        self.last_cmd_vy = 0.0
+        self.last_cmd_wz = 0.0
+        self.route_waypoints = self._build_route_waypoints(self.route_name) if self.control_mode == 'acceptance_path' else []
+        self.route_waypoint_index = 0
+        self.route_goal_hold_until_sec = 0.0
+        self.route_complete = False
+        self.route_failed = False
 
         self.create_timer(self.control_period, self._control_loop)
         self.create_timer(0.2, self._publish_debug)
@@ -198,9 +240,110 @@ class ArenaRoamer(Node):
             (0.0, 0.0, 1.35),
         ]
 
-        self.get_logger().info(
-            'Arena roamer ready. Click-spawn obstacles in the sandbox and the robot will keep roaming.'
+        if self.control_mode == 'acceptance_path':
+            self.get_logger().info(
+                'Arena acceptance controller ready. Route=%s with %d waypoints.' % (
+                    self.route_name,
+                    len(self.route_waypoints),
+                )
+            )
+        else:
+            self.get_logger().info(
+                'Arena roamer ready. Click-spawn obstacles in the sandbox and the robot will keep roaming.'
+            )
+
+    def _build_route_waypoints(self, route_name):
+        routes = {
+            'double_pinch_figure8': [
+                (-3.60, 0.00),
+                (-2.20, 1.80),
+                (1.35, 1.45),
+                (3.20, 2.20),
+                (2.90, 0.00),
+                (1.35, -1.45),
+                (3.20, -2.20),
+                (-2.20, -1.80),
+                (-3.60, 0.00),
+            ],
+        }
+        return routes.get(route_name, routes['double_pinch_figure8'])
+
+    def _representative_scan_range(self, valid_samples):
+        if not valid_samples:
+            return float('inf')
+        samples = sorted(valid_samples)
+        if len(samples) < self.ir_low_sample_count:
+            return samples[0]
+        lowest = samples[:self.ir_low_sample_count]
+        return sum(lowest) / len(lowest)
+
+    def _sensor_control_value(self, sensor_name):
+        filtered_range = self.ir[sensor_name]
+        raw_range = self.ir_raw[sensor_name]
+        if math.isfinite(filtered_range) and math.isfinite(raw_range):
+            return min(filtered_range, raw_range)
+        if math.isfinite(filtered_range):
+            return filtered_range
+        return raw_range
+
+    def _sensor_min_control(self, *sensor_names):
+        values = []
+        for sensor_name in sensor_names:
+            sensor_range = self._sensor_control_value(sensor_name)
+            if math.isfinite(sensor_range):
+                values.append(sensor_range)
+        if not values:
+            return float('inf')
+        return min(values)
+
+    def _sensors_fresh(self):
+        now_sec = self._now_sec()
+        return all(
+            self.sensor_last_update_sec[name] is not None
+            and now_sec - self.sensor_last_update_sec[name] <= self.sensor_timeout_sec
+            for name in self.sensor_names
         )
+
+    def _odom_fresh(self):
+        return self.last_odom_sec is not None and self._now_sec() - self.last_odom_sec <= self.odom_timeout_sec
+
+    def _apply_deadband(self, value, deadband):
+        if abs(value) < deadband:
+            return 0.0
+        return value
+
+    def _limit_axis(self, target, current, accel_limit, decel_limit, dt):
+        if dt <= 0.0:
+            return target
+        limit = accel_limit if abs(target) > abs(current) else decel_limit
+        max_delta = max(0.0, limit) * dt
+        delta = clamp(target - current, -max_delta, max_delta)
+        return current + delta
+
+    def _activate_route_waypoint(self, waypoint_index, reason):
+        self.route_waypoint_index = waypoint_index
+        self.goal_x, self.goal_y = self.route_waypoints[waypoint_index]
+        self.goal_started_sec = self._now_sec()
+        self.route_goal_hold_until_sec = 0.0
+        self.get_logger().info('%s Target waypoint %d -> (%.2f, %.2f)' % (
+            reason,
+            waypoint_index,
+            self.goal_x,
+            self.goal_y,
+        ))
+
+    def _advance_route_waypoint(self, reason):
+        next_index = self.route_waypoint_index + 1
+        if next_index < len(self.route_waypoints):
+            self._activate_route_waypoint(next_index, reason)
+            return
+        if self.route_loop and self.route_waypoints:
+            self._activate_route_waypoint(0, reason)
+            return
+        self.route_complete = True
+        self.goal_x = None
+        self.goal_y = None
+        self.get_logger().info('Acceptance route complete.')
 
     def _ir_cb(self, key, msg):
         rmin = msg.range_min if msg.range_min > 0.0 else 0.01
@@ -209,9 +352,10 @@ class ArenaRoamer(Node):
             sample for sample in msg.ranges
             if not math.isnan(sample) and sample >= rmin and sample < rmax
         ]
-        raw_value = min(valid) if valid else float('inf')
+        raw_value = self._representative_scan_range(valid)
         self.ir_raw[key] = raw_value
         self.ir_range_max[key] = rmax
+        self.sensor_last_update_sec[key] = self._now_sec()
 
         prev = self.ir[key]
         if not math.isfinite(prev):
@@ -230,17 +374,18 @@ class ArenaRoamer(Node):
         q = msg.pose.pose.orientation
         self.yaw = quat_to_yaw(q.x, q.y, q.z, q.w)
         self.center_x, self.center_y = self._center_xy(self.x, self.y, self.yaw)
+        self.last_odom_sec = self._now_sec()
 
         if self.last_path_point is None:
             self.last_path_point = (self.center_x, self.center_y)
-            self.robot_path.append(self._make_pose(self.center_x, self.center_y, self.yaw))
+            self.robot_path.append(self._make_pose(self.center_x, self.center_y, self._geometry_body_yaw()))
             return
 
         dx = self.center_x - self.last_path_point[0]
         dy = self.center_y - self.last_path_point[1]
         if math.hypot(dx, dy) >= self.path_point_spacing:
             self.last_path_point = (self.center_x, self.center_y)
-            self.robot_path.append(self._make_pose(self.center_x, self.center_y, self.yaw))
+            self.robot_path.append(self._make_pose(self.center_x, self.center_y, self._geometry_body_yaw()))
             self.robot_path = self.robot_path[-3000:]
 
     def _center_xy(self, base_x, base_y, yaw):
@@ -429,7 +574,7 @@ class ArenaRoamer(Node):
         return self._now_sec() - self.node_started_sec >= self.sensor_warmup_sec
 
     def _all_sensors_clear(self, threshold):
-        for sensor_range in self.ir_raw.values():
+        for sensor_range in self.ir.values():
             if math.isfinite(sensor_range) and sensor_range <= threshold:
                 return False
         return True
@@ -445,6 +590,14 @@ class ArenaRoamer(Node):
         return pose
 
     def _choose_new_goal(self, reason):
+        if self.control_mode == 'acceptance_path':
+            if self.route_complete or self.route_failed or not self.route_waypoints:
+                self.goal_x = None
+                self.goal_y = None
+                return
+            self._activate_route_waypoint(self.route_waypoint_index, reason)
+            return
+
         min_x = self.arena_min_x + self.goal_margin
         max_x = self.arena_max_x - self.goal_margin
         min_y = self.arena_min_y + self.goal_margin
@@ -485,7 +638,8 @@ class ArenaRoamer(Node):
         repulse_y = 0.0
         hottest_sensor = None
         hottest_range = float('inf')
-        for sensor_name, sensor_range in self.ir_raw.items():
+        for sensor_name in self.sensor_names:
+            sensor_range = self._sensor_control_value(sensor_name)
             if not math.isfinite(sensor_range):
                 continue
             threshold = self.obstacle_clear_distance if sensor_name == 'front' else self.obstacle_detect_distance
@@ -511,8 +665,8 @@ class ArenaRoamer(Node):
             return 0.05, 1.0
         if sensor_name == 'back':
             return 1.0, 0.0
-        left_min = min(self.ir_raw['front_left'], self.ir_raw['left'])
-        right_min = min(self.ir_raw['front_right'], self.ir_raw['right'])
+        left_min = self._sensor_min_control('front_left', 'left')
+        right_min = self._sensor_min_control('front_right', 'right')
         return (0.2, -1.0) if left_min < right_min else (0.2, 1.0)
 
     def _wall_repulsion_world_vector(self):
@@ -529,30 +683,25 @@ class ArenaRoamer(Node):
         return repulse_x, repulse_y
 
     def _world_to_body_vector(self, world_x, world_y):
-        cos_y = math.cos(self.yaw)
-        sin_y = math.sin(self.yaw)
+        body_yaw = self._geometry_body_yaw()
+        cos_y = math.cos(body_yaw)
+        sin_y = math.sin(body_yaw)
         return (
             world_x * cos_y + world_y * sin_y,
             -world_x * sin_y + world_y * cos_y,
         )
 
     def _body_to_world_vector(self, body_x, body_y):
-        cos_y = math.cos(self.yaw)
-        sin_y = math.sin(self.yaw)
+        body_yaw = self._geometry_body_yaw()
+        cos_y = math.cos(body_yaw)
+        sin_y = math.sin(body_yaw)
         return (
             body_x * cos_y - body_y * sin_y,
             body_x * sin_y + body_y * cos_y,
         )
 
     def _sensor_min(self, *sensor_names):
-        values = []
-        for sensor_name in sensor_names:
-            sensor_range = self.ir_raw[sensor_name]
-            if math.isfinite(sensor_range):
-                values.append(sensor_range)
-        if not values:
-            return float('inf')
-        return min(values)
+        return self._sensor_min_control(*sensor_names)
 
     def _movement_candidate_map(self):
         diagonal = math.sqrt(0.5)
@@ -604,44 +753,60 @@ class ArenaRoamer(Node):
             },
         }
 
-    def _ordered_motion_names(self, goal_body_y, hottest_sensor, danger_mode):
-        preferred_side = 'left' if goal_body_y >= 0.0 else 'right'
-        if hottest_sensor in ('left', 'front_left'):
-            preferred_side = 'right'
-        elif hottest_sensor in ('right', 'front_right'):
-            preferred_side = 'left'
-        elif hottest_sensor == 'front':
-            left_clearance = self._sensor_min('left', 'front_left')
-            right_clearance = self._sensor_min('right', 'front_right')
-            preferred_side = 'left' if left_clearance >= right_clearance else 'right'
-
-        other_side = 'right' if preferred_side == 'left' else 'left'
-        preferred_diag = 'diag_left' if preferred_side == 'left' else 'diag_right'
-        other_diag = 'diag_right' if preferred_diag == 'diag_left' else 'diag_left'
-
-        if danger_mode:
-            if hottest_sensor == 'back':
-                return ['forward', preferred_side, other_side, 'backward', preferred_diag, other_diag]
-            if hottest_sensor in ('left', 'right'):
-                return ['forward', preferred_side, other_side, 'backward', preferred_diag, other_diag]
-            return [preferred_side, other_side, 'backward', 'forward', preferred_diag, other_diag]
-
-        return ['forward', preferred_side, other_side, 'backward', preferred_diag, other_diag]
-
-    def _choose_motion_command(self, goal_body_x, goal_body_y, goal_heading_error, hottest_sensor, hottest_range):
+    def _choose_motion_command(self, desired_body_x, desired_body_y, goal_heading_error, hottest_sensor, hottest_range):
         candidates = self._movement_candidate_map()
         danger_mode = hottest_sensor is not None and hottest_range <= self.obstacle_danger_distance
-        ordered_names = self._ordered_motion_names(goal_body_y, hottest_sensor, danger_mode)
+        desired_norm = math.hypot(desired_body_x, desired_body_y)
+        if desired_norm < 1e-6:
+            desired_body_x = 1.0
+            desired_body_y = 0.0
+            desired_norm = 1.0
 
-        for motion_name in ordered_names:
-            candidate = candidates[motion_name]
+        if danger_mode and hottest_sensor is not None:
+            escape_x, escape_y = self._focused_escape_body_vector(hottest_sensor)
+            escape_norm = max(1e-6, math.hypot(escape_x, escape_y))
+            escape_x /= escape_norm
+            escape_y /= escape_norm
+        else:
+            escape_x = 0.0
+            escape_y = 0.0
+
+        scored_candidates = []
+        for motion_name, candidate in candidates.items():
             clearance = self._sensor_min(*candidate['sensors'])
             if math.isfinite(clearance) and clearance <= candidate['threshold']:
                 continue
 
-            if motion_name == 'forward' and abs(goal_heading_error) > self.forward_heading_allowance:
+            if motion_name == 'forward' and abs(goal_heading_error) > self.forward_heading_allowance and desired_body_x >= 0.0:
                 continue
 
+            cand_norm = max(1e-6, math.hypot(candidate['vx'], candidate['vy']))
+            direction_score = (
+                candidate['vx'] * desired_body_x + candidate['vy'] * desired_body_y
+            ) / (cand_norm * desired_norm)
+            clearance_score = 0.0
+            if math.isfinite(clearance):
+                clearance_score = clamp(
+                    (clearance - candidate['threshold']) / max(candidate['threshold'], 1e-6),
+                    0.0,
+                    2.0,
+                )
+            escape_score = 0.0
+            if danger_mode:
+                escape_score = (
+                    candidate['vx'] * escape_x + candidate['vy'] * escape_y
+                ) / cand_norm
+
+            score = 2.2 * direction_score + 0.35 * clearance_score + 0.9 * escape_score
+            if motion_name == 'backward':
+                score -= 0.18
+            if motion_name.startswith('diag'):
+                score -= 0.04
+            scored_candidates.append((score, motion_name, candidate, clearance))
+
+        if scored_candidates:
+            scored_candidates.sort(key=lambda item: item[0], reverse=True)
+            _, motion_name, candidate, clearance = scored_candidates[0]
             return motion_name, candidate, clearance, danger_mode
 
         return None, None, float('inf'), danger_mode
@@ -696,24 +861,54 @@ class ArenaRoamer(Node):
         return self._now_sec() < self.escape_hold_until_sec
 
     def _publish_cmd(self, vx, vy, wz):
-        if vx > 0.0 and min(self.ir_raw['front'], self.ir_raw['front_left'], self.ir_raw['front_right']) < self.obstacle_detect_distance:
+        if vx > 0.0 and self._sensor_min_control('front', 'front_left', 'front_right') < self.obstacle_detect_distance:
             vx = 0.0
-        if vy > 0.0 and min(self.ir_raw['left'], self.ir_raw['front_left']) < self.obstacle_side_min:
+        if vy > 0.0 and self._sensor_min_control('left', 'front_left') < self.obstacle_side_min:
             vy = 0.0
-        if vy < 0.0 and min(self.ir_raw['right'], self.ir_raw['front_right']) < self.obstacle_side_min:
+        if vy < 0.0 and self._sensor_min_control('right', 'front_right') < self.obstacle_side_min:
             vy = 0.0
-        if vx < 0.0 and self.ir_raw['back'] < self.obstacle_side_min:
+        if vx < 0.0 and self._sensor_min_control('back') < self.obstacle_side_min:
             vx = 0.0
+
+        now_sec = self._now_sec()
+        if self.last_cmd_time_sec is None:
+            dt = self.control_period
+        else:
+            dt = max(1e-3, now_sec - self.last_cmd_time_sec)
+        self.last_cmd_time_sec = now_sec
+
+        vx = self._limit_axis(vx, self.last_cmd_vx, self.cmd_linear_accel_limit, self.cmd_linear_decel_limit, dt)
+        vy = self._limit_axis(vy, self.last_cmd_vy, self.cmd_lateral_accel_limit, self.cmd_lateral_decel_limit, dt)
+        wz = self._limit_axis(wz, self.last_cmd_wz, self.cmd_angular_accel_limit, self.cmd_angular_decel_limit, dt)
+
+        vx = self._apply_deadband(vx, self.cmd_deadband_linear)
+        vy = self._apply_deadband(vy, self.cmd_deadband_lateral)
+        wz = self._apply_deadband(wz, self.cmd_deadband_angular)
 
         cmd = Twist()
         cmd.linear.x = clamp(self.cmd_forward_sign * vx, -self.max_linear_speed, self.max_linear_speed)
         cmd.linear.y = clamp(self.cmd_lateral_sign * vy, -self.max_lateral_speed, self.max_lateral_speed)
         cmd.angular.z = clamp(wz, -self.max_angular_speed, self.max_angular_speed)
         self.cmd_pub.publish(cmd)
+        self.last_cmd_vx = vx
+        self.last_cmd_vy = vy
+        self.last_cmd_wz = wz
 
     def _control_loop(self):
-        if not self._sensor_warm() or self.last_path_point is None:
+        if self.last_path_point is None or not self._sensor_warm():
             self.state_name = 'WARMUP'
+            self.motion_name = 'STOP'
+            self._publish_cmd(0.0, 0.0, 0.0)
+            return
+
+        if not self._odom_fresh():
+            self.state_name = 'STALE_ODOM'
+            self.motion_name = 'STOP'
+            self._publish_cmd(0.0, 0.0, 0.0)
+            return
+
+        if not self._sensors_fresh():
+            self.state_name = 'STALE_IR'
             self.motion_name = 'STOP'
             self._publish_cmd(0.0, 0.0, 0.0)
             return
@@ -744,19 +939,58 @@ class ArenaRoamer(Node):
             self._publish_cmd(0.0, 0.0, 0.0)
             return
 
+        if self.control_mode == 'acceptance_path':
+            if self.route_failed:
+                self.state_name = 'ROUTE_FAILED'
+                self.motion_name = 'STOP'
+                self._publish_cmd(0.0, 0.0, 0.0)
+                return
+            if self.route_complete:
+                self.state_name = 'ROUTE_COMPLETE'
+                self.motion_name = 'STOP'
+                self._publish_cmd(0.0, 0.0, 0.0)
+                return
+
         if self.goal_x is None or self.goal_y is None:
             self._choose_new_goal('Startup target selected.')
+            if self.goal_x is None or self.goal_y is None:
+                self.state_name = 'NO_TARGET'
+                self.motion_name = 'STOP'
+                self._publish_cmd(0.0, 0.0, 0.0)
+                return
 
         goal_dx = self.goal_x - self.center_x
         goal_dy = self.goal_y - self.center_y
         goal_distance = math.hypot(goal_dx, goal_dy)
-        if goal_distance <= self.goal_reached_tolerance:
-            self._choose_new_goal('Goal reached.')
+        goal_tolerance = self.route_waypoint_tolerance if self.control_mode == 'acceptance_path' else self.goal_reached_tolerance
+        if goal_distance <= goal_tolerance:
+            if self.control_mode == 'acceptance_path':
+                if self.route_goal_hold_until_sec <= 0.0:
+                    self.route_goal_hold_until_sec = self._now_sec() + self.route_waypoint_dwell_sec
+                if self._now_sec() < self.route_goal_hold_until_sec:
+                    self.state_name = 'WAYPOINT_SETTLE'
+                    self.motion_name = 'STOP'
+                    self._publish_cmd(0.0, 0.0, 0.0)
+                    return
+                self._advance_route_waypoint('Waypoint reached.')
+                if self.route_complete:
+                    self.state_name = 'ROUTE_COMPLETE'
+                    self.motion_name = 'STOP'
+                    self._publish_cmd(0.0, 0.0, 0.0)
+                    return
+            else:
+                self._choose_new_goal('Goal reached.')
             goal_dx = self.goal_x - self.center_x
             goal_dy = self.goal_y - self.center_y
             goal_distance = math.hypot(goal_dx, goal_dy)
 
         if self._now_sec() - self.goal_started_sec >= self.goal_timeout_sec:
+            if self.control_mode == 'acceptance_path' and self.route_fail_on_timeout:
+                self.route_failed = True
+                self.state_name = 'WAYPOINT_TIMEOUT'
+                self.motion_name = 'STOP'
+                self._publish_cmd(0.0, 0.0, 0.0)
+                return
             self._choose_new_goal('Goal timed out.')
             goal_dx = self.goal_x - self.center_x
             goal_dy = self.goal_y - self.center_y
@@ -767,11 +1001,20 @@ class ArenaRoamer(Node):
         goal_body_x /= goal_norm
         goal_body_y /= goal_norm
         goal_heading = math.atan2(goal_dy, goal_dx)
-        goal_heading_error = self._normalize(goal_heading - self.yaw)
+        goal_heading_error = self._normalize(goal_heading - self._geometry_body_yaw())
 
         repulse_x, repulse_y, hottest_sensor, hottest_range = self._sensor_repulsion_body_vector()
+        wall_world_x, wall_world_y = self._wall_repulsion_world_vector()
+        wall_body_x, wall_body_y = self._world_to_body_vector(wall_world_x, wall_world_y)
+        desired_body_x = self.goal_gain * goal_body_x + self.wall_gain * wall_body_x - self.repulsion_gain * repulse_x
+        desired_body_y = self.goal_gain * goal_body_y + self.wall_gain * wall_body_y - self.repulsion_gain * repulse_y
+        if hottest_sensor is not None and hottest_range <= self.obstacle_danger_distance:
+            escape_x, escape_y = self._focused_escape_body_vector(hottest_sensor)
+            desired_body_x += self.escape_gain * escape_x
+            desired_body_y += self.escape_gain * escape_y
+
         closest_front = self._sensor_min('front', 'front_left', 'front_right')
-        closest_any = min(self.ir_raw.values())
+        closest_any = min(self._sensor_control_value(name) for name in self.sensor_names)
 
         if self._escape_hold_active() and hottest_sensor is not None:
             escape_x, escape_y = self._focused_escape_body_vector(hottest_sensor)
@@ -797,8 +1040,8 @@ class ArenaRoamer(Node):
             return
 
         motion_name, candidate, motion_clearance, danger_mode = self._choose_motion_command(
-            goal_body_x,
-            goal_body_y,
+            desired_body_x,
+            desired_body_y,
             goal_heading_error,
             hottest_sensor,
             hottest_range,
@@ -884,8 +1127,12 @@ class ArenaRoamer(Node):
         path = Path()
         path.header.stamp = self.get_clock().now().to_msg()
         path.header.frame_id = self.debug_frame_id
-        poses = [self._make_pose(self.center_x, self.center_y, self.yaw)]
-        if self.goal_x is not None and self.goal_y is not None:
+        poses = [self._make_pose(self.center_x, self.center_y, self._geometry_body_yaw())]
+        if self.control_mode == 'acceptance_path' and self.route_waypoints:
+            for waypoint_index in range(self.route_waypoint_index, len(self.route_waypoints)):
+                wx, wy = self.route_waypoints[waypoint_index]
+                poses.append(self._make_pose(wx, wy, 0.0))
+        elif self.goal_x is not None and self.goal_y is not None:
             poses.append(self._make_pose(self.goal_x, self.goal_y, 0.0))
         path.poses = poses
         return path
@@ -954,6 +1201,58 @@ class ArenaRoamer(Node):
             goal.color.a = 0.95
             markers.append(goal)
 
+        if self.control_mode == 'acceptance_path':
+            for waypoint_index, (wx, wy) in enumerate(self.route_waypoints):
+                marker = Marker()
+                marker.header.frame_id = self.debug_frame_id
+                marker.header.stamp = now
+                marker.ns = 'acceptance_route'
+                marker.id = waypoint_index
+                marker.type = Marker.SPHERE
+                marker.action = Marker.ADD
+                marker.pose.position.x = wx
+                marker.pose.position.y = wy
+                marker.pose.position.z = 0.12
+                marker.pose.orientation.w = 1.0
+                marker.scale.x = 0.18
+                marker.scale.y = 0.18
+                marker.scale.z = 0.18
+                if waypoint_index < self.route_waypoint_index:
+                    marker.color.r = 0.35
+                    marker.color.g = 0.35
+                    marker.color.b = 0.35
+                    marker.color.a = 0.90
+                elif waypoint_index == self.route_waypoint_index and not self.route_complete:
+                    marker.color.r = 1.0
+                    marker.color.g = 0.90
+                    marker.color.b = 0.15
+                    marker.color.a = 1.0
+                else:
+                    marker.color.r = 0.15
+                    marker.color.g = 0.78
+                    marker.color.b = 1.0
+                    marker.color.a = 0.92
+                markers.append(marker)
+
+                label = Marker()
+                label.header.frame_id = self.debug_frame_id
+                label.header.stamp = now
+                label.ns = 'acceptance_route_labels'
+                label.id = 100 + waypoint_index
+                label.type = Marker.TEXT_VIEW_FACING
+                label.action = Marker.ADD
+                label.pose.position.x = wx
+                label.pose.position.y = wy
+                label.pose.position.z = 0.32
+                label.pose.orientation.w = 1.0
+                label.scale.z = 0.12
+                label.color.r = 1.0
+                label.color.g = 1.0
+                label.color.b = 1.0
+                label.color.a = 0.95
+                label.text = 'P%d' % waypoint_index
+                markers.append(label)
+
         markers.extend(self._build_ir_markers(now))
 
         return MarkerArray(markers=markers)
@@ -965,11 +1264,20 @@ class ArenaRoamer(Node):
 
         state = String()
         goal_text = 'none' if self.goal_x is None else '(%.2f, %.2f)' % (self.goal_x, self.goal_y)
+        route_text = ''
+        if self.control_mode == 'acceptance_path':
+            route_text = ' route=%d/%d complete=%s failed=%s' % (
+                self.route_waypoint_index,
+                len(self.route_waypoints),
+                self.route_complete,
+                self.route_failed,
+            )
         state.data = (
-            'state=%s motion=%s goal=%s pos=(%.2f, %.2f) ir[f=%.2f fl=%.2f fr=%.2f l=%.2f r=%.2f b=%.2f]' % (
+            'state=%s motion=%s goal=%s%s pos=(%.2f, %.2f) ir[f=%.2f fl=%.2f fr=%.2f l=%.2f r=%.2f b=%.2f]' % (
                 self.state_name,
                 self.motion_name,
                 goal_text,
+                route_text,
                 self.center_x,
                 self.center_y,
                 self.ir_raw['front'],

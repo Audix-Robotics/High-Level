@@ -2,12 +2,11 @@
 
 import math
 import random
+import subprocess
 
 import rclpy
-from geometry_msgs.msg import PointStamped, Pose
+from geometry_msgs.msg import PointStamped
 from rclpy.node import Node
-from ros_gz_interfaces.msg import Entity, EntityFactory
-from ros_gz_interfaces.srv import DeleteEntity, SetEntityPose, SpawnEntity
 from std_msgs.msg import String
 from visualization_msgs.msg import Marker, MarkerArray
 
@@ -65,10 +64,6 @@ class ArenaObstacleManager(Node):
 
         self.marker_pub = self.create_publisher(MarkerArray, '/debug/arena_obstacles', 10)
 
-        self.spawn_client = self.create_client(SpawnEntity, f'/world/{self.world_name}/create')
-        self.delete_client = self.create_client(DeleteEntity, f'/world/{self.world_name}/remove')
-        self.pose_client = self.create_client(SetEntityPose, f'/world/{self.world_name}/set_pose')
-
         self.create_subscription(PointStamped, self.click_topic, self._clicked_point_cb, 10)
         self.create_subscription(String, self.preset_topic, self._preset_cb, 10)
         self.create_subscription(String, self.command_topic, self._command_cb, 10)
@@ -77,6 +72,77 @@ class ArenaObstacleManager(Node):
 
         self.get_logger().info(
             'Arena obstacle manager ready. Use RViz Publish Point to spawn obstacles at the clicked location.'
+        )
+
+    def _run_gz_service(self, service_name, reqtype, reptype, request_text, timeout_ms=3000):
+        command = [
+            'gz', 'service',
+            '-s', service_name,
+            '--reqtype', reqtype,
+            '--reptype', reptype,
+            '--timeout', str(timeout_ms),
+            '--req', request_text,
+        ]
+        try:
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=max(1.0, timeout_ms / 1000.0 + 1.0),
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            return False, str(exc)
+
+        output = (result.stdout or '') + (result.stderr or '')
+        success = result.returncode == 0 and 'data: true' in output.lower()
+        return success, output.strip()
+
+    @staticmethod
+    def _escape_proto_string(value):
+        return value.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n')
+
+    def _spawn_obstacle_gz(self, name, x, y, profile):
+        z = 0.5 * profile['size'][2] + self.obstacle_z_margin
+        sdf_text = self._escape_proto_string(self._build_box_sdf(name, profile).strip())
+        request_text = (
+            f'name: "{name}" '
+            f'sdf: "{sdf_text}" '
+            f'pose {{ position {{ x: {x:.4f} y: {y:.4f} z: {z:.4f} }} orientation {{ w: 1.0 }} }} '
+            f'relative_to: "world" allow_renaming: false'
+        )
+        return self._run_gz_service(
+            f'/world/{self.world_name}/create',
+            'gz.msgs.EntityFactory',
+            'gz.msgs.Boolean',
+            request_text,
+            timeout_ms=4000,
+        )
+
+    def _set_obstacle_pose_gz(self, obstacle):
+        sz = obstacle['size'][2]
+        z = 0.5 * sz + self.obstacle_z_margin
+        request_text = (
+            f'name: "{obstacle["name"]}" '
+            f'position {{ x: {obstacle["x"]:.4f} y: {obstacle["y"]:.4f} z: {z:.4f} }} '
+            f'orientation {{ z: {math.sin(0.5 * obstacle["yaw"]):.6f} w: {math.cos(0.5 * obstacle["yaw"]):.6f} }}'
+        )
+        return self._run_gz_service(
+            f'/world/{self.world_name}/set_pose',
+            'gz.msgs.Pose',
+            'gz.msgs.Boolean',
+            request_text,
+            timeout_ms=1000,
+        )
+
+    def _delete_obstacle_gz(self, name):
+        request_text = f'name: "{name}" type: MODEL'
+        return self._run_gz_service(
+            f'/world/{self.world_name}/remove',
+            'gz.msgs.Entity',
+            'gz.msgs.Boolean',
+            request_text,
+            timeout_ms=3000,
         )
 
     def _preset_cb(self, msg):
@@ -104,36 +170,12 @@ class ArenaObstacleManager(Node):
         x = clamp(msg.point.x, self.arena_min_x, self.arena_max_x)
         y = clamp(msg.point.y, self.arena_min_y, self.arena_max_y)
 
-        if not self.spawn_client.wait_for_service(timeout_sec=0.1):
-            self.get_logger().warn('Spawn service is not available yet')
-            return
-
         profile = self._profile_for_current_preset()
         self.spawn_index += 1
         name = 'arena_obstacle_%03d' % self.spawn_index
-        sdf = self._build_box_sdf(name, profile)
-        request = SpawnEntity.Request()
-        request.entity_factory = EntityFactory()
-        request.entity_factory.name = name
-        request.entity_factory.sdf = sdf
-        request.entity_factory.pose = Pose()
-        request.entity_factory.pose.position.x = x
-        request.entity_factory.pose.position.y = y
-        request.entity_factory.pose.position.z = 0.5 * profile['size'][2] + self.obstacle_z_margin
-        request.entity_factory.pose.orientation.w = 1.0
-
-        future = self.spawn_client.call_async(request)
-        future.add_done_callback(lambda fut, obstacle_name=name, px=x, py=y, meta=profile: self._spawn_done(fut, obstacle_name, px, py, meta))
-
-    def _spawn_done(self, future, name, x, y, profile):
-        try:
-            response = future.result()
-        except Exception as exc:
-            self.get_logger().error('Failed to spawn %s: %s' % (name, exc))
-            return
-
-        if not response.success:
-            self.get_logger().warn('Gazebo rejected obstacle spawn for %s' % name)
+        success, output = self._spawn_obstacle_gz(name, x, y, profile)
+        if not success:
+            self.get_logger().warn('Gazebo rejected obstacle spawn for %s: %s' % (name, output))
             return
 
         obstacle = {
@@ -234,8 +276,6 @@ class ArenaObstacleManager(Node):
     def _update_dynamic_obstacles(self):
         if not self.dynamic_enabled:
             return
-        if not self.pose_client.wait_for_service(timeout_sec=0.0):
-            return
 
         dt = self.dynamic_update_period
         for obstacle in self.obstacles.values():
@@ -259,15 +299,9 @@ class ArenaObstacleManager(Node):
             obstacle['y'] = next_y
             obstacle['yaw'] = math.atan2(obstacle['vy'], obstacle['vx']) if abs(obstacle['vx']) + abs(obstacle['vy']) > 1e-6 else obstacle['yaw']
 
-            request = SetEntityPose.Request()
-            request.entity = Entity(name=obstacle['name'], type=Entity.MODEL)
-            request.pose = Pose()
-            request.pose.position.x = obstacle['x']
-            request.pose.position.y = obstacle['y']
-            request.pose.position.z = 0.5 * sz + self.obstacle_z_margin
-            request.pose.orientation.z = math.sin(0.5 * obstacle['yaw'])
-            request.pose.orientation.w = math.cos(0.5 * obstacle['yaw'])
-            self.pose_client.call_async(request)
+            success, output = self._set_obstacle_pose_gz(obstacle)
+            if not success:
+                self.get_logger().warn('Failed to update %s pose: %s' % (obstacle['name'], output))
 
     def _remove_last(self):
         if not self.spawn_order:
@@ -281,24 +315,13 @@ class ArenaObstacleManager(Node):
     def _delete_obstacle(self, name):
         if name not in self.obstacles:
             return
-        if not self.delete_client.wait_for_service(timeout_sec=0.1):
-            self.get_logger().warn('Delete service is not available yet')
-            return
-        request = DeleteEntity.Request()
-        request.entity = Entity(name=name, type=Entity.MODEL)
-        future = self.delete_client.call_async(request)
-        future.add_done_callback(lambda fut, obstacle_name=name: self._delete_done(fut, obstacle_name))
-
-    def _delete_done(self, future, name):
-        try:
-            response = future.result()
-        except Exception as exc:
-            self.get_logger().error('Failed to delete %s: %s' % (name, exc))
-            return
-        if response.success:
+        success, output = self._delete_obstacle_gz(name)
+        if success:
             self.obstacles.pop(name, None)
             self.spawn_order = [item for item in self.spawn_order if item != name]
             self.get_logger().info('Deleted obstacle %s' % name)
+        else:
+            self.get_logger().warn('Failed to delete %s: %s' % (name, output))
 
     def _randomize_dynamic_velocities(self):
         for obstacle in self.obstacles.values():

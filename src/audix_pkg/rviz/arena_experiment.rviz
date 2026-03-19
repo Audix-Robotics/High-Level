@@ -1,16 +1,19 @@
 Panels:
   - Class: rviz_common/Displays
-    Help Height: 78
+    Help Height: 70
     Name: Displays
     Property Tree Widget:
       Expanded:
         - /Global Options1
-        - /RobotModel1
-        - /Path1
-        - /MarkerArray1
-        - /MarkerArray2
-      Splitter Ratio: 0.55
-    Tree Height: 920
+        - /Status1
+        - /TF1
+        - /TF1/Status1
+        - /PlannedPath1
+        - /RobotPath1
+        - /WaypointMarkers1
+        - /SpawnedObstacles1
+      Splitter Ratio: 0.5
+    Tree Height: 1280
   - Class: rviz_common/Selection
     Name: Selection
   - Class: rviz_common/Tool Properties
@@ -24,13 +27,13 @@ Panels:
 Visualization Manager:
   Class: ""
   Displays:
-    - Alpha: 0.35
+    - Alpha: 0.2800000011920929
       Cell Size: 1
       Class: rviz_default_plugins/Grid
-      Color: 180; 180; 180
+      Color: 160; 160; 164
       Enabled: true
       Line Style:
-        Line Width: 0.02
+        Line Width: 0.019999999552965164
         Value: Lines
       Name: Grid
       Normal Cell Count: 0
@@ -39,10 +42,10 @@ Visualization Manager:
         Y: 0
         Z: 0
       Plane: XY
-      Plane Cell Count: 20
+      Plane Cell Count: 10
       Reference Frame: <Fixed Frame>
       Value: true
-    - Alpha: 0.65
+    - Alpha: 0.6000000238418579
       Class: rviz_default_plugins/RobotModel
       Collision Enabled: false
       Description File: ""
@@ -59,6 +62,7 @@ Visualization Manager:
         Expand Joint Details: false
         Expand Link Details: false
         Expand Tree: false
+        Link Tree Style: Links in Alphabetic Order
       Mass Properties:
         Inertia: false
         Mass: false
@@ -87,86 +91,102 @@ Visualization Manager:
     - Alpha: 1
       Buffer Length: 1
       Class: rviz_default_plugins/Path
-      Color: 255; 186; 64
+      Color: 255; 120; 0
       Enabled: true
-      Head Diameter: 0.08
-      Head Length: 0.08
-      Length: 0.08
+      Head Diameter: 0.05000000074505806
+      Head Length: 0.05000000074505806
+      Length: 0.30000001192092896
       Line Style: Lines
-      Line Width: 0.04
-      Name: Path
+      Line Width: 0.05999999865889549
+      Name: PlannedPath
       Offset:
         X: 0
         Y: 0
-        Z: 0
-      Pose Color: 255; 85; 85
+        Z: 0.03999999910593033
+      Pose Color: 255; 220; 0
       Pose Style: None
-      Radius: 0.03
-      Shaft Diameter: 0.02
-      Shaft Length: 0.04
+      Radius: 0.029999999329447746
+      Shaft Diameter: 0.019999999552965164
+      Shaft Length: 0.029999999329447746
       Topic:
         Depth: 5
         Durability Policy: Volatile
+        Filter size: 10
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /debug/planned_path
       Value: true
-    - Alpha: 0.8
+    - Alpha: 1
       Buffer Length: 1
       Class: rviz_default_plugins/Path
-      Color: 70; 190; 255
+      Color: 0; 240; 255
       Enabled: true
-      Head Diameter: 0.05
-      Head Length: 0.05
-      Length: 0.05
+      Head Diameter: 0.05000000074505806
+      Head Length: 0.05000000074505806
+      Length: 0.30000001192092896
       Line Style: Lines
-      Line Width: 0.03
-      Name: Trail
+      Line Width: 0.09000000357627869
+      Name: RobotPath
       Offset:
         X: 0
         Y: 0
-        Z: 0
-      Pose Color: 255; 255; 255
+        Z: 0.07000000029802322
+      Pose Color: 0; 180; 255
       Pose Style: None
-      Radius: 0.03
-      Shaft Diameter: 0.01
-      Shaft Length: 0.03
+      Radius: 0.029999999329447746
+      Shaft Diameter: 0.019999999552965164
+      Shaft Length: 0.029999999329447746
       Topic:
         Depth: 5
         Durability Policy: Volatile
+        Filter size: 10
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /debug/robot_path
       Value: true
     - Class: rviz_default_plugins/MarkerArray
       Enabled: true
-      Marker Topic:
+      Name: WaypointMarkers
+      Namespaces:
+        acceptance_route: true
+        acceptance_route_labels: true
+        arena: true
+        arena_ir_cones: true
+        arena_ir_edges: true
+        arena_ir_hits: true
+        arena_ir_origins: true
+        detected_obstacles: true
+        dynamic_obstacles: true
+        ir_cone_edges: true
+        ir_cones: true
+        ir_hits: true
+        mission_labels: true
+        mission_state: true
+        mission_targets: true
+        reroute_targets: true
+      Topic:
         Depth: 5
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /debug/targets
-      Name: MarkerArray
-      Namespaces:
-        {}
-      Queue Size: 10
       Value: true
     - Class: rviz_default_plugins/MarkerArray
       Enabled: true
-      Marker Topic:
+      Name: SpawnedObstacles
+      Namespaces:
+        arena_obstacle_labels: true
+        arena_obstacles: true
+      Topic:
         Depth: 5
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /debug/arena_obstacles
-      Name: Spawned Obstacles
-      Namespaces:
-        {}
-      Queue Size: 10
       Value: true
   Enabled: true
   Global Options:
-    Background Color: 28; 32; 38
+    Background Color: 48; 48; 48
     Fixed Frame: arena10
     Frame Rate: 30
   Name: root
@@ -177,6 +197,7 @@ Visualization Manager:
     - Class: rviz_default_plugins/Select
     - Class: rviz_default_plugins/FocusCamera
     - Class: rviz_default_plugins/Measure
+      Line color: 128; 128; 0
     - Class: rviz_default_plugins/PublishPoint
       Single click: true
       Topic:
@@ -192,19 +213,32 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 15
+      Distance: 12
+      Enable Stereo Rendering:
+        Stereo Eye Separation: 0.05999999865889549
+        Stereo Focal Distance: 1
+        Swap Stereo Eyes: false
+        Value: false
       Focal Point:
         X: 0
         Y: 0
-        Z: 0.3
-      Name: Orbit
-      Near Clip Distance: 0.01
-      Pitch: 0.9
-      Target Frame: arena10
+        Z: 0.20000000298023224
+      Focal Shape Fixed Size: true
+      Focal Shape Size: 0.05000000074505806
+      Invert Z Axis: false
+      Name: Current View
+      Near Clip Distance: 0.009999999776482582
+      Pitch: 0.949999988079071
+      Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 0.85
+      Yaw: 0.8500000238418579
+    Saved: ~
 Window Geometry:
-  Height: 1080
-  Width: 1920
-  X: 80
-  Y: 60
+  Displays:
+    collapsed: false
+  Height: 1300
+  Hide Left Dock: false
+  Hide Right Dock: false
+  Width: 1500
+  X: 60
+  Y: 40

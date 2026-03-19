@@ -7,8 +7,10 @@ arena_roamer:
     goal_margin: 0.80
     min_goal_separation: 1.20
     goal_reached_tolerance: 0.32
-    goal_timeout_sec: 18.0
+    goal_timeout_sec: 30.0
     sensor_warmup_sec: 2.0
+    sensor_timeout_sec: 0.35
+    odom_timeout_sec: 0.35
     control_period_sec: 0.05
     max_linear_speed: 0.42
     max_lateral_speed: 0.42
@@ -45,6 +47,22 @@ arena_roamer:
     cmd_forward_sign: -1.0
     cmd_lateral_sign: 1.0
     goal_keepout_radius: 0.95
+    ir_low_sample_count: 3
+    cmd_linear_accel_limit: 0.70
+    cmd_linear_decel_limit: 1.20
+    cmd_lateral_accel_limit: 0.85
+    cmd_lateral_decel_limit: 1.40
+    cmd_angular_accel_limit: 2.20
+    cmd_angular_decel_limit: 3.50
+    cmd_deadband_linear: 0.015
+    cmd_deadband_lateral: 0.015
+    cmd_deadband_angular: 0.035
+    control_mode: acceptance_path
+    route_name: double_pinch_figure8
+    route_loop: false
+    route_waypoint_tolerance: 0.24
+    route_waypoint_dwell_sec: 0.35
+    route_fail_on_timeout: false
 
 arena_obstacle_manager:
   ros__parameters:

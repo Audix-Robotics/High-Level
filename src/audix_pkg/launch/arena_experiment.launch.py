@@ -1,7 +1,7 @@
 import os
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, SetEnvironmentVariable
+from launch.actions import DeclareLaunchArgument, ExecuteProcess, IncludeLaunchDescription, SetEnvironmentVariable, TimerAction
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
@@ -45,7 +45,7 @@ def generate_launch_description():
             'spawn_x': '-3.6',
             'spawn_y': '0.0',
             'spawn_z': '0.06',
-            'spawn_yaw': '0.0',
+            'spawn_yaw': '3.141592653589793',
         }.items(),
     )
 
@@ -97,13 +97,10 @@ def generate_launch_description():
         condition=IfCondition(use_spawn_panel),
     )
 
-    rviz = Node(
-        package='rviz2',
-        executable='rviz2',
-        name='rviz2',
+    rviz = ExecuteProcess(
+        cmd=['rviz2', '-d', rviz_config],
         output='screen',
-        arguments=['-d', rviz_config],
-        parameters=[{'use_sim_time': True}],
+        additional_env={'LIBGL_ALWAYS_SOFTWARE': '1'},
         condition=IfCondition(use_rviz),
     )
 
@@ -128,6 +125,6 @@ def generate_launch_description():
         arena_alias_tf,
         roamer,
         obstacle_manager,
-        spawn_panel,
-        rviz,
+        TimerAction(period=2.0, actions=[spawn_panel]),
+        TimerAction(period=4.0, actions=[rviz]),
     ])
