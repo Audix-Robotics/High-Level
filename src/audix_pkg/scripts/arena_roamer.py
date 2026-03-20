@@ -48,6 +48,14 @@ class ArenaRoamer(Node):
         self.declare_parameter('repulsion_gain', 1.75)
         self.declare_parameter('escape_gain', 1.25)
         self.declare_parameter('angular_kp', 1.6)
+        self.declare_parameter('rotate_forward_speed', 0.08)
+        # Reroute (3-point turn) parameters
+        self.declare_parameter('reroute_back_time', 0.45)
+        self.declare_parameter('reroute_stop_time', 0.12)
+        self.declare_parameter('reroute_rotate_time', 0.60)
+        self.declare_parameter('reroute_rotate_speed', 0.85)
+        self.declare_parameter('reroute_post_clear_pause', 0.40)
+        self.declare_parameter('reroute_correct_heading_tol_deg', 8.0)
         # Use single 15 cm detection/clear distance across the project
         self.declare_parameter('obstacle_detect_distance', 0.15)
         self.declare_parameter('obstacle_danger_distance', 0.15)
@@ -130,6 +138,13 @@ class ArenaRoamer(Node):
         self.repulsion_gain = float(self.get_parameter('repulsion_gain').value)
         self.escape_gain = float(self.get_parameter('escape_gain').value)
         self.angular_kp = float(self.get_parameter('angular_kp').value)
+        self.rotate_forward_speed = float(self.get_parameter('rotate_forward_speed').value)
+        self.reroute_back_time = float(self.get_parameter('reroute_back_time').value)
+        self.reroute_stop_time = float(self.get_parameter('reroute_stop_time').value)
+        self.reroute_rotate_time = float(self.get_parameter('reroute_rotate_time').value)
+        self.reroute_rotate_speed = float(self.get_parameter('reroute_rotate_speed').value)
+        self.reroute_post_clear_pause = float(self.get_parameter('reroute_post_clear_pause').value)
+        self.reroute_correct_heading_tol = math.radians(float(self.get_parameter('reroute_correct_heading_tol_deg').value))
         self.obstacle_detect_distance = float(self.get_parameter('obstacle_detect_distance').value)
         self.obstacle_danger_distance = float(self.get_parameter('obstacle_danger_distance').value)
         self.obstacle_clear_distance = float(self.get_parameter('obstacle_clear_distance').value)
@@ -223,10 +238,11 @@ class ArenaRoamer(Node):
 
         self.ir = {name: float('inf') for name in self.sensor_names}
         self.ir_raw = dict(self.ir)
-        self.ir_range_max = {key: 0.15 for key in self.ir}
+        # Increase IR detection range to 20cm as requested
+        self.ir_range_max = {key: 0.20 for key in self.ir}
         self.sensor_last_update_sec = {key: None for key in self.ir}
         self.ir_default_range_min = 0.05
-        self.ir_default_range_max = 0.15
+        self.ir_default_range_max = 0.20
         self.ir_half_fov = 0.30543
 
         self.sensor_positions = {
@@ -250,6 +266,8 @@ class ArenaRoamer(Node):
         self.last_odom_sec = None
         self.last_path_point = None
         self.robot_path = []
+        # Reroute state: None or dict with keys: phase, start_sec, sensor
+        self.reroute_state = None
         self.randomizer = random.Random(self.random_seed)
         self.state_name = 'WARMUP'
         self.motion_name = 'STOP'
@@ -279,6 +297,8 @@ class ArenaRoamer(Node):
         self.blocked_clearance_active = False
         self.blocked_clearance_origin = None  # (x, y, yaw)
         self.blocked_clearance_target = 0.0
+        # Keepout zones to remember obstacle locations (x, y, radius)
+        self.goal_keepouts = []
 
     def _avoid_cb(self, msg):
         # store the latest avoidance suggestion and timestamp
@@ -1064,10 +1084,12 @@ class ArenaRoamer(Node):
                 'sensors': ('right', 'front_right'),
                 'threshold': side_threshold,
             },
+            # Reduced backward magnitude and speed_scale to limit how far the
+            # robot retreats during reroute/escape maneuvers.
             'backward': {
-                'vx': -1.0,
+                'vx': -0.6,
                 'vy': 0.0,
-                'speed_scale': 0.52,
+                'speed_scale': 0.35,
                 'sensors': ('back',),
                 'threshold': back_threshold,
             },
@@ -1451,18 +1473,120 @@ class ArenaRoamer(Node):
             )
             return
 
+        # --- REROUTE STATE MACHINE (3-point turn style) ---
+        # Trigger reroute when a forward-facing sensor detects an obstacle.
+        # The reroute will: back-diagonal away from the detected side, stop,
+        # rotate in place away from obstacle, drive forward, then pause and
+        # correct heading toward the path if clear. Repeat until cleared.
+        if hottest_sensor in ('front_left', 'front_right') or (hottest_sensor == 'front' and not math.isfinite(self._sensor_min('front_left', 'front_right'))):
+            if self.reroute_state is None:
+                # Trigger reroute — do NOT skip or advance the current waypoint.
+                # Keep waypoint so robot will continue attempting to reach it
+                # after the reroute completes.
+                self.reroute_state = {'phase': 'back_diag', 'start_sec': self._now_sec(), 'sensor': hottest_sensor}
+
+        if self.reroute_state is not None:
+            state = self.reroute_state
+            elapsed = self._now_sec() - state['start_sec']
+            sensor = state.get('sensor')
+
+            # Compute a normalized escape vector for the detected sensor and use
+            # the opposite direction for backing away.
+            esc_x, esc_y = self._focused_escape_body_vector(sensor)
+            norm = max(1e-6, math.hypot(esc_x, esc_y))
+            # desired back/away vector is opposite of escape vector
+            back_dir_x = -esc_x / norm
+            back_dir_y = -esc_y / norm
+
+            # Phase: back_diag
+            if state['phase'] == 'back_diag':
+                if elapsed < self.reroute_back_time:
+                    # Back further/stronger to move away from detected obstacle
+                    back_speed = 0.35
+                    vx = back_dir_x * back_speed
+                    vy = back_dir_y * (back_speed * 0.65)
+
+                    # Use side/back IRs as observers: if intended lateral/backward
+                    # component is blocked, zero that axis to avoid driving into it.
+                    if vy > 0 and self._sensors_blocked_any('left', 'front_left'):
+                        vy = 0.0
+                    if vy < 0 and self._sensors_blocked_any('right', 'front_right'):
+                        vy = 0.0
+                    if vx < 0 and self._sensors_blocked_any('back'):
+                        vx = 0.0
+
+                    self._publish_cmd(vx, vy, 0.0)
+                    return
+                state['phase'] = 'stop'
+                state['start_sec'] = self._now_sec()
+                return
+
+            # Phase: brief stop
+            if state['phase'] == 'stop':
+                if elapsed < self.reroute_stop_time:
+                    self._publish_cmd(0.0, 0.0, 0.0)
+                    return
+                state['phase'] = 'rotate'
+                state['start_sec'] = self._now_sec()
+                return
+
+            # Phase: rotate in place away from obstacle (no strafing)
+            if state['phase'] == 'rotate':
+                if elapsed < self.reroute_rotate_time:
+                    # stronger in-place rotation away from obstacle
+                    rotate_sign = math.copysign(1.0, esc_y)
+                    wz = rotate_sign * self.reroute_rotate_speed
+                    self._publish_cmd(0.0, 0.0, clamp(wz, -self.max_angular_speed, self.max_angular_speed))
+                    return
+                state['phase'] = 'forward'
+                state['start_sec'] = self._now_sec()
+                return
+
+            # Phase: drive forward a short burst to attempt rejoin
+            if state['phase'] == 'forward':
+                if elapsed < (self.reroute_back_time * 0.9 + self.reroute_rotate_time):
+                    # drive forward only (no lateral). Use stronger forward burst
+                    fwd = self.rotate_forward_speed
+                    # require front clearance greater than obstacle_clear_distance + margin
+                    fc = self._sensor_min('front', 'front_left', 'front_right')
+                    required_clear = self.obstacle_clear_distance + 0.06
+                    if not math.isfinite(fc) or fc < required_clear or self._sensors_blocked_any('front', 'front_left', 'front_right'):
+                        fwd = 0.0
+                    self._publish_cmd(fwd, 0.0, 0.0)
+                    return
+                # after forward burst, if still blocked restart, otherwise pause
+                if self._sensors_blocked_any('front', 'front_left', 'front_right'):
+                    self.reroute_state = {'phase': 'back_diag', 'start_sec': self._now_sec(), 'sensor': sensor}
+                    return
+                state['phase'] = 'post_clear'
+                state['start_sec'] = self._now_sec()
+                return
+
+            # Phase: short pause to 'take a breath' then finish reroute
+            # NOTE: per user request, we do NOT try to face the path here —
+            # complete the 3-point reroute and resume normal behavior.
+            if state['phase'] == 'post_clear':
+                if elapsed < self.reroute_post_clear_pause:
+                    self._publish_cmd(0.0, 0.0, 0.0)
+                    return
+                # end reroute and allow normal motion selection to resume
+                self.reroute_state = None
+                return
+
         if hottest_sensor is None and abs(goal_heading_error) >= self.reorient_heading_threshold:
             self.state_name = 'REORIENT'
             self.motion_name = 'ROTATE'
             self._reset_motion_selection()
-            self._publish_cmd(0.0, 0.0, self._rotation_command(goal_heading_error, None, None))
+            # Drive forward slightly while rotating, do not strafe.
+            self._publish_cmd(self.rotate_forward_speed, 0.0, self._rotation_command(goal_heading_error, None, None))
             return
 
         if hottest_sensor is None and abs(goal_heading_error) > self.forward_heading_allowance:
             self.state_name = 'ALIGN_FORWARD'
             self.motion_name = 'ROTATE'
             self._reset_motion_selection()
-            self._publish_cmd(0.0, 0.0, self._rotation_command(goal_heading_error, None, None))
+            # Drive forward slightly while correcting heading; no strafing.
+            self._publish_cmd(self.rotate_forward_speed, 0.0, self._rotation_command(goal_heading_error, None, None))
             return
 
         motion_name, candidate, motion_clearance, danger_mode = self._choose_motion_command(
@@ -1482,7 +1606,8 @@ class ArenaRoamer(Node):
             self.state_name = 'HOLD_ROTATE'
             self.motion_name = 'ROTATE'
             self._reset_motion_selection()
-            self._publish_cmd(0.0, 0.0, self._rotation_command(goal_heading_error, rotate_sensor, None))
+            # Rotate while moving forward a bit to help rejoin path; no lateral motion.
+            self._publish_cmd(self.rotate_forward_speed, 0.0, self._rotation_command(goal_heading_error, rotate_sensor, None))
             return
 
         if motion_name == 'forward' and self._sensors_blocked_any('front', 'front_left', 'front_right'):
@@ -1507,6 +1632,7 @@ class ArenaRoamer(Node):
                 self.state_name = 'FRONT_BLOCKED_ROTATE'
                 self.motion_name = 'ROTATE'
                 self._reset_motion_selection()
+                # When front is blocked, rotate in place without strafing or forward drive.
                 self._publish_cmd(0.0, 0.0, self._rotation_command(goal_heading_error, 'front', None))
                 return
 

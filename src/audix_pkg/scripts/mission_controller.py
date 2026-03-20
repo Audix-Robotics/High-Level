@@ -311,14 +311,16 @@ class MissionController(Node):
         self.resume_heading_target = 0.0
         self.scan_waypoint_indices = set()
 
+        # Sensor positions used for RViz visualization (body-frame x,y)
+        # Note: left/right and front_left/front_right placement below
+        # are ordered so RViz markers align visually with URDF sensors.
         self.sensor_positions = {
             'back': (0.00389, -0.15402),
-            # SWAPPED X/Y entries for left/right to correct RViz visualization
-            'right': (-0.16403, -0.30425),
-            'front_right': (-0.34189, -0.27041),
+            'left': (-0.16403, -0.30425),
+            'front_left': (-0.34189, -0.27041),
             'front': (-0.36061, -0.14597),
-            'front_left': (-0.33619, -0.02391),
-            'left': (-0.15593, 0.00425),
+            'front_right': (-0.33619, -0.02391),
+            'right': (-0.15593, 0.00425),
         }
         self.ir_half_fov = 0.30543
         self.ir_default_range_min = 0.05
@@ -377,15 +379,13 @@ class MissionController(Node):
         self.state_pub = self.create_publisher(String, '/debug/state', 10)
 
         # --- Subscribers ---
-        # SWAPPED mapping to fix URDF naming without editing URDF/physics.
-        # The URDF incorrectly labeled the physical sensors; map logical
-        # sensor names to the correct physical topics.
+        # Normal 1-to-1 mapping. Fixes RViz visualization.
         ir_topics = {
             'front': '/ir_front/scan',
-            'front_left': '/ir_front_right/scan',  # read from physical left
-            'front_right': '/ir_front_left/scan',  # read from physical right
-            'left': '/ir_right/scan',              # read from physical left
-            'right': '/ir_left/scan',              # read from physical right
+            'front_left': '/ir_front_left/scan',
+            'front_right': '/ir_front_right/scan',
+            'left': '/ir_left/scan',
+            'right': '/ir_right/scan',
             'back': '/ir_back/scan',
         }
         for key, topic in ir_topics.items():
@@ -753,12 +753,7 @@ class MissionController(Node):
                 # defensive: if repulsion fails, fall back to original command
                 pass
 
-            # Prevent reversing during evasions: keep forward command non-negative.
-            # This avoids the controller commanding negative vx when repulsion
-            # pushes the integrated vector backwards, which caused the robot to
-            # drive in reverse while trying to evade.
-            if vx < 0.0:
-                vx = 0.0
+            # allow negative vx so repulsion can command a safe reverse maneuver
 
         target_vx = max(-self.max_lin, min(self.max_lin, vx))
         target_vy = max(-self.max_lin, min(self.max_lin, vy))
@@ -817,53 +812,45 @@ class MissionController(Node):
 
     def _compute_vector_repulsion(self):
         """
-        HYBRID EVASION LOGIC:
-        - Front Sensors trigger Differential Evasion (Reverse + Rotate).
-        - Side Sensors trigger Mecanum Gliding (Pure Lateral Strafe).
-
-        Side/back sensors act as "parking cameras" and only provide safety
-        limits, while front sensors actively drive evasion.
+        SEQUENTIAL 3-POINT TURN (front sensors only):
+        < 0.20m : Backup Straight (stronger but limited)
+        0.20m - 0.35m : Rotate In Place (small back, stronger rotation)
+        Side/Back sensors are handled by parking-camera limits elsewhere.
         """
         now_s = self.get_clock().now().nanoseconds / 1e9
         rx, ry, rw = 0.0, 0.0, 0.0
 
-        front_threats = []
-        side_threats = []
+        backup_threats = []
+        rotate_threats = []
 
-        # 1) Front sensors (navigation) — use a slightly larger trigger window
         for name in ('front', 'front_left', 'front_right'):
             dist = self._sensor_range_for_detection(name)
-            if math.isfinite(dist) and dist <= 0.25:
-                front_threats.append(name)
+
+            if math.isfinite(dist) and dist <= 0.20:
+                backup_threats.append(name)
+                self._last_ir_trigger[name] = now_s
+            elif math.isfinite(dist) and dist <= 0.35:
+                rotate_threats.append(name)
                 self._last_ir_trigger[name] = now_s
             else:
                 last = self._last_ir_trigger.get(name, 0.0)
                 if (now_s - last) <= self.repulse_decay_sec:
-                    front_threats.append(name)
+                    rotate_threats.append(name)
 
-        # 2) Side sensors (aisle-centering) — tighter threshold for glide
-        for name in ('left', 'right'):
-            dist = self._sensor_range_for_detection(name)
-            if math.isfinite(dist) and dist <= 0.20:
-                side_threats.append(name)
+        if backup_threats:
+            # PHASE 1: BACKUP STRAIGHT (slightly reduced magnitude)
+            rx = -0.40
+            rw = 0.0
 
-        # Execute hybrid behavior
-        if front_threats:
-            # Differential-style evasive maneuver: smaller backup, stronger rotation
-            rx = -0.12  # reduced step-back
-            if 'front_left' in front_threats and 'front_right' not in front_threats:
-                rw = -1.20  # obstacle on left -> stronger turn right while backing
-            elif 'front_right' in front_threats and 'front_left' not in front_threats:
-                rw = 1.20   # obstacle on right -> stronger turn left while backing
+        elif rotate_threats:
+            # PHASE 2: ROTATE IN PLACE (minimize backward drift, increase rotation)
+            rx = -0.10
+            if 'front_left' in rotate_threats and 'front_right' not in rotate_threats:
+                rw = -2.00
+            elif 'front_right' in rotate_threats and 'front_left' not in rotate_threats:
+                rw = 2.00
             else:
-                rw = -1.20  # default to right-hand backup with stronger rotation
-
-        elif side_threats:
-            # Mecanum gliding: strafe laterally to center in aisle
-            if 'left' in side_threats and 'right' not in side_threats:
-                ry = -0.20  # glide right away from left wall
-            elif 'right' in side_threats and 'left' not in side_threats:
-                ry = 0.20   # glide left away from right wall
+                rw = -2.00
 
         return rx, ry, rw
 
@@ -887,58 +874,6 @@ class MissionController(Node):
 
     def _front_sensor_names(self):
         return ['front', 'front_left', 'front_right']
-
-    def _side_sensor_names(self, side):
-        if side == 'left':
-            return ['front_left', 'left']
-        return ['front_right', 'right']
-
-    def _blocked_side_from_sensor(self, sensor_name):
-        if sensor_name in ('front_left', 'left'):
-            return 'left'
-        if sensor_name in ('front_right', 'right'):
-            return 'right'
-        return None
-
-    def _latch_obstacle_memory(self, trigger_sensor=None, bypass_side=None):
-        if trigger_sensor is not None:
-            self.obstacle_memory_trigger_sensor = trigger_sensor
-
-        blocked_side = self._blocked_side_from_sensor(
-            trigger_sensor if trigger_sensor is not None else self.obstacle_memory_trigger_sensor
-        )
-        if blocked_side is not None:
-            self.obstacle_memory_blocked_side = blocked_side
-
-        if bypass_side is not None:
-            self.obstacle_memory_bypass_side = bypass_side
-        elif self.obstacle_memory_blocked_side == 'left':
-            self.obstacle_memory_bypass_side = 'right'
-        elif self.obstacle_memory_blocked_side == 'right':
-            self.obstacle_memory_bypass_side = 'left'
-
-        self.obstacle_memory_clear_count = 0
-
-    def _obstacle_memory_blocked_side_clear(self):
-        if self.obstacle_memory_blocked_side is None:
-            return True
-        clear_threshold = self.reroute_side_clearance + self.reroute_side_clear_hysteresis
-        return all(
-            self.ir[name] >= clear_threshold
-            for name in self._side_sensor_names(self.obstacle_memory_blocked_side)
-        )
-
-    def _update_obstacle_memory(self):
-        if self.obstacle_memory_blocked_side is None and self.obstacle_memory_bypass_side is None:
-            return
-
-        if self._obstacle_memory_blocked_side_clear() and self._front_path_clear():
-            self.obstacle_memory_clear_count += 1
-        else:
-            self.obstacle_memory_clear_count = 0
-
-        if self.obstacle_memory_clear_count >= self.obstacle_memory_clear_cycles:
-            self._clear_obstacle_memory()
 
     def _clear_obstacle_memory(self):
         self.obstacle_memory_trigger_sensor = None
@@ -1012,20 +947,31 @@ class MissionController(Node):
             return self.obstacle_speed_slow
         return self.obstacle_speed_full
 
-    def _apply_side_collision_prevention(self, vx, vy):
-        # Parking Camera / Emergency limits: allow normal motion but prevent
-        # motion that would drive directly INTO a very-close side/back obstacle.
-        emergency_limit = 0.10
+    def _apply_side_collision_prevention(self, vx, vy, wz):
+        # PARKING CAMERA: Absolute limits to prevent moving INTO a wall.
+        limit = 0.15
 
-        # Only kill lateral motion if sliding directly into a dangerously close side obstacle
-        if vy > 0.0 and self.ir_raw.get('left', float('inf')) < emergency_limit:
+        left_dist = self.ir_raw.get('left', float('inf'))
+        right_dist = self.ir_raw.get('right', float('inf'))
+        back_dist = self.ir_raw.get('back', float('inf'))
+
+        # Prevent strafing into walls
+        if vy > 0.0 and left_dist < limit:
             vy = 0.0
-        if vy < 0.0 and self.ir_raw.get('right', float('inf')) < emergency_limit:
+        if vy < 0.0 and right_dist < limit:
             vy = 0.0
-        # Prevent reversing into a very-close back obstacle
-        if vx < 0.0 and self.ir_raw.get('back', float('inf')) < emergency_limit:
+
+        # Prevent steering into walls
+        if wz > 0.0 and left_dist < limit:
+            wz = 0.0
+        if wz < 0.0 and right_dist < limit:
+            wz = 0.0
+
+        # Prevent reversing into back wall
+        if vx < 0.0 and back_dist < limit:
             vx = 0.0
-        return vx, vy
+
+        return vx, vy, wz
 
     def _publish_motion(self, vx=0.0, vy=0.0, wz=0.0, apply_speed_zone=True):
         wz = max(-self.max_ang, min(self.max_ang, wz))
@@ -1038,12 +984,11 @@ class MissionController(Node):
                 vy *= scale
 
         if abs(wz) > 1e-6:
-            # Convert desired robot-center motion into base-frame motion so the
-            # center of the chassis follows the path and rotation happens about center.
             vx += wz * self.robot_center_offset_y
             vy -= wz * self.robot_center_offset_x
 
-        vx, vy = self._apply_side_collision_prevention(vx, vy)
+        # PASS wz INTO THE SAFETY CAMERA FUNCTION
+        vx, vy, wz = self._apply_side_collision_prevention(vx, vy, wz)
 
         self._publish_cmd(vx=vx, vy=vy, wz=wz)
 
@@ -2457,41 +2402,18 @@ class MissionController(Node):
         # ---- MOVE_FORWARD ----
         if self.state == State.MOVE_FORWARD:
             if dist > self.pos_tol:
-                # FORCE EXACTLY 0.3 m/s toward the current heading target
                 target_speed = 0.3
-
-                # Distribute the 0.3 m/s across X and Y using rotate_target
                 vx = target_speed * math.cos(angle_error)
                 vy = target_speed * math.sin(angle_error)
 
-                # Angular command: proportional on angle_error
                 wz = self.ang_kp * angle_error
-                # clamp angular
                 if wz > self.max_ang:
                     wz = self.max_ang
                 elif wz < -self.max_ang:
                     wz = -self.max_ang
 
-                # Compute integrated repulsion vector (if enabled)
-                rx = 0.0
-                ry = 0.0
-                rw = 0.0
-                if self.enable_obstacle_avoidance:
-                    try:
-                        rx, ry, rw = self._compute_vector_repulsion()
-                    except Exception:
-                        rx, ry, rw = 0.0, 0.0, 0.0
-
-                # Blend and STRICT CLAMP to 0.3 m/s as requested
-                cmd_x = max(-0.3, min(0.3, vx + rx))
-                cmd_y = max(-0.3, min(0.3, vy + ry))
-                cmd_w = max(-self.max_ang, min(self.max_ang, wz + rw))
-
-                cmd = Twist()
-                cmd.linear.x = float(cmd_x)
-                cmd.linear.y = float(cmd_y)
-                cmd.angular.z = float(cmd_w)
-                self.cmd_pub.publish(cmd)
+                # Route through safety pipeline (Repulsion + Parking Cameras)
+                self._publish_motion(vx=vx, vy=vy, wz=wz, apply_speed_zone=False)
             else:
                 if not self.enable_stop_scan:
                     self._publish_stop()
