@@ -201,12 +201,13 @@ class ArenaRoamer(Node):
         self.state_pub = self.create_publisher(String, '/debug/state', 10)
 
         self.create_subscription(Odometry, '/odometry/filtered', self._odom_cb, 10)
+        # SWAPPED mapping to correct URDF labeling (physical left/right reversed)
         for key, topic in {
             'front': '/ir_front/scan',
-            'front_left': '/ir_front_left/scan',
-            'front_right': '/ir_front_right/scan',
-            'left': '/ir_left/scan',
-            'right': '/ir_right/scan',
+            'front_left': '/ir_front_right/scan',
+            'front_right': '/ir_front_left/scan',
+            'left': '/ir_right/scan',
+            'right': '/ir_left/scan',
             'back': '/ir_back/scan',
         }.items():
             self.create_subscription(LaserScan, topic, lambda msg, k=key: self._ir_cb(k, msg), 10)
