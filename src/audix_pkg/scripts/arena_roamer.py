@@ -96,6 +96,7 @@ class ArenaRoamer(Node):
         self.declare_parameter('cmd_deadband_linear', 0.015)
         self.declare_parameter('cmd_deadband_lateral', 0.015)
         self.declare_parameter('cmd_deadband_angular', 0.035)
+        self.declare_parameter('repulse_decay_sec', 1.50)
         self.declare_parameter('control_mode', 'acceptance_path')
         self.declare_parameter('route_name', 'double_pinch_figure8')
         self.declare_parameter('route_loop', False)
@@ -188,6 +189,7 @@ class ArenaRoamer(Node):
         self.cmd_deadband_linear = float(self.get_parameter('cmd_deadband_linear').value)
         self.cmd_deadband_lateral = float(self.get_parameter('cmd_deadband_lateral').value)
         self.cmd_deadband_angular = float(self.get_parameter('cmd_deadband_angular').value)
+        self.repulse_decay_sec = float(self.get_parameter('repulse_decay_sec').value)
         self.control_mode = str(self.get_parameter('control_mode').value).strip().lower()
         self.route_name = str(self.get_parameter('route_name').value).strip().lower()
         self.route_loop = bool(self.get_parameter('route_loop').value)
@@ -243,6 +245,8 @@ class ArenaRoamer(Node):
         self.sensor_last_update_sec = {key: None for key in self.ir}
         self.ir_default_range_min = 0.05
         self.ir_default_range_max = 0.20
+        # For time-sequenced binary trigger handling (front sensors)
+        self._last_ir_trigger = {name: 0.0 for name in ('front', 'front_left', 'front_right')}
         self.ir_half_fov = 0.30543
 
         self.sensor_positions = {
@@ -299,6 +303,11 @@ class ArenaRoamer(Node):
         self.blocked_clearance_target = 0.0
         # Keepout zones to remember obstacle locations (x, y, radius)
         self.goal_keepouts = []
+        # Last obstacle world position and timestamp (x,y), and flag when
+        # a new waypoint was just activated so we can bias the first rotation.
+        self.last_obstacle_world = None
+        self.last_obstacle_time = 0.0
+        self.just_activated_waypoint = False
 
     def _avoid_cb(self, msg):
         # store the latest avoidance suggestion and timestamp
@@ -633,6 +642,9 @@ class ArenaRoamer(Node):
         self.route_waypoint_index = waypoint_index
         self.goal_x, self.goal_y = self.route_waypoints[waypoint_index]
         self.goal_started_sec = self._now_sec()
+        # mark that we just activated a waypoint so the next rotation can
+        # perform a rotate-away maneuver if an obstacle was recently seen
+        self.just_activated_waypoint = True
         self.route_goal_hold_until_sec = 0.0
         self.get_logger().info('%s Target waypoint %d -> (%.2f, %.2f)' % (
             reason,
@@ -985,6 +997,60 @@ class ArenaRoamer(Node):
         return False
 
     def _sensor_repulsion_body_vector(self):
+        # TIME-SEQUENCED BINARY 20cm EVASION
+        # This honors a binary IR trigger at 0.20 m and runs a timed maneuver
+        # using the front sensors. We return a repulsion vector (body-frame)
+        # and the hottest sensor plus a synthetic range (0.0 when active).
+        repulse_x = 0.0
+        repulse_y = 0.0
+        hottest_sensor = None
+        hottest_range = float('inf')
+
+        now = self._now_sec()
+
+        # Track triggers and active threats from forward-facing sensors
+        active_threats = []
+        time_since_trigger = float('inf')
+        for name in ('front', 'front_left', 'front_right'):
+            dist = self._sensor_control_value(name)
+            if math.isfinite(dist) and dist <= self.obstacle_detect_distance:
+                # register trigger time
+                self._last_ir_trigger[name] = now
+                active_threats.append(name)
+                time_since_trigger = 0.0
+            else:
+                last = self._last_ir_trigger.get(name, 0.0)
+                elapsed = now - last
+                if elapsed <= self.repulse_decay_sec:
+                    active_threats.append(name)
+                    if elapsed < time_since_trigger:
+                        time_since_trigger = elapsed
+
+        if active_threats:
+            # Phase 1: initial backing phase (0.0 - 0.4s)
+            if time_since_trigger <= 0.40:
+                repulse_x = -0.50
+                repulse_y = 0.0
+                hottest_sensor = active_threats[0]
+                hottest_range = 0.0
+                return repulse_x, repulse_y, hottest_sensor, hottest_range
+
+            # Phase 2: rotate-in-place phase (0.4s - decay)
+            # Provide a reduced backward repulsion (to cancel forward drive)
+            repulse_x = -0.30
+            repulse_y = 0.0
+            # determine rotation side based on which front sensors triggered
+            if 'front_left' in active_threats and 'front_right' not in active_threats:
+                hottest_sensor = 'front_left'
+            elif 'front_right' in active_threats and 'front_left' not in active_threats:
+                hottest_sensor = 'front_right'
+            else:
+                # center or ambiguous: choose front_left as default bias (turn right)
+                hottest_sensor = 'front'
+            hottest_range = 0.0
+            return repulse_x, repulse_y, hottest_sensor, hottest_range
+
+        # Fallback: no front binary threats — compute simple repulsion from any blocked sensor
         directions = {
             'front': (1.0, 0.0),
             'front_left': (1.0, 0.9),
@@ -993,10 +1059,6 @@ class ArenaRoamer(Node):
             'right': (0.0, -1.0),
             'back': (-1.0, 0.0),
         }
-        repulse_x = 0.0
-        repulse_y = 0.0
-        # Binary IR: each blocked sensor contributes a fixed urgency.
-        hottest_sensor = None
         for sensor_name in self.sensor_names:
             if self._sensor_blocked(sensor_name):
                 dir_x, dir_y = directions[sensor_name]
@@ -1004,8 +1066,8 @@ class ArenaRoamer(Node):
                 repulse_y += dir_y * 1.0
                 if hottest_sensor is None:
                     hottest_sensor = sensor_name
-        # hottest_range set to 0.0 when any sensor is blocked, else +inf
-        hottest_range = 0.0 if hottest_sensor is not None else float('inf')
+        if hottest_sensor is not None:
+            hottest_range = 0.0
         return repulse_x, repulse_y, hottest_sensor, hottest_range
 
     def _focused_escape_body_vector(self, sensor_name):
@@ -1448,6 +1510,17 @@ class ArenaRoamer(Node):
         goal_heading_error = self._normalize(goal_heading - self._geometry_body_yaw())
 
         repulse_x, repulse_y, hottest_sensor, hottest_range = self._sensor_repulsion_body_vector()
+        # record recent obstacle world position when a forward-facing sensor sees one
+        if hottest_sensor is not None:
+            sensor_range = self._sensor_control_value(hottest_sensor)
+            if math.isfinite(sensor_range) and sensor_range <= self.obstacle_detect_distance:
+                origin_bx, origin_by = self._sensor_origin_body(hottest_sensor)
+                dir_bx, dir_by = self._sensor_direction_body(hottest_sensor)
+                obs_body_x = origin_bx + dir_bx * sensor_range
+                obs_body_y = origin_by + dir_by * sensor_range
+                obs_world_x, obs_world_y = self._body_point_to_world(obs_body_x, obs_body_y)
+                self.last_obstacle_world = (obs_world_x, obs_world_y)
+                self.last_obstacle_time = self._now_sec()
         self._update_avoidance_memory(hottest_sensor)
         wall_world_x, wall_world_y = self._wall_repulsion_world_vector()
         wall_body_x, wall_body_y = self._world_to_body_vector(wall_world_x, wall_world_y)
@@ -1577,6 +1650,31 @@ class ArenaRoamer(Node):
             self.state_name = 'REORIENT'
             self.motion_name = 'ROTATE'
             self._reset_motion_selection()
+            # If we just activated a waypoint and recently saw an obstacle,
+            # perform a one-time rotate-away + lateral/back-off maneuver to
+            # move away from that obstacle before committing the heading.
+            if self.just_activated_waypoint and self.last_obstacle_world is not None and (self._now_sec() - self.last_obstacle_time) < 8.0:
+                lx, ly = self.last_obstacle_world
+                # obstacle in body frame
+                rel_bx, rel_by = self._world_to_body_vector(lx - self.center_x, ly - self.center_y)
+                bearing = math.atan2(rel_by, rel_bx)
+                # move laterally away and rotate away (stronger than normal)
+                lateral_mag = 0.28
+                vy = -math.copysign(lateral_mag, bearing) if abs(bearing) > 1e-3 else 0.0
+                # rotate away from obstacle: rotate sign opposite obstacle bearing
+                if abs(bearing) > 1e-3:
+                    rotate_sign = -math.copysign(1.0, bearing)
+                else:
+                    # fallback: pick the side with more clearance
+                    left_clear = self._sensor_min('left', 'front_left')
+                    right_clear = self._sensor_min('right', 'front_right')
+                    rotate_sign = 1.0 if left_clear > right_clear else -1.0
+                wz = clamp(rotate_sign * max(self.reroute_rotate_speed, 0.6), -self.max_angular_speed, self.max_angular_speed)
+                # a small forward to keep momentum into the waypoint direction
+                vx = min(self.rotate_forward_speed * 1.1, self.max_linear_speed)
+                self._publish_cmd(vx, vy, wz)
+                self.just_activated_waypoint = False
+                return
             # Drive forward slightly while rotating, do not strafe.
             self._publish_cmd(self.rotate_forward_speed, 0.0, self._rotation_command(goal_heading_error, None, None))
             return
@@ -1585,6 +1683,24 @@ class ArenaRoamer(Node):
             self.state_name = 'ALIGN_FORWARD'
             self.motion_name = 'ROTATE'
             self._reset_motion_selection()
+            # If we just activated a waypoint, bias away from last obstacle first
+            if self.just_activated_waypoint and self.last_obstacle_world is not None and (self._now_sec() - self.last_obstacle_time) < 8.0:
+                lx, ly = self.last_obstacle_world
+                rel_bx, rel_by = self._world_to_body_vector(lx - self.center_x, ly - self.center_y)
+                bearing = math.atan2(rel_by, rel_bx)
+                lateral_mag = 0.22
+                vy = -math.copysign(lateral_mag, bearing) if abs(bearing) > 1e-3 else 0.0
+                if abs(bearing) > 1e-3:
+                    rotate_sign = -math.copysign(1.0, bearing)
+                else:
+                    left_clear = self._sensor_min('left', 'front_left')
+                    right_clear = self._sensor_min('right', 'front_right')
+                    rotate_sign = 1.0 if left_clear > right_clear else -1.0
+                wz = clamp(rotate_sign * max(self.reroute_rotate_speed * 0.85, 0.5), -self.max_angular_speed, self.max_angular_speed)
+                vx = min(self.rotate_forward_speed, self.max_linear_speed)
+                self._publish_cmd(vx, vy, wz)
+                self.just_activated_waypoint = False
+                return
             # Drive forward slightly while correcting heading; no strafing.
             self._publish_cmd(self.rotate_forward_speed, 0.0, self._rotation_command(goal_heading_error, None, None))
             return
@@ -1606,6 +1722,24 @@ class ArenaRoamer(Node):
             self.state_name = 'HOLD_ROTATE'
             self.motion_name = 'ROTATE'
             self._reset_motion_selection()
+            # If just activated waypoint, bias away from last obstacle
+            if self.just_activated_waypoint and self.last_obstacle_world is not None and (self._now_sec() - self.last_obstacle_time) < 8.0:
+                lx, ly = self.last_obstacle_world
+                rel_bx, rel_by = self._world_to_body_vector(lx - self.center_x, ly - self.center_y)
+                bearing = math.atan2(rel_by, rel_bx)
+                lateral_mag = 0.20
+                vy = -math.copysign(lateral_mag, bearing) if abs(bearing) > 1e-3 else 0.0
+                if abs(bearing) > 1e-3:
+                    rotate_sign = -math.copysign(1.0, bearing)
+                else:
+                    left_clear = self._sensor_min('left', 'front_left')
+                    right_clear = self._sensor_min('right', 'front_right')
+                    rotate_sign = 1.0 if left_clear > right_clear else -1.0
+                wz = clamp(rotate_sign * max(self.reroute_rotate_speed * 0.7, 0.45), -self.max_angular_speed, self.max_angular_speed)
+                vx = min(self.rotate_forward_speed, self.max_linear_speed)
+                self._publish_cmd(vx, vy, wz)
+                self.just_activated_waypoint = False
+                return
             # Rotate while moving forward a bit to help rejoin path; no lateral motion.
             self._publish_cmd(self.rotate_forward_speed, 0.0, self._rotation_command(goal_heading_error, rotate_sensor, None))
             return

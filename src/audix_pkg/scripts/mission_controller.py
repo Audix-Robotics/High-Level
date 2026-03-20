@@ -310,6 +310,7 @@ class MissionController(Node):
         self.scan_heading_target = 0.0
         self.resume_heading_target = 0.0
         self.scan_waypoint_indices = set()
+        self.forced_turn_direction = 0  # 0: normal, 1: force CCW (Left), -1: force CW (Right)
 
         # Sensor positions used for RViz visualization (body-frame x,y)
         # Note: left/right and front_left/front_right placement below
@@ -717,6 +718,24 @@ class MissionController(Node):
     def _normalize(angle):
         return math.atan2(math.sin(angle), math.cos(angle))
 
+    def _latch_safe_rotation_direction(self):
+        """Determine which way to spin based on the last seen object."""
+        now_s = self.get_clock().now().nanoseconds / 1e9
+        left_time = max(self._last_ir_trigger.get('left', 0.0), self._last_ir_trigger.get('front_left', 0.0))
+        right_time = max(self._last_ir_trigger.get('right', 0.0), self._last_ir_trigger.get('front_right', 0.0))
+
+        self.forced_turn_direction = 0
+        recent_threshold = 4.0  # Only care if an object was seen in the last 4 seconds
+
+        if (now_s - left_time) < recent_threshold or (now_s - right_time) < recent_threshold:
+            if left_time > right_time:
+                self.forced_turn_direction = -1  # Object on Left -> Force Right Turn (CW)
+                self.get_logger().info("Safe Pivot: Box recently on Left. Forcing RIGHT rotation.")
+            elif right_time > left_time:
+                self.forced_turn_direction = 1   # Object on Right -> Force Left Turn (CCW)
+                self.get_logger().info("Safe Pivot: Box recently on Right. Forcing LEFT rotation.")
+
+
     @staticmethod
     def _slew_axis(current, target, accel_limit, decel_limit, dt):
         if dt <= 0.0:
@@ -843,14 +862,14 @@ class MissionController(Node):
             rw = 0.0
 
         elif rotate_threats:
-            # PHASE 2: ROTATE IN PLACE (minimize backward drift, increase rotation)
-            rx = -0.10
+            # PHASE 2: ROTATE IN PLACE (Toned down to prevent over-rotation)
+            rx = -0.30
             if 'front_left' in rotate_threats and 'front_right' not in rotate_threats:
-                rw = -2.00
+                rw = -0.80
             elif 'front_right' in rotate_threats and 'front_left' not in rotate_threats:
-                rw = 2.00
+                rw = 0.80
             else:
-                rw = -2.00
+                rw = -0.80
 
         return rx, ry, rw
 
@@ -2127,6 +2146,7 @@ class MissionController(Node):
         if min_speed > 0.0 and abs(yaw_error) > 1e-6:
             magnitude = max(min_speed, abs(command))
             command = math.copysign(min(limit, magnitude), yaw_error)
+
         return command
 
     def _handle_reroute(self):
@@ -2309,10 +2329,10 @@ class MissionController(Node):
                     self.scan_waypoint_indices = set(range(len(self.waypoints)))
                     self.current_wp_idx = 0
                     if self.waypoints:
-                        self.path_line_start = (self.center_x, self.center_y)
-                        self.path_line_end = self.waypoints[0][:2]
-                    self.state = State.ROTATE_TO_TARGET
-                    self.get_logger().info('Mission started! Heading to waypoint 0')
+                            self.path_line_start = (self.center_x, self.center_y)
+                            self.path_line_end = self.waypoints[0][:2]
+                            self.state = State.ROTATE_TO_TARGET
+                        self.get_logger().info('Mission started! Heading to waypoint 0')
             return
 
         # Get current target
@@ -2390,6 +2410,8 @@ class MissionController(Node):
             if abs(angle_error) > self.ang_tol:
                 self._publish_motion(wz=self._rotation_command(angle_error))
             else:
+                # Unlock forced turn when rotation is complete
+                self.forced_turn_direction = 0
                 self.use_resume_heading_for_target_rotate = False
                 self.state = State.MOVE_FORWARD
                 self.path_line_start = (self.center_x, self.center_y)
@@ -2403,14 +2425,21 @@ class MissionController(Node):
         if self.state == State.MOVE_FORWARD:
             if dist > self.pos_tol:
                 target_speed = 0.3
-                vx = target_speed * math.cos(angle_error)
-                vy = target_speed * math.sin(angle_error)
 
+                # THE CARVING ARC FIX:
+                # If recovering from a dodge (>20 degrees off target), disable lateral
+                # sliding (vy) so the robot drives forward and carves a smooth arc back.
+                # If aligned (<20 degrees), allow mecanum sliding for perfect centering.
+                if abs(angle_error) > math.radians(20.0):
+                    vx = target_speed
+                    vy = 0.0
+                else:
+                    vx = target_speed * math.cos(angle_error)
+                    vy = target_speed * math.sin(angle_error)
+
+                # Clamp the recovery steering speed so it doesn't snap violently
                 wz = self.ang_kp * angle_error
-                if wz > self.max_ang:
-                    wz = self.max_ang
-                elif wz < -self.max_ang:
-                    wz = -self.max_ang
+                wz = max(-0.7, min(0.7, wz))
 
                 # Route through safety pipeline (Repulsion + Parking Cameras)
                 self._publish_motion(vx=vx, vy=vy, wz=wz, apply_speed_zone=False)
@@ -2456,6 +2485,8 @@ class MissionController(Node):
                     )
                 )
             else:
+                # Unlock forced turn when rotation is complete
+                self.forced_turn_direction = 0
                 self._publish_stop()
                 desired_lift = self._lift_target_for_waypoint(self.current_wp_idx)
                 if self.scan_use_lift and desired_lift > 0.0:
@@ -2522,6 +2553,8 @@ class MissionController(Node):
                     )
                 )
             else:
+                # Unlock forced turn when rotation is complete
+                self.forced_turn_direction = 0
                 self._publish_stop()
                 if self.parking_mode:
                     self.parking_mode = False
