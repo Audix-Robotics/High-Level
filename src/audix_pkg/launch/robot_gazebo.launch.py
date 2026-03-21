@@ -13,7 +13,7 @@ def generate_launch_description():
     pkg_share = get_package_share_directory('audix')
     pkg_share_parent = os.path.dirname(pkg_share)
     model_path = os.path.join(pkg_share, 'urdf', 'audix.urdf')
-    world_file_path = os.path.join(pkg_share, 'world', 'my_world.sdf')
+    world_file_path = os.path.join(pkg_share, 'world', 'debug_empty.sdf')
     ekf_config = os.path.join(pkg_share, 'config', 'ekf.yaml')
 
     robot_description = Command(['xacro ', model_path])

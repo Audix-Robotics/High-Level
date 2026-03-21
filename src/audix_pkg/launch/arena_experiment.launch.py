@@ -13,7 +13,7 @@ def generate_launch_description():
     pkg_share = get_package_share_directory('audix')
     pkg_parent = os.path.dirname(pkg_share)
 
-    world_path = os.path.join(pkg_share, 'world', 'arena_extreme_10x10.sdf')
+    world_path = os.path.join(pkg_share, 'world', 'debug_empty.sdf')
     ekf_config = os.path.join(pkg_share, 'config', 'ekf.yaml')
     experiment_config = os.path.join(pkg_share, 'config', 'arena_experiment_params.yaml')
     rviz_config = os.path.join(pkg_share, 'rviz', 'arena_experiment.rviz')
@@ -123,7 +123,7 @@ def generate_launch_description():
         DeclareLaunchArgument('use_rviz', default_value='true', description='Launch RViz2 with click-to-spawn tooling'),
         DeclareLaunchArgument('use_gazebo_gui', default_value='true', description='Launch Gazebo GUI client'),
         DeclareLaunchArgument('use_spawn_panel', default_value='true', description='Launch the obstacle spawn preset panel'),
-        DeclareLaunchArgument('world_name', default_value='arena10', description='Gazebo world name for the arena sandbox'),
+        DeclareLaunchArgument('world_name', default_value='debug_empty', description='Gazebo world name for the arena sandbox'),
         gz_resource,
         ign_resource,
         base_sim,

@@ -38,6 +38,13 @@ sleep 1
 
 # Start the ROS2 launch (Gazebo + nodes)
 echo "Starting arena_experiment.launch.py (Gazebo + nodes)..."
+# Ensure Gazebo can resolve local `model://` URIs by adding the workspace models
+# directory to the resource paths used by gz/ign. This helps when models live in
+# the source tree (src/audix_pkg/models) but aren't installed to the package
+# share directory.
+export GZ_SIM_RESOURCE_PATH="${BASE_DIR}/src/audix_pkg:${GZ_SIM_RESOURCE_PATH:-}"
+export IGN_GAZEBO_RESOURCE_PATH="${BASE_DIR}/src/audix_pkg:${IGN_GAZEBO_RESOURCE_PATH:-}"
+
 ros2 launch src/audix_pkg/launch/arena_experiment.launch.py &
 LAUNCH_PID=$!
 

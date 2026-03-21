@@ -14,154 +14,308 @@
       <render_engine>ogre2</render_engine>
     </plugin>
 
+    <!-- ============================================================ -->
+    <!--  LIGHTING                                                     -->
+    <!-- ============================================================ -->
     <light name='sun' type='directional'>
       <cast_shadows>true</cast_shadows>
       <pose>0 0 10 0 0 0</pose>
-      <diffuse>0.9 0.9 0.85 1</diffuse>
-      <specular>0.3 0.3 0.3 1</specular>
-      <attenuation><range>1000</range><constant>0.9</constant><linear>0.01</linear><quadratic>0.001</quadratic></attenuation>
+      <diffuse>0.9 0.9 0.9 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
       <direction>-0.5 0.2 -0.9</direction>
     </light>
 
-    <light name='warehouse_fill' type='point'>
-      <pose>4 0 3 0 0 0</pose>
-      <diffuse>0.4 0.4 0.38 1</diffuse>
-      <specular>0.05 0.05 0.05 1</specular>
-      <attenuation><range>20</range><constant>0.5</constant><linear>0.1</linear><quadratic>0.01</quadratic></attenuation>
+    <light name='Warehouse_CeilingLight_003' type='point'>
+      <pose>0 0 4.5 0 0 0</pose>
+      <diffuse>0.5 0.5 0.5 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <attenuation>
+        <range>40</range>
+        <constant>0.3</constant>
+        <linear>0.01</linear>
+        <quadratic>0.001</quadratic>
+      </attenuation>
+      <cast_shadows>true</cast_shadows>
+      <direction>0.1 0.1 -1</direction>
     </light>
 
-    <!-- Ground plane (warehouse concrete) -->
-    <model name='ground_plane'>
+    <!-- ============================================================ -->
+    <!--  GROUND COLLISION (invisible plane for robot wheels)          -->
+    <!-- ============================================================ -->
+    <model name='ground_collision'>
       <static>true</static>
       <link name='link'>
         <collision name='collision'>
-          <geometry><plane><normal>0 0 1</normal><size>20 20</size></plane></geometry>
-          <surface><friction><ode><mu>0.8</mu><mu2>0.6</mu2></ode></friction></surface>
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>30 30</size>
+            </plane>
+          </geometry>
         </collision>
-        <visual name='visual'>
-          <geometry><plane><normal>0 0 1</normal><size>20 20</size></plane></geometry>
-          <material><ambient>0.55 0.55 0.52 1</ambient><diffuse>0.55 0.55 0.52 1</diffuse></material>
+      </link>
+    </model>
+
+    <!-- ============================================================ -->
+    <!--  AWS WAREHOUSE SHELL — scaled 0.5 to fit the robot area      -->
+    <!--  All visual-only, visibility_flags 0x02 = invisible to lidar -->
+    <!-- ============================================================ -->
+    <model name='aws_visual_shell'>
+      <static>true</static>
+      <link name='link'>
+        <!-- Ground (floor with painted markings) -->
+        <visual name='aws_ground_visual'>
+          <pose>0 0 -0.045 0 0 0</pose>
+          <visibility_flags>0x02</visibility_flags>
+          <geometry>
+            <mesh>
+              <uri>model://aws_robomaker_warehouse_GroundB_01/meshes/aws_robomaker_warehouse_GroundB_01_visual.DAE</uri>
+              <scale>0.5 0.5 0.5</scale>
+            </mesh>
+          </geometry>
+        </visual>
+        <!-- Walls -->
+        <visual name='aws_wall_visual'>
+          <pose>0 0 0 0 0 0</pose>
+          <visibility_flags>0x02</visibility_flags>
+          <geometry>
+            <mesh>
+              <uri>model://aws_robomaker_warehouse_WallB_01/meshes/aws_robomaker_warehouse_WallB_01_visual.DAE</uri>
+              <scale>0.5 0.5 0.5</scale>
+            </mesh>
+          </geometry>
+        </visual>
+        <!-- Roof -->
+        <visual name='aws_roof_visual'>
+          <pose>0 0 0 0 0 0</pose>
+          <visibility_flags>0x02</visibility_flags>
+          <geometry>
+            <mesh>
+              <uri>model://aws_robomaker_warehouse_RoofB_01/meshes/aws_robomaker_warehouse_RoofB_01_visual.DAE</uri>
+              <scale>0.5 0.5 0.5</scale>
+            </mesh>
+          </geometry>
         </visual>
       </link>
     </model>
 
-    <!-- Warehouse walls (8m x 6m footprint, 2m high) -->
-    <model name='wall_north'>
+    <!-- ============================================================ -->
+    <!--  COLLISION WALLS — invisible boxes matching scaled warehouse  -->
+    <!--  ~5.75m (X) x 9.55m (Y), centered at origin                 -->
+    <!-- ============================================================ -->
+    <model name='warehouse_bounds_collision'>
       <static>true</static>
-      <pose>4.0 3.0 1.0 0 0 0</pose>
       <link name='link'>
-        <collision name='c'><geometry><box><size>8.0 0.1 2.0</size></box></geometry></collision>
-        <visual name='v'><geometry><box><size>8.0 0.1 2.0</size></box></geometry>
-          <material><ambient>0.7 0.7 0.65 1</ambient><diffuse>0.7 0.7 0.65 1</diffuse></material></visual>
-      </link>
-    </model>
-    <model name='wall_south'>
-      <static>true</static>
-      <pose>4.0 -3.0 1.0 0 0 0</pose>
-      <link name='link'>
-        <collision name='c'><geometry><box><size>8.0 0.1 2.0</size></box></geometry></collision>
-        <visual name='v'><geometry><box><size>8.0 0.1 2.0</size></box></geometry>
-          <material><ambient>0.7 0.7 0.65 1</ambient><diffuse>0.7 0.7 0.65 1</diffuse></material></visual>
-      </link>
-    </model>
-    <model name='wall_west'>
-      <static>true</static>
-      <pose>0.0 0.0 1.0 0 0 0</pose>
-      <link name='link'>
-        <collision name='c'><geometry><box><size>0.1 6.0 2.0</size></box></geometry></collision>
-        <visual name='v'><geometry><box><size>0.1 6.0 2.0</size></box></geometry>
-          <material><ambient>0.7 0.7 0.65 1</ambient><diffuse>0.7 0.7 0.65 1</diffuse></material></visual>
-      </link>
-    </model>
-    <model name='wall_east'>
-      <static>true</static>
-      <pose>8.0 0.0 1.0 0 0 0</pose>
-      <link name='link'>
-        <collision name='c'><geometry><box><size>0.1 6.0 2.0</size></box></geometry></collision>
-        <visual name='v'><geometry><box><size>0.1 6.0 2.0</size></box></geometry>
-          <material><ambient>0.7 0.7 0.65 1</ambient><diffuse>0.7 0.7 0.65 1</diffuse></material></visual>
+        <collision name='wall_north'>
+          <pose>0.0 4.80 0.75 0 0 0</pose>
+          <geometry><box><size>5.80 0.12 1.5</size></box></geometry>
+        </collision>
+        <collision name='wall_south'>
+          <pose>0.0 -4.80 0.75 0 0 0</pose>
+          <geometry><box><size>5.80 0.12 1.5</size></box></geometry>
+        </collision>
+        <collision name='wall_west'>
+          <pose>-2.90 0.0 0.75 0 0 0</pose>
+          <geometry><box><size>0.12 9.60 1.5</size></box></geometry>
+        </collision>
+        <collision name='wall_east'>
+          <pose>2.90 0.0 0.75 0 0 0</pose>
+          <geometry><box><size>0.12 9.60 1.5</size></box></geometry>
+        </collision>
       </link>
     </model>
 
-    <!-- Shelving racks — 2 aisles, 3 racks each side, 0.8m tall -->
-    <!-- Aisle 1: y = 1.5 (left rack) and y = 0.3 (right rack) -->
-    <model name='shelf_1L'>
+    <!-- ============================================================ -->
+    <!--  CEILING LAMP — scaled 0.5, visual-only                      -->
+    <!-- ============================================================ -->
+    <model name='aws_lamp_visual'>
       <static>true</static>
-      <pose>1.5 1.8 0.4 0 0 0</pose>
+      <pose>0 0 -2 0 0 0</pose>
       <link name='link'>
-        <collision name='c'><geometry><box><size>1.5 0.4 0.8</size></box></geometry></collision>
-        <visual name='v'><geometry><box><size>1.5 0.4 0.8</size></box></geometry>
-          <material><ambient>0.45 0.35 0.25 1</ambient><diffuse>0.45 0.35 0.25 1</diffuse></material></visual>
-      </link>
-    </model>
-    <model name='shelf_1R'>
-      <static>true</static>
-      <pose>1.5 0.5 0.4 0 0 0</pose>
-      <link name='link'>
-        <collision name='c'><geometry><box><size>1.5 0.4 0.8</size></box></geometry></collision>
-        <visual name='v'><geometry><box><size>1.5 0.4 0.8</size></box></geometry>
-          <material><ambient>0.45 0.35 0.25 1</ambient><diffuse>0.45 0.35 0.25 1</diffuse></material></visual>
-      </link>
-    </model>
-    <model name='shelf_2L'>
-      <static>true</static>
-      <pose>3.5 1.8 0.4 0 0 0</pose>
-      <link name='link'>
-        <collision name='c'><geometry><box><size>1.5 0.4 0.8</size></box></geometry></collision>
-        <visual name='v'><geometry><box><size>1.5 0.4 0.8</size></box></geometry>
-          <material><ambient>0.45 0.35 0.25 1</ambient><diffuse>0.45 0.35 0.25 1</diffuse></material></visual>
-      </link>
-    </model>
-    <model name='shelf_2R'>
-      <static>true</static>
-      <pose>3.5 0.5 0.4 0 0 0</pose>
-      <link name='link'>
-        <collision name='c'><geometry><box><size>1.5 0.4 0.8</size></box></geometry></collision>
-        <visual name='v'><geometry><box><size>1.5 0.4 0.8</size></box></geometry>
-          <material><ambient>0.45 0.35 0.25 1</ambient><diffuse>0.45 0.35 0.25 1</diffuse></material></visual>
-      </link>
-    </model>
-    <model name='shelf_3L'>
-      <static>true</static>
-      <pose>5.5 1.8 0.4 0 0 0</pose>
-      <link name='link'>
-        <collision name='c'><geometry><box><size>1.5 0.4 0.8</size></box></geometry></collision>
-        <visual name='v'><geometry><box><size>1.5 0.4 0.8</size></box></geometry>
-          <material><ambient>0.45 0.35 0.25 1</ambient><diffuse>0.45 0.35 0.25 1</diffuse></material></visual>
+        <visual name='visual'>
+          <visibility_flags>0x02</visibility_flags>
+          <geometry>
+            <mesh>
+              <uri>model://aws_robomaker_warehouse_Lamp_01/meshes/aws_robomaker_warehouse_Lamp_01_visual.DAE</uri>
+              <scale>0.5 0.5 0.5</scale>
+            </mesh>
+          </geometry>
+        </visual>
       </link>
     </model>
 
-    <!-- Aisle 2: y = -0.5 (left rack) and y = -1.8 (right rack) -->
-    <model name='shelf_4L'>
+    <!-- ============================================================ -->
+    <!--  DECORATIVE SHELVING — right aisle (x ≈ 2.0–2.4)            -->
+    <!--  All visual-only, visibility_flags 0x02, scaled 0.5          -->
+    <!-- ============================================================ -->
+    <model name='deco_shelfE_right_001'>
       <static>true</static>
-      <pose>2.5 -0.5 0.4 0 0 0</pose>
+      <pose>2.20 -2.20 0 0 0 0</pose>
       <link name='link'>
-        <collision name='c'><geometry><box><size>1.5 0.4 0.8</size></box></geometry></collision>
-        <visual name='v'><geometry><box><size>1.5 0.4 0.8</size></box></geometry>
-          <material><ambient>0.45 0.35 0.25 1</ambient><diffuse>0.45 0.35 0.25 1</diffuse></material></visual>
+        <visual name='visual'>
+          <visibility_flags>0x02</visibility_flags>
+          <geometry><mesh>
+            <uri>model://aws_robomaker_warehouse_ShelfE_01/meshes/aws_robomaker_warehouse_ShelfE_01_visual.DAE</uri>
+            <scale>0.5 0.5 0.5</scale>
+          </mesh></geometry>
+        </visual>
       </link>
     </model>
-    <model name='shelf_4R'>
+
+    <model name='deco_shelfE_right_002'>
       <static>true</static>
-      <pose>2.5 -1.8 0.4 0 0 0</pose>
+      <pose>2.20 2.20 0 0 0 0</pose>
       <link name='link'>
-        <collision name='c'><geometry><box><size>1.5 0.4 0.8</size></box></geometry></collision>
-        <visual name='v'><geometry><box><size>1.5 0.4 0.8</size></box></geometry>
-          <material><ambient>0.45 0.35 0.25 1</ambient><diffuse>0.45 0.35 0.25 1</diffuse></material></visual>
+        <visual name='visual'>
+          <visibility_flags>0x02</visibility_flags>
+          <geometry><mesh>
+            <uri>model://aws_robomaker_warehouse_ShelfE_01/meshes/aws_robomaker_warehouse_ShelfE_01_visual.DAE</uri>
+            <scale>0.5 0.5 0.5</scale>
+          </mesh></geometry>
+        </visual>
       </link>
     </model>
-    <model name='shelf_5L'>
+
+    <model name='deco_shelfD_right_001'>
       <static>true</static>
-      <pose>5.0 -0.5 0.4 0 0 0</pose>
+      <pose>2.20 0.0 0 0 0 0</pose>
       <link name='link'>
-        <collision name='c'><geometry><box><size>1.5 0.4 0.8</size></box></geometry></collision>
-        <visual name='v'><geometry><box><size>1.5 0.4 0.8</size></box></geometry>
-          <material><ambient>0.45 0.35 0.25 1</ambient><diffuse>0.45 0.35 0.25 1</diffuse></material></visual>
+        <visual name='visual'>
+          <visibility_flags>0x02</visibility_flags>
+          <geometry><mesh>
+            <uri>model://aws_robomaker_warehouse_ShelfD_01/meshes/aws_robomaker_warehouse_ShelfD_01_visual.DAE</uri>
+            <scale>0.5 0.5 0.5</scale>
+          </mesh></geometry>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ============================================================ -->
+    <!--  DECORATIVE SHELVING — left aisle (x ≈ -2.0 to -2.4)        -->
+    <!-- ============================================================ -->
+    <model name='deco_shelfF_left_001'>
+      <static>true</static>
+      <pose>-2.20 -0.5 0 0 0 0</pose>
+      <link name='link'>
+        <visual name='visual'>
+          <visibility_flags>0x02</visibility_flags>
+          <geometry><mesh>
+            <uri>model://aws_robomaker_warehouse_ShelfF_01/meshes/aws_robomaker_warehouse_ShelfF_01_visual.DAE</uri>
+            <scale>0.5 0.5 0.5</scale>
+          </mesh></geometry>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ============================================================ -->
+    <!--  DECORATIVE LOOSE OBJECTS — corners and far ends              -->
+    <!-- ============================================================ -->
+
+    <!-- Pallet jack — south-east corner, parked -->
+    <model name='deco_palletjack_001'>
+      <static>true</static>
+      <pose>2.20 -4.10 0.012 0 0 0</pose>
+      <link name='link'>
+        <visual name='visual'>
+          <visibility_flags>0x02</visibility_flags>
+          <geometry><mesh>
+            <uri>model://aws_robomaker_warehouse_PalletJackB_01/meshes/aws_robomaker_warehouse_PalletJackB_01_visual.DAE</uri>
+            <scale>0.5 0.5 0.5</scale>
+          </mesh></geometry>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Buckets — scattered in corners -->
+    <model name='deco_bucket_001'>
+      <static>true</static>
+      <pose>2.30 3.90 0 0 0 -1.56</pose>
+      <link name='link'>
+        <visual name='visual'>
+          <visibility_flags>0x02</visibility_flags>
+          <geometry><mesh>
+            <uri>model://aws_robomaker_warehouse_Bucket_01/meshes/aws_robomaker_warehouse_Bucket_01_visual.DAE</uri>
+            <scale>0.5 0.5 0.5</scale>
+          </mesh></geometry>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ============================================================ -->
+    <!--  SCAN SHELVES — the 3 inspection targets                    -->
+    <!--  Positioned farther from centerline to stay outside 0.20 m IR -->
+    <!--  thresholds during nominal motion while remaining physical   -->
+    <!--  obstacles via rack_collision.                               -->
+    <!-- ============================================================ -->
+    <model name='scan_shelf_wp0_left'>
+      <static>true</static>
+      <pose>0.70 -2.40 0 0 0 1.570796</pose>
+      <link name='link'>
+        <collision name='rack_collision'>
+          <pose>0 0 0.16915 0 0 0</pose>
+          <geometry><box><size>0.82 0.40 0.3383</size></box></geometry>
+        </collision>
+        <visual name='pillar_fl'><pose>0.39 0.17 0.16915 0 0 0</pose><visibility_flags>0x01</visibility_flags><geometry><cylinder><radius>0.016</radius><length>0.3383</length></cylinder></geometry><material><ambient>0.24 0.28 0.31 1</ambient><diffuse>0.24 0.28 0.31 1</diffuse><specular>0.08 0.08 0.08 1</specular></material></visual>
+        <visual name='pillar_fr'><pose>0.39 -0.17 0.16915 0 0 0</pose><visibility_flags>0x01</visibility_flags><geometry><cylinder><radius>0.016</radius><length>0.3383</length></cylinder></geometry><material><ambient>0.24 0.28 0.31 1</ambient><diffuse>0.24 0.28 0.31 1</diffuse><specular>0.08 0.08 0.08 1</specular></material></visual>
+        <visual name='pillar_rl'><pose>-0.39 0.17 0.16915 0 0 0</pose><visibility_flags>0x01</visibility_flags><geometry><cylinder><radius>0.016</radius><length>0.3383</length></cylinder></geometry><material><ambient>0.24 0.28 0.31 1</ambient><diffuse>0.24 0.28 0.31 1</diffuse><specular>0.08 0.08 0.08 1</specular></material></visual>
+        <visual name='pillar_rr'><pose>-0.39 -0.17 0.16915 0 0 0</pose><visibility_flags>0x01</visibility_flags><geometry><cylinder><radius>0.016</radius><length>0.3383</length></cylinder></geometry><material><ambient>0.24 0.28 0.31 1</ambient><diffuse>0.24 0.28 0.31 1</diffuse><specular>0.08 0.08 0.08 1</specular></material></visual>
+        <visual name='brace_front'><pose>0.0 -0.17 0.16915 0 0 0</pose><visibility_flags>0x01</visibility_flags><geometry><box><size>0.80 0.02 0.02</size></box></geometry><material><ambient>0.19 0.22 0.24 1</ambient><diffuse>0.19 0.22 0.24 1</diffuse></material></visual>
+        <visual name='brace_back'><pose>0.0 0.17 0.16915 0 0 0</pose><visibility_flags>0x01</visibility_flags><geometry><box><size>0.80 0.02 0.02</size></box></geometry><material><ambient>0.19 0.22 0.24 1</ambient><diffuse>0.19 0.22 0.24 1</diffuse></material></visual>
+        <visual name='deck_1_v'><pose>0.0 0.0 0.1048 0 0 0</pose><visibility_flags>0x01</visibility_flags><geometry><box><size>0.80 0.38 0.016</size></box></geometry><material><ambient>0.47 0.31 0.14 1</ambient><diffuse>0.47 0.31 0.14 1</diffuse><specular>0.04 0.03 0.02 1</specular></material></visual>
+        <visual name='deck_2_v'><pose>0.0 0.0 0.2175 0 0 0</pose><visibility_flags>0x01</visibility_flags><geometry><box><size>0.80 0.38 0.016</size></box></geometry><material><ambient>0.46 0.30 0.13 1</ambient><diffuse>0.46 0.30 0.13 1</diffuse><specular>0.04 0.03 0.02 1</specular></material></visual>
+        <visual name='deck_3_v'><pose>0.0 0.0 0.3303 0 0 0</pose><visibility_flags>0x01</visibility_flags><geometry><box><size>0.80 0.38 0.016</size></box></geometry><material><ambient>0.44 0.28 0.12 1</ambient><diffuse>0.44 0.28 0.12 1</diffuse><specular>0.04 0.03 0.02 1</specular></material></visual>
+        <visual name='box_1_v'><pose>0.0 0.0 0.1378 0 0 0</pose><visibility_flags>0x01</visibility_flags><geometry><box><size>0.20 0.14 0.05</size></box></geometry><material><ambient>0.72 0.48 0.27 1</ambient><diffuse>0.72 0.48 0.27 1</diffuse></material></visual>
+        <visual name='box_2_v'><pose>0.0 0.0 0.2505 0 0 0</pose><visibility_flags>0x01</visibility_flags><geometry><box><size>0.20 0.14 0.05</size></box></geometry><material><ambient>0.67 0.44 0.25 1</ambient><diffuse>0.67 0.44 0.25 1</diffuse></material></visual>
+        <visual name='box_3_v'><pose>0.0 0.0 0.3633 0 0 0</pose><visibility_flags>0x01</visibility_flags><geometry><box><size>0.20 0.14 0.05</size></box></geometry><material><ambient>0.62 0.40 0.23 1</ambient><diffuse>0.62 0.40 0.23 1</diffuse></material></visual>
+      </link>
+    </model>
+
+    <model name='scan_shelf_wp1_right'>
+      <static>true</static>
+      <pose>-0.70 0.00 0 0 0 1.570796</pose>
+      <link name='link'>
+        <collision name='rack_collision'>
+          <pose>0 0 0.16915 0 0 0</pose>
+          <geometry><box><size>0.82 0.40 0.3383</size></box></geometry>
+        </collision>
+        <visual name='pillar_fl'><pose>0.39 0.17 0.16915 0 0 0</pose><visibility_flags>0x01</visibility_flags><geometry><cylinder><radius>0.016</radius><length>0.3383</length></cylinder></geometry><material><ambient>0.24 0.28 0.31 1</ambient><diffuse>0.24 0.28 0.31 1</diffuse><specular>0.08 0.08 0.08 1</specular></material></visual>
+        <visual name='pillar_fr'><pose>0.39 -0.17 0.16915 0 0 0</pose><visibility_flags>0x01</visibility_flags><geometry><cylinder><radius>0.016</radius><length>0.3383</length></cylinder></geometry><material><ambient>0.24 0.28 0.31 1</ambient><diffuse>0.24 0.28 0.31 1</diffuse><specular>0.08 0.08 0.08 1</specular></material></visual>
+        <visual name='pillar_rl'><pose>-0.39 0.17 0.16915 0 0 0</pose><visibility_flags>0x01</visibility_flags><geometry><cylinder><radius>0.016</radius><length>0.3383</length></cylinder></geometry><material><ambient>0.24 0.28 0.31 1</ambient><diffuse>0.24 0.28 0.31 1</diffuse><specular>0.08 0.08 0.08 1</specular></material></visual>
+        <visual name='pillar_rr'><pose>-0.39 -0.17 0.16915 0 0 0</pose><visibility_flags>0x01</visibility_flags><geometry><cylinder><radius>0.016</radius><length>0.3383</length></cylinder></geometry><material><ambient>0.24 0.28 0.31 1</ambient><diffuse>0.24 0.28 0.31 1</diffuse><specular>0.08 0.08 0.08 1</specular></material></visual>
+        <visual name='brace_front'><pose>0.0 -0.17 0.16915 0 0 0</pose><visibility_flags>0x01</visibility_flags><geometry><box><size>0.80 0.02 0.02</size></box></geometry><material><ambient>0.19 0.22 0.24 1</ambient><diffuse>0.19 0.22 0.24 1</diffuse></material></visual>
+        <visual name='brace_back'><pose>0.0 0.17 0.16915 0 0 0</pose><visibility_flags>0x01</visibility_flags><geometry><box><size>0.80 0.02 0.02</size></box></geometry><material><ambient>0.19 0.22 0.24 1</ambient><diffuse>0.19 0.22 0.24 1</diffuse></material></visual>
+        <visual name='deck_1_v'><pose>0.0 0.0 0.1048 0 0 0</pose><visibility_flags>0x01</visibility_flags><geometry><box><size>0.80 0.38 0.016</size></box></geometry><material><ambient>0.47 0.31 0.14 1</ambient><diffuse>0.47 0.31 0.14 1</diffuse><specular>0.04 0.03 0.02 1</specular></material></visual>
+        <visual name='deck_2_v'><pose>0.0 0.0 0.2175 0 0 0</pose><visibility_flags>0x01</visibility_flags><geometry><box><size>0.80 0.38 0.016</size></box></geometry><material><ambient>0.46 0.30 0.13 1</ambient><diffuse>0.46 0.30 0.13 1</diffuse><specular>0.04 0.03 0.02 1</specular></material></visual>
+        <visual name='deck_3_v'><pose>0.0 0.0 0.3303 0 0 0</pose><visibility_flags>0x01</visibility_flags><geometry><box><size>0.80 0.38 0.016</size></box></geometry><material><ambient>0.44 0.28 0.12 1</ambient><diffuse>0.44 0.28 0.12 1</diffuse><specular>0.04 0.03 0.02 1</specular></material></visual>
+        <visual name='box_1_v'><pose>0.0 0.0 0.1378 0 0 0</pose><visibility_flags>0x01</visibility_flags><geometry><box><size>0.20 0.14 0.05</size></box></geometry><material><ambient>0.72 0.48 0.27 1</ambient><diffuse>0.72 0.48 0.27 1</diffuse></material></visual>
+        <visual name='box_2_v'><pose>0.0 0.0 0.2505 0 0 0</pose><visibility_flags>0x01</visibility_flags><geometry><box><size>0.20 0.14 0.05</size></box></geometry><material><ambient>0.67 0.44 0.25 1</ambient><diffuse>0.67 0.44 0.25 1</diffuse></material></visual>
+        <visual name='box_3_v'><pose>0.0 0.0 0.3633 0 0 0</pose><visibility_flags>0x01</visibility_flags><geometry><box><size>0.20 0.14 0.05</size></box></geometry><material><ambient>0.62 0.40 0.23 1</ambient><diffuse>0.62 0.40 0.23 1</diffuse></material></visual>
+      </link>
+    </model>
+
+    <model name='scan_shelf_wp2_left'>
+      <static>true</static>
+      <pose>0.70 2.40 0 0 0 1.570796</pose>
+      <link name='link'>
+        <collision name='rack_collision'>
+          <pose>0 0 0.16915 0 0 0</pose>
+          <geometry><box><size>0.82 0.40 0.3383</size></box></geometry>
+        </collision>
+        <visual name='pillar_fl'><pose>0.39 0.17 0.16915 0 0 0</pose><visibility_flags>0x01</visibility_flags><geometry><cylinder><radius>0.016</radius><length>0.3383</length></cylinder></geometry><material><ambient>0.24 0.28 0.31 1</ambient><diffuse>0.24 0.28 0.31 1</diffuse><specular>0.08 0.08 0.08 1</specular></material></visual>
+        <visual name='pillar_fr'><pose>0.39 -0.17 0.16915 0 0 0</pose><visibility_flags>0x01</visibility_flags><geometry><cylinder><radius>0.016</radius><length>0.3383</length></cylinder></geometry><material><ambient>0.24 0.28 0.31 1</ambient><diffuse>0.24 0.28 0.31 1</diffuse><specular>0.08 0.08 0.08 1</specular></material></visual>
+        <visual name='pillar_rl'><pose>-0.39 0.17 0.16915 0 0 0</pose><visibility_flags>0x01</visibility_flags><geometry><cylinder><radius>0.016</radius><length>0.3383</length></cylinder></geometry><material><ambient>0.24 0.28 0.31 1</ambient><diffuse>0.24 0.28 0.31 1</diffuse><specular>0.08 0.08 0.08 1</specular></material></visual>
+        <visual name='pillar_rr'><pose>-0.39 -0.17 0.16915 0 0 0</pose><visibility_flags>0x01</visibility_flags><geometry><cylinder><radius>0.016</radius><length>0.3383</length></cylinder></geometry><material><ambient>0.24 0.28 0.31 1</ambient><diffuse>0.24 0.28 0.31 1</diffuse><specular>0.08 0.08 0.08 1</specular></material></visual>
+        <visual name='brace_front'><pose>0.0 -0.17 0.16915 0 0 0</pose><visibility_flags>0x01</visibility_flags><geometry><box><size>0.80 0.02 0.02</size></box></geometry><material><ambient>0.19 0.22 0.24 1</ambient><diffuse>0.19 0.22 0.24 1</diffuse></material></visual>
+        <visual name='brace_back'><pose>0.0 0.17 0.16915 0 0 0</pose><visibility_flags>0x01</visibility_flags><geometry><box><size>0.80 0.02 0.02</size></box></geometry><material><ambient>0.19 0.22 0.24 1</ambient><diffuse>0.19 0.22 0.24 1</diffuse></material></visual>
+        <visual name='deck_1_v'><pose>0.0 0.0 0.1048 0 0 0</pose><visibility_flags>0x01</visibility_flags><geometry><box><size>0.80 0.38 0.016</size></box></geometry><material><ambient>0.47 0.31 0.14 1</ambient><diffuse>0.47 0.31 0.14 1</diffuse><specular>0.04 0.03 0.02 1</specular></material></visual>
+        <visual name='deck_2_v'><pose>0.0 0.0 0.2175 0 0 0</pose><visibility_flags>0x01</visibility_flags><geometry><box><size>0.80 0.38 0.016</size></box></geometry><material><ambient>0.46 0.30 0.13 1</ambient><diffuse>0.46 0.30 0.13 1</diffuse><specular>0.04 0.03 0.02 1</specular></material></visual>
+        <visual name='deck_3_v'><pose>0.0 0.0 0.3303 0 0 0</pose><visibility_flags>0x01</visibility_flags><geometry><box><size>0.80 0.38 0.016</size></box></geometry><material><ambient>0.44 0.28 0.12 1</ambient><diffuse>0.44 0.28 0.12 1</diffuse><specular>0.04 0.03 0.02 1</specular></material></visual>
+        <visual name='box_1_v'><pose>0.0 0.0 0.1378 0 0 0</pose><visibility_flags>0x01</visibility_flags><geometry><box><size>0.20 0.14 0.05</size></box></geometry><material><ambient>0.72 0.48 0.27 1</ambient><diffuse>0.72 0.48 0.27 1</diffuse></material></visual>
+        <visual name='box_2_v'><pose>0.0 0.0 0.2505 0 0 0</pose><visibility_flags>0x01</visibility_flags><geometry><box><size>0.20 0.14 0.05</size></box></geometry><material><ambient>0.67 0.44 0.25 1</ambient><diffuse>0.67 0.44 0.25 1</diffuse></material></visual>
+        <visual name='box_3_v'><pose>0.0 0.0 0.3633 0 0 0</pose><visibility_flags>0x01</visibility_flags><geometry><box><size>0.20 0.14 0.05</size></box></geometry><material><ambient>0.62 0.40 0.23 1</ambient><diffuse>0.62 0.40 0.23 1</diffuse></material></visual>
       </link>
     </model>
 
     <gravity>0 0 -9.81</gravity>
-    <magnetic_field>6e-06 2.3e-05 -4.2e-05</magnetic_field>
-    <atmosphere type='adiabatic'/>
   </world>
 </sdf>
