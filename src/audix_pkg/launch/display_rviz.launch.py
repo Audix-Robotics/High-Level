@@ -27,6 +27,7 @@ def generate_launch_description():
         executable='robot_state_publisher',
         output='screen',
         parameters=[{'robot_description': robot_description, 'use_sim_time': use_sim_time_param}],
+        condition=IfCondition(LaunchConfiguration('use_robot_state_publisher')),
     )
 
     joint_state_publisher_node = Node(
@@ -57,6 +58,7 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
+        DeclareLaunchArgument(name='use_robot_state_publisher', default_value='True', description='Launch robot_state_publisher'),
         DeclareLaunchArgument(name='gui', default_value='True', description='Flag to enable joint_state_publisher_gui'),
         DeclareLaunchArgument(name='use_sim_time', default_value='False', description='Use /clock if available'),
         DeclareLaunchArgument(name='model', default_value=default_model_path, description='Absolute path to robot model file'),

@@ -17,7 +17,7 @@
     name="base_link">
     <inertial>
       <origin
-        xyz="-0.16542560919261 -0.149974396919816 0.0555112241124055"
+        xyz="-0.00676560919261 0.000825603080184 0.0555112241124055"
         rpy="0 0 0" />
       <mass
         value="2.23789814285683" />
@@ -31,7 +31,7 @@
     </inertial>
     <visual>
       <origin
-        xyz="0 0 0"
+        xyz="0.15866 0.15079 0"
         rpy="0 0 0" />
       <geometry>
         <mesh
@@ -43,15 +43,7 @@
           rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
       </material>
     </visual>
-    <collision>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://audix/meshes/base_link.STL" />
-      </geometry>
-    </collision>
+    
   </link>
   <link
     name="front_left_wheel_link">
@@ -97,7 +89,7 @@
     name="front_left_wheel_joint"
     type="continuous">
     <origin
-      xyz="-0.250000000005374 -0.307389999999985 0.024999999989585"
+      xyz="-0.091340000005374 -0.156599999999985 0.024999999989585"
       rpy="1.57079632679489 0 0" />
     <parent
       link="base_link" />
@@ -153,7 +145,7 @@
     name="front_right_wheel_joint"
     type="continuous">
     <origin
-      xyz="-0.250000000005375 0.00739000000001477 0.0249999999895845"
+      xyz="-0.091340000005375 0.15818000000001477 0.0249999999895845"
       rpy="1.57079632679489 0 0" />
     <parent
       link="base_link" />
@@ -209,7 +201,7 @@
     name="back_right_wheel_joint"
     type="continuous">
     <origin
-      xyz="-0.0700000000053771 0.00739000000001488 0.0249999999906142"
+      xyz="0.0886599999946229 0.15818000000001488 0.0249999999906142"
       rpy="1.57079632679489 0 0" />
     <parent
       link="base_link" />
@@ -265,7 +257,7 @@
     name="back_left_wheel_joint"
     type="continuous">
     <origin
-      xyz="-0.0700000000053768 -0.307389999999987 0.024999999990612"
+      xyz="0.0886599999946232 -0.156599999999987 0.024999999990612"
       rpy="1.57079632679489 0 0" />
     <parent
       link="base_link" />
@@ -321,7 +313,7 @@
     name="scissors_lift_base_fix"
     type="fixed">
     <origin
-      xyz="-0.310000000005584 -0.150000000000003 0.0124999999899842"
+      xyz="-0.151340000005584 0.0007900000000009999 0.0124999999899842"
       rpy="0 0 0" />
     <parent
       link="base_link" />
@@ -1210,42 +1202,42 @@
   <!-- IR Sensors -->
   <link name="ir_back_link"/>
   <joint name="ir_back_joint" type="fixed">
-    <origin xyz="0.00389 -0.15402 0.01325" rpy="0 1.5707963267949 0"/>
+    <origin xyz="0.16255 -0.00323 0.01325" rpy="0 1.5707963267949 0"/>
     <parent link="base_link"/>
     <child link="ir_back_link"/>
   </joint>
 
   <link name="ir_right_link"/>
   <joint name="ir_right_joint" type="fixed">
-    <origin xyz="-0.15593 0.00425 0.01325" rpy="0 1.5707963267949 1.5707963267949"/>
+    <origin xyz="0.00273 0.15504 0.01325" rpy="0 1.5707963267949 1.5707963267949"/>
     <parent link="base_link"/>
     <child link="ir_right_link"/>
   </joint>
 
   <link name="ir_front_right_link"/>
   <joint name="ir_front_right_joint" type="fixed">
-    <origin xyz="-0.33619 -0.02391 0.01325" rpy="0 1.5707963267949 2.3561944901923"/>
+    <origin xyz="-0.17753 0.12688 0.01325" rpy="0 1.5707963267949 2.3561944901923"/>
     <parent link="base_link"/>
     <child link="ir_front_right_link"/>
   </joint>
 
   <link name="ir_front_link"/>
   <joint name="ir_front_joint" type="fixed">
-    <origin xyz="-0.36061 -0.14597 0.01325" rpy="0 1.5707963267949 3.1415926535898"/>
+    <origin xyz="-0.20195 0.00482 0.01325" rpy="0 1.5707963267949 3.1415926535898"/>
     <parent link="base_link"/>
     <child link="ir_front_link"/>
   </joint>
 
   <link name="ir_front_left_link"/>
   <joint name="ir_front_left_joint" type="fixed">
-    <origin xyz="-0.34189 -0.27041 0.01325" rpy="0 1.5707963267949 -2.3561944901923"/>
+    <origin xyz="-0.18323 -0.11962 0.01325" rpy="0 1.5707963267949 -2.3561944901923"/>
     <parent link="base_link"/>
     <child link="ir_front_left_link"/>
   </joint>
 
   <link name="ir_left_link"/>
   <joint name="ir_left_joint" type="fixed">
-    <origin xyz="-0.16403 -0.30425 0.01325" rpy="0 1.5707963267949 -1.5707963267949"/>
+    <origin xyz="-0.00537 -0.15346 0.01325" rpy="0 1.5707963267949 -1.5707963267949"/>
     <parent link="base_link"/>
     <child link="ir_left_link"/>
   </joint>
@@ -1261,7 +1253,7 @@
   <!-- IMU Frame (aligned with robot body frame) -->
   <link name="imu_link"/>
   <joint name="imu_joint" type="fixed">
-    <origin xyz="-0.15866 -0.15079 0.010" rpy="0 0 0"/>
+    <origin xyz="0 0 0.010" rpy="0 0 0"/>
     <parent link="base_link"/>
     <child link="imu_link"/>
   </joint>
@@ -1471,7 +1463,7 @@
   <!-- Each link's +Z is the sensing direction.                    -->
   <!-- Sensor pose pitch = -π/2 rotates the lidar's default        -->
   <!-- forward axis (+X) onto the link's +Z.                       -->
-  <!-- FOV: ±17.5° = ±0.30543 rad   Range: 0.05 – 0.30 m         -->
+  <!-- FOV: ±17.5° = ±0.30543 rad   Range: 0.05 – 0.15 m         -->
   <!-- ============================================================ -->
 
   <gazebo reference="ir_back_link">
@@ -1496,8 +1488,8 @@
           </vertical>
         </scan>
         <range>
-          <min>0.05</min>
-          <max>0.30</max>
+          <min>0.10</min>
+          <max>0.25</max>
           <resolution>0.01</resolution>
         </range>
         <noise>
@@ -1532,8 +1524,8 @@
           </vertical>
         </scan>
         <range>
-          <min>0.05</min>
-          <max>0.30</max>
+          <min>0.10</min>
+          <max>0.25</max>
           <resolution>0.01</resolution>
         </range>
         <noise>
@@ -1568,8 +1560,8 @@
           </vertical>
         </scan>
         <range>
-          <min>0.05</min>
-          <max>0.30</max>
+          <min>0.10</min>
+          <max>0.25</max>
           <resolution>0.01</resolution>
         </range>
         <noise>
@@ -1604,8 +1596,8 @@
           </vertical>
         </scan>
         <range>
-          <min>0.05</min>
-          <max>0.30</max>
+          <min>0.10</min>
+          <max>0.25</max>
           <resolution>0.01</resolution>
         </range>
         <noise>
@@ -1640,8 +1632,8 @@
           </vertical>
         </scan>
         <range>
-          <min>0.05</min>
-          <max>0.30</max>
+          <min>0.10</min>
+          <max>0.25</max>
           <resolution>0.01</resolution>
         </range>
         <noise>
@@ -1676,8 +1668,8 @@
           </vertical>
         </scan>
         <range>
-          <min>0.05</min>
-          <max>0.30</max>
+          <min>0.10</min>
+          <max>0.25</max>
           <resolution>0.01</resolution>
         </range>
         <noise>

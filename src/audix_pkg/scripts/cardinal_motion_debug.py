@@ -38,8 +38,8 @@ class CardinalMotionDebug(Node):
         self.declare_parameter('final_stop_hold_sec', 2.0)
         self.declare_parameter('path_point_spacing', 0.01)
         self.declare_parameter('odom_topic', '/odom')
-        self.declare_parameter('imu_offset_x', -0.15866)
-        self.declare_parameter('imu_offset_y', -0.15079)
+        self.declare_parameter('imu_offset_x', 0.0)
+        self.declare_parameter('imu_offset_y', 0.0)
         self.declare_parameter('obstacle_warmup_sec', 3.0)
         self.declare_parameter('obstacle_trigger_distance', 0.22)
         self.declare_parameter('obstacle_side_clear_distance', 0.18)
@@ -88,12 +88,13 @@ class CardinalMotionDebug(Node):
             'right': float('inf'),
             'back': float('inf'),
         }
+        # SWAPPED mapping to account for URDF naming error (physical left/right swapped)
         ir_topics = {
             'front': '/ir_front/scan',
-            'front_left': '/ir_front_left/scan',
-            'front_right': '/ir_front_right/scan',
-            'left': '/ir_left/scan',
-            'right': '/ir_right/scan',
+            'front_left': '/ir_front_right/scan',
+            'front_right': '/ir_front_left/scan',
+            'left': '/ir_right/scan',
+            'right': '/ir_left/scan',
             'back': '/ir_back/scan',
         }
         for key, topic in ir_topics.items():
@@ -105,12 +106,12 @@ class CardinalMotionDebug(Node):
             )
 
         self.sensor_positions = {
-            'back': (0.00389, -0.15402),
-            'right': (-0.15593, 0.00425),
-            'front_right': (-0.33619, -0.02391),
-            'front': (-0.36061, -0.14597),
-            'front_left': (-0.34189, -0.27041),
-            'left': (-0.16403, -0.30425),
+            'back':        ( 0.16255, -0.00323),
+            'right':       ( 0.00273,  0.15504),
+            'front_right': (-0.17753,  0.12688),
+            'front':       (-0.20195,  0.00482),
+            'front_left':  (-0.18323, -0.11962),
+            'left':        (-0.00537, -0.15346),
         }
         self.front_extent = abs(self.sensor_positions['front'][0] - self.imu_offset_x)
         self.back_extent = abs(self.sensor_positions['back'][0] - self.imu_offset_x)

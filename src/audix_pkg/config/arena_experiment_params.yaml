@@ -1,0 +1,108 @@
+arena_roamer:
+  ros__parameters:
+    arena_min_x: -4.35
+    arena_max_x: 4.35
+    arena_min_y: -4.35
+    arena_max_y: 4.35
+    goal_margin: 0.80
+    min_goal_separation: 1.20
+    goal_reached_tolerance: 0.32
+    goal_timeout_sec: 30.0
+    sensor_warmup_sec: 2.0
+    sensor_timeout_sec: 0.35
+    odom_timeout_sec: 0.35
+    control_period_sec: 0.05
+    max_linear_speed: 0.32
+    max_lateral_speed: 0.28
+    max_angular_speed: 1.60
+    goal_gain: 0.95
+    wall_gain: 1.15
+    repulsion_gain: 1.75
+    escape_gain: 1.25
+    obstacle_detect_distance: 0.25
+    obstacle_danger_distance: 0.25
+    obstacle_clear_distance: 0.25
+    startup_clearance_distance: 0.24
+    hard_escape_distance: 0.12
+    hard_escape_speed: 0.08
+    caution_speed: 0.14
+    wall_influence_distance: 0.90
+    obstacle_side_min: 0.20
+    robot_center_offset_x: 0.0
+    robot_center_offset_y: 0.0
+    debug_frame_id: arena10
+    ir_filter_alpha_rise: 0.10
+    ir_filter_alpha_fall: 0.58
+    path_point_spacing: 0.05
+    random_seed: 7
+    reorient_heading_threshold_deg: 115.0
+    forward_heading_allowance_deg: 70.0
+    rotate_clearance_bias: 0.50
+    rotate_forward_speed: 0.12
+    angular_kp: 2.4
+    reroute_back_time: 0.75
+    reroute_stop_time: 0.14
+    reroute_rotate_time: 1.00
+    reroute_rotate_speed: 1.00
+    reroute_post_clear_pause: 0.60
+    reroute_correct_heading_tol_deg: 8.0
+    repulse_decay_sec: 1.50
+    forward_clearance_distance: 0.65
+    lateral_clearance_distance: 0.20
+    escape_hold_sec: 0.7
+    stuck_timeout_sec: 1.4
+    stuck_distance_epsilon: 0.03
+    cmd_forward_sign: -1.0
+    cmd_lateral_sign: 1.0
+    goal_keepout_radius: 0.95
+    ir_low_sample_count: 3
+    cmd_linear_accel_limit: 0.45
+    cmd_linear_decel_limit: 0.95
+    cmd_lateral_accel_limit: 0.55
+    cmd_lateral_decel_limit: 1.10
+    cmd_angular_accel_limit: 1.10
+    cmd_angular_decel_limit: 2.20
+    cmd_deadband_linear: 0.020
+    cmd_deadband_lateral: 0.020
+    cmd_deadband_angular: 0.050
+    control_mode: acceptance_path
+    route_name: double_pinch_figure8
+    route_loop: false
+    route_waypoint_tolerance: 0.24
+    route_waypoint_dwell_sec: 0.35
+    route_fail_on_timeout: false
+    motion_hold_sec: 0.35
+    motion_switch_score_margin: 0.28
+    motion_clearance_hysteresis: 0.04
+    ir_emergency_raw_ratio: 0.82
+    blocked_side_release_cycles: 6
+    blocked_side_release_clearance: 0.26
+    blocked_side_forward_bias: 0.40
+    blocked_goal_lateral_min: 0.18
+    blocked_goal_forward_bonus: 1.20
+    avoid_commit_cycles: 5
+    avoid_forward_cycles: 8
+
+arena_obstacle_manager:
+  ros__parameters:
+    world_name: arena10
+    click_topic: /clicked_point
+    preset_topic: /arena_spawn_preset
+    command_topic: /arena_spawn_command
+    arena_min_x: -4.55
+    arena_max_x: 4.55
+    arena_min_y: -4.55
+    arena_max_y: 4.55
+    obstacle_z_margin: 0.01
+    dynamic_update_period: 0.12
+    dynamic_speed_min: 0.16
+    dynamic_speed_max: 0.45
+    small_box_size: [0.25, 0.25, 0.35]
+    medium_box_size: [0.45, 0.45, 0.60]
+    large_box_size: [0.80, 0.55, 0.95]
+    random_min_size: [0.20, 0.20, 0.25]
+    random_max_size: [1.10, 0.90, 1.10]
+
+arena_spawn_panel:
+  ros__parameters:
+    default_preset: dynamic_medium

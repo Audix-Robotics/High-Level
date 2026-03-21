@@ -51,7 +51,7 @@ def generate_launch_description():
         output='screen',
         arguments=[
             '/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
-            '/cmd_vel@geometry_msgs/msg/TwistStamped]gz.msgs.Twist',
+            '/cmd_vel@geometry_msgs/msg/Twist[gz.msgs.Twist',
             '/odom@nav_msgs/msg/Odometry[gz.msgs.Odometry',
             '/joint_states@sensor_msgs/msg/JointState[gz.msgs.Model',
             '/imu@sensor_msgs/msg/Imu[gz.msgs.IMU',
@@ -103,7 +103,15 @@ def generate_launch_description():
     diff_drive_controller_spawner = Node(
         package='controller_manager',
         executable='spawner',
-        arguments=['diff_drive_controller', '--controller-manager', '/controller_manager'],
+        arguments=['mecanum_velocity_controller', '--controller-manager', '/controller_manager'],
+    )
+
+    mecanum_kinematics_node = Node(
+        package='audix',
+        executable='mecanum_kinematics.py',
+        name='mecanum_kinematics',
+        output='screen',
+        parameters=[{'use_sim_time': True}],
     )
 
     return LaunchDescription([
@@ -117,4 +125,5 @@ def generate_launch_description():
         ekf_node,
         joint_state_broadcaster_spawner,
         diff_drive_controller_spawner,
+        mecanum_kinematics_node,
     ])

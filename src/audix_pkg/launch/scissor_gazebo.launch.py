@@ -21,6 +21,7 @@ from ament_index_python.packages import get_package_share_directory
 def generate_launch_description():
     pkg_share = get_package_share_directory('audix')
     pkg_share_parent = os.path.dirname(pkg_share)
+    models_path = os.path.join(pkg_share, 'models')
 
     model_path = os.path.join(pkg_share, 'urdf', 'audix.urdf')
     rviz_config = os.path.join(pkg_share, 'rviz', 'config.rviz')
@@ -36,14 +37,16 @@ def generate_launch_description():
 
     robot_description = Command(['xacro ', model_path])
 
+    use_robot_state_publisher = LaunchConfiguration('use_robot_state_publisher')
+
     # ── Environment so Gazebo can find meshes ─────────────────────────
     gz_resource_path = SetEnvironmentVariable(
         name='GZ_SIM_RESOURCE_PATH',
-        value=f'{pkg_share_parent}:{pkg_share}',
+        value=f'{models_path}:{pkg_share_parent}:{pkg_share}',
     )
     ign_resource_path = SetEnvironmentVariable(
         name='IGN_GAZEBO_RESOURCE_PATH',
-        value=f'{pkg_share_parent}:{pkg_share}',
+        value=f'{models_path}:{pkg_share_parent}:{pkg_share}',
     )
     fastdds_transport = SetEnvironmentVariable(
         name='FASTDDS_BUILTIN_TRANSPORTS',
@@ -61,6 +64,7 @@ def generate_launch_description():
             {'robot_description': ParameterValue(robot_description, value_type=str)},
             {'use_sim_time': True},
         ],
+        condition=IfCondition(use_robot_state_publisher),
     )
 
     # ── Static TF: world → odom ─────────────────────────────────────
@@ -268,6 +272,7 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
+        DeclareLaunchArgument('use_robot_state_publisher', default_value='true', description='Launch robot_state_publisher'),
         DeclareLaunchArgument('use_rviz', default_value='true', description='Launch RViz2'),
         DeclareLaunchArgument('use_gazebo_gui', default_value='true', description='Launch Gazebo GUI client'),
         DeclareLaunchArgument('use_slider_gui', default_value='true', description='Launch scissor slider GUI'),

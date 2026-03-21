@@ -68,8 +68,8 @@ class MissionController(Node):
         self.declare_parameter('obstacle_speed_full', 0.30)
         self.declare_parameter('obstacle_speed_slow', 0.18)
         self.declare_parameter('obstacle_speed_creep', 0.08)
-        self.declare_parameter('obstacle_detect_distance', 0.25)
-        self.declare_parameter('obstacle_clear_distance', 0.30)
+        self.declare_parameter('obstacle_detect_distance', 0.15)
+        self.declare_parameter('obstacle_clear_distance', 0.15)
         self.declare_parameter('obstacle_danger_distance', 0.15)
         self.declare_parameter('obstacle_side_min', 0.15)
         self.declare_parameter('front_blocked_threshold', 3)
@@ -84,8 +84,13 @@ class MissionController(Node):
         self.declare_parameter('reroute_side_clearance', 0.20)
         self.declare_parameter('reroute_side_clear_hysteresis', 0.03)
         self.declare_parameter('reroute_side_clear_cycles', 6)
+        self.declare_parameter('obstacle_memory_clear_cycles', 6)
         self.declare_parameter('obstacle_halt_timeout', 2.5)
         self.declare_parameter('reroute_timeout', 12.0)
+        self.declare_parameter('reroute_wall_follow_distance', 0.70)
+        self.declare_parameter('reroute_rotation_search_angle_deg', 55.0)
+        self.declare_parameter('reroute_rotation_clear_distance', 0.28)
+        self.declare_parameter('reroute_rotation_max_attempts', 2)
         self.declare_parameter('obstacle_sensor_warmup_sec', 2.0)
         self.declare_parameter('ir_filter_alpha_rise', 0.18)
         self.declare_parameter('ir_filter_alpha_fall', 0.70)
@@ -154,8 +159,15 @@ class MissionController(Node):
         self.reroute_side_clearance = float(self.get_parameter('reroute_side_clearance').value)
         self.reroute_side_clear_hysteresis = float(self.get_parameter('reroute_side_clear_hysteresis').value)
         self.reroute_side_clear_cycles = int(self.get_parameter('reroute_side_clear_cycles').value)
+        self.obstacle_memory_clear_cycles = int(self.get_parameter('obstacle_memory_clear_cycles').value)
         self.obstacle_halt_timeout = float(self.get_parameter('obstacle_halt_timeout').value)
         self.reroute_timeout = float(self.get_parameter('reroute_timeout').value)
+        self.reroute_wall_follow_distance = float(self.get_parameter('reroute_wall_follow_distance').value)
+        self.reroute_rotation_search_angle = math.radians(
+            float(self.get_parameter('reroute_rotation_search_angle_deg').value)
+        )
+        self.reroute_rotation_clear_distance = float(self.get_parameter('reroute_rotation_clear_distance').value)
+        self.reroute_rotation_max_attempts = int(self.get_parameter('reroute_rotation_max_attempts').value)
         self.obstacle_warmup = self.get_parameter('obstacle_sensor_warmup_sec').value
         self.ir_filter_alpha_rise = float(self.get_parameter('ir_filter_alpha_rise').value)
         self.ir_filter_alpha_fall = float(self.get_parameter('ir_filter_alpha_fall').value)
@@ -218,6 +230,9 @@ class MissionController(Node):
                     self.waypoints.append((float(wp_flat[i]), float(wp_flat[i+1]),
                                            float(wp_flat[i+2]), float(wp_flat[i+3])))
 
+        # For waypoint-driven missions, use YAML waypoint lift targets directly.
+        self.waypoint_lift_targets = [wp[3] for wp in self.waypoints]
+
         # --- State ---
         self.state = State.IDLE
         self.enabled = False
@@ -264,7 +279,8 @@ class MissionController(Node):
         self.active_scan_dwell = self.lift_dwell
         self.waypoint_scan_directions = []
         self.waypoint_scan_dwell_times = []
-        self.waypoint_lift_targets = []
+        if self.straight_line_only:
+            self.waypoint_lift_targets = []
         self.waypoint_parking_headings = {}
         self.leg_profiles = []
         self.active_leg_profile = None
@@ -280,6 +296,13 @@ class MissionController(Node):
         self.reroute_required_pass_distance = 0.0
         self.reroute_obstacle_side = None
         self.reroute_trigger_sensor = None
+        self.obstacle_memory_trigger_sensor = None
+        self.obstacle_memory_blocked_side = None
+        self.obstacle_memory_bypass_side = None
+        self.obstacle_memory_clear_count = 0
+        self.reroute_rotation_target_yaw = 0.0
+        self.reroute_rotation_direction = 0.0
+        self.reroute_rotation_attempts = 0
 
         # Lift state
         self.current_lift_pos = 0.0
@@ -291,24 +314,46 @@ class MissionController(Node):
         self.scan_heading_target = 0.0
         self.resume_heading_target = 0.0
         self.scan_waypoint_indices = set()
+        self.forced_turn_direction = 0  # 0: normal, 1: force CCW (Left), -1: force CW (Right)
 
+        # Sensor positions used for RViz visualization (body-frame x,y)
+        # Note: left/right and front_left/front_right placement below
+        # are ordered so RViz markers align visually with URDF sensors.
         self.sensor_positions = {
-            'back': (0.00389, -0.15402),
-            'right': (-0.15593, 0.00425),
-            'front_right': (-0.33619, -0.02391),
-            'front': (-0.36061, -0.14597),
-            'front_left': (-0.34189, -0.27041),
-            'left': (-0.16403, -0.30425),
+            'back':        ( 0.16255, -0.00323),
+            'right':       ( 0.00273,  0.15504),
+            'front_right': (-0.17753,  0.12688),
+            'front':       (-0.20195,  0.00482),
+            'front_left':  (-0.18323, -0.11962),
+            'left':        (-0.00537, -0.15346),
         }
         self.ir_half_fov = 0.30543
         self.ir_default_range_min = 0.05
-        self.ir_default_range_max = 0.30
+        self.ir_default_range_max = 0.25
         self.front_extent = abs(self.sensor_positions['front'][0] - self.robot_center_offset_x)
         self.back_extent = abs(self.sensor_positions['back'][0] - self.robot_center_offset_x)
         self.left_extent = abs(self.sensor_positions['left'][1] - self.robot_center_offset_y)
         self.right_extent = abs(self.sensor_positions['right'][1] - self.robot_center_offset_y)
         self.robot_length = self.front_extent + self.back_extent
         self.robot_width = self.left_extent + self.right_extent
+
+        # Vector repulsion params (integrated avoidance to ensure single-writer to /cmd_vel)
+        self.declare_parameter('repulse_M_front', 0.30)
+        self.declare_parameter('repulse_M_front_corner', 0.30)
+        self.declare_parameter('repulse_M_side', 0.25)
+        self.declare_parameter('repulse_M_back', 0.12)
+        self.declare_parameter('repulse_decay_sec', 0.5)
+        self.declare_parameter('repulse_angular_gain', 1.2)
+
+        self.repulse_M_front = float(self.get_parameter('repulse_M_front').value)
+        self.repulse_M_front_corner = float(self.get_parameter('repulse_M_front_corner').value)
+        self.repulse_M_side = float(self.get_parameter('repulse_M_side').value)
+        self.repulse_M_back = float(self.get_parameter('repulse_M_back').value)
+        self.repulse_decay_sec = float(self.get_parameter('repulse_decay_sec').value)
+        self.repulse_angular_gain = float(self.get_parameter('repulse_angular_gain').value)
+
+        # Timestamp of last trigger per sensor for phantom-tail decay
+        self._last_ir_trigger = {k: 0.0 for k in self.ir}
 
         # Debug visualization state
         self.robot_path_points = []
@@ -339,6 +384,7 @@ class MissionController(Node):
         self.state_pub = self.create_publisher(String, '/debug/state', 10)
 
         # --- Subscribers ---
+        # Normal 1-to-1 mapping. Fixes RViz visualization.
         ir_topics = {
             'front': '/ir_front/scan',
             'front_left': '/ir_front_left/scan',
@@ -405,6 +451,14 @@ class MissionController(Node):
             self.ir[key] = float('inf')
         else:
             self.ir[key] = filtered_proxy
+        # update last trigger timestamp for binary-style repulsion logic
+        try:
+            now_s = self.get_clock().now().nanoseconds / 1e9
+            if math.isfinite(raw_value) and raw_value <= self.obstacle_detect_distance:
+                self._last_ir_trigger[key] = now_s
+        except Exception:
+            # be defensive if called early during init
+            pass
 
     def _odom_cb(self, msg: Odometry):
         self.x = msg.pose.pose.position.x
@@ -668,6 +722,24 @@ class MissionController(Node):
     def _normalize(angle):
         return math.atan2(math.sin(angle), math.cos(angle))
 
+    def _latch_safe_rotation_direction(self):
+        """Determine which way to spin based on the last seen object."""
+        now_s = self.get_clock().now().nanoseconds / 1e9
+        left_time = max(self._last_ir_trigger.get('left', 0.0), self._last_ir_trigger.get('front_left', 0.0))
+        right_time = max(self._last_ir_trigger.get('right', 0.0), self._last_ir_trigger.get('front_right', 0.0))
+
+        self.forced_turn_direction = 0
+        recent_threshold = 4.0  # Only care if an object was seen in the last 4 seconds
+
+        if (now_s - left_time) < recent_threshold or (now_s - right_time) < recent_threshold:
+            if left_time > right_time:
+                self.forced_turn_direction = -1  # Object on Left -> Force Right Turn (CW)
+                self.get_logger().info("Safe Pivot: Box recently on Left. Forcing RIGHT rotation.")
+            elif right_time > left_time:
+                self.forced_turn_direction = 1   # Object on Right -> Force Left Turn (CCW)
+                self.get_logger().info("Safe Pivot: Box recently on Right. Forcing LEFT rotation.")
+
+
     @staticmethod
     def _slew_axis(current, target, accel_limit, decel_limit, dt):
         if dt <= 0.0:
@@ -688,6 +760,24 @@ class MissionController(Node):
 
     def _publish_cmd(self, vx=0.0, vy=0.0, wz=0.0):
         now = self.get_clock().now()
+        # Apply integrated vector-repulsion avoidance before clamping/slewing
+        if self.enable_obstacle_avoidance and self.state in (
+            State.MOVE_FORWARD,
+            State.ROTATE_TO_TARGET,
+            State.ROTATE_TO_SCAN,
+            State.ROTATE_BACK_TO_PATH,
+        ):
+            try:
+                rx, ry, rw = self._compute_vector_repulsion()
+                vx = vx + rx
+                vy = vy + ry
+                wz = wz + rw
+            except Exception:
+                # defensive: if repulsion fails, fall back to original command
+                pass
+
+            # allow negative vx so repulsion can command a safe reverse maneuver
+
         target_vx = max(-self.max_lin, min(self.max_lin, vx))
         target_vy = max(-self.max_lin, min(self.max_lin, vy))
         target_wz = max(-self.max_ang, min(self.max_ang, wz))
@@ -731,17 +821,52 @@ class MissionController(Node):
         self.last_cmd_time = now
 
     def _center_xy(self, base_x, base_y, yaw):
-        center_x = (
-            base_x
-            + math.cos(yaw) * self.robot_center_offset_x
-            - math.sin(yaw) * self.robot_center_offset_y
-        )
-        center_y = (
-            base_y
-            + math.sin(yaw) * self.robot_center_offset_x
-            + math.cos(yaw) * self.robot_center_offset_y
-        )
-        return center_x, center_y
+        # robot_center_offset is moved to zeroed YAML; center is the base origin
+        return base_x, base_y
+
+    def _compute_vector_repulsion(self):
+        """
+        SEQUENTIAL 3-POINT TURN (front sensors only):
+        < 0.20m : Backup Straight (stronger but limited)
+        0.20m - 0.35m : Rotate In Place (small back, stronger rotation)
+        Side/Back sensors are handled by parking-camera limits elsewhere.
+        """
+        now_s = self.get_clock().now().nanoseconds / 1e9
+        rx, ry, rw = 0.0, 0.0, 0.0
+
+        backup_threats = []
+        rotate_threats = []
+
+        for name in ('front', 'front_left', 'front_right'):
+            dist = self._sensor_range_for_detection(name)
+
+            if math.isfinite(dist) and dist <= 0.20:
+                backup_threats.append(name)
+                self._last_ir_trigger[name] = now_s
+            elif math.isfinite(dist) and dist <= 0.35:
+                rotate_threats.append(name)
+                self._last_ir_trigger[name] = now_s
+            else:
+                last = self._last_ir_trigger.get(name, 0.0)
+                if (now_s - last) <= self.repulse_decay_sec:
+                    rotate_threats.append(name)
+
+        if backup_threats:
+            # PHASE 1: BACKUP STRAIGHT (slightly reduced magnitude)
+            rx = -0.40
+            rw = 0.0
+
+        elif rotate_threats:
+            # PHASE 2: ROTATE IN PLACE (Toned down to prevent over-rotation)
+            rx = -0.30
+            if 'front_left' in rotate_threats and 'front_right' not in rotate_threats:
+                rw = -0.80
+            elif 'front_right' in rotate_threats and 'front_left' not in rotate_threats:
+                rw = 0.80
+            else:
+                rw = -0.80
+
+        return rx, ry, rw
 
     def _closest_front_obstacle(self):
         return min(self.ir['front'], self.ir['front_left'], self.ir['front_right'])
@@ -764,10 +889,61 @@ class MissionController(Node):
     def _front_sensor_names(self):
         return ['front', 'front_left', 'front_right']
 
+    def _clear_obstacle_memory(self):
+        self.obstacle_memory_trigger_sensor = None
+        self.obstacle_memory_blocked_side = None
+        self.obstacle_memory_bypass_side = None
+        self.obstacle_memory_clear_count = 0
+
     def _side_sensor_names(self, side):
         if side == 'left':
-            return ['front_left', 'left']
-        return ['front_right', 'right']
+            return ['left', 'front_left']
+        if side == 'right':
+            return ['right', 'front_right']
+        return []
+
+    def _latch_obstacle_memory(self, trigger_sensor=None, bypass_side=None):
+        if trigger_sensor is None:
+            trigger_sensor = self._choose_trigger_sensor(self._effective_detect_distance())
+        if trigger_sensor is None:
+            return
+
+        blocked_side = None
+        if trigger_sensor in ('front_left', 'left'):
+            blocked_side = 'left'
+        elif trigger_sensor in ('front_right', 'right'):
+            blocked_side = 'right'
+        else:
+            left_clearance = min(self.ir_raw['left'], self.ir_raw['front_left'])
+            right_clearance = min(self.ir_raw['right'], self.ir_raw['front_right'])
+            if left_clearance + self.reroute_side_clear_hysteresis < right_clearance:
+                blocked_side = 'left'
+            elif right_clearance + self.reroute_side_clear_hysteresis < left_clearance:
+                blocked_side = 'right'
+
+        if bypass_side not in ('left', 'right'):
+            if blocked_side == 'left':
+                bypass_side = 'right'
+            elif blocked_side == 'right':
+                bypass_side = 'left'
+
+        self.obstacle_memory_trigger_sensor = trigger_sensor
+        self.obstacle_memory_blocked_side = blocked_side
+        self.obstacle_memory_bypass_side = bypass_side
+        self.obstacle_memory_clear_count = 0
+
+    def _update_obstacle_memory(self):
+        trigger_sensor = self._choose_trigger_sensor(self._effective_detect_distance())
+        if trigger_sensor is not None:
+            self._latch_obstacle_memory(trigger_sensor)
+            return
+
+        if self.obstacle_memory_trigger_sensor is None:
+            return
+
+        self.obstacle_memory_clear_count += 1
+        if self.obstacle_memory_clear_count >= self.obstacle_memory_clear_cycles:
+            self._clear_obstacle_memory()
 
     def _choose_trigger_sensor(self, threshold=None):
         if not self._obstacle_detection_active():
@@ -835,14 +1011,31 @@ class MissionController(Node):
             return self.obstacle_speed_slow
         return self.obstacle_speed_full
 
-    def _apply_side_collision_prevention(self, vx, vy):
-        if vy > 0.0 and min(self.ir_raw['left'], self.ir_raw['front_left']) < self.obstacle_side_min:
+    def _apply_side_collision_prevention(self, vx, vy, wz):
+        # PARKING CAMERA: Absolute limits to prevent moving INTO a wall.
+        limit = 0.15
+
+        left_dist = self.ir_raw.get('left', float('inf'))
+        right_dist = self.ir_raw.get('right', float('inf'))
+        back_dist = self.ir_raw.get('back', float('inf'))
+
+        # Prevent strafing into walls
+        if vy > 0.0 and left_dist < limit:
             vy = 0.0
-        if vy < 0.0 and min(self.ir_raw['right'], self.ir_raw['front_right']) < self.obstacle_side_min:
+        if vy < 0.0 and right_dist < limit:
             vy = 0.0
-        if vx < 0.0 and self.ir_raw['back'] < self.obstacle_side_min:
+
+        # Prevent steering into walls
+        if wz > 0.0 and left_dist < limit:
+            wz = 0.0
+        if wz < 0.0 and right_dist < limit:
+            wz = 0.0
+
+        # Prevent reversing into back wall
+        if vx < 0.0 and back_dist < limit:
             vx = 0.0
-        return vx, vy
+
+        return vx, vy, wz
 
     def _publish_motion(self, vx=0.0, vy=0.0, wz=0.0, apply_speed_zone=True):
         wz = max(-self.max_ang, min(self.max_ang, wz))
@@ -855,12 +1048,11 @@ class MissionController(Node):
                 vy *= scale
 
         if abs(wz) > 1e-6:
-            # Convert desired robot-center motion into base-frame motion so the
-            # center of the chassis follows the path and rotation happens about center.
             vx += wz * self.robot_center_offset_y
             vy -= wz * self.robot_center_offset_x
 
-        vx, vy = self._apply_side_collision_prevention(vx, vy)
+        # PASS wz INTO THE SAFETY CAMERA FUNCTION
+        vx, vy, wz = self._apply_side_collision_prevention(vx, vy, wz)
 
         self._publish_cmd(vx=vx, vy=vy, wz=wz)
 
@@ -1412,6 +1604,10 @@ class MissionController(Node):
         self.reroute_required_pass_distance = 0.0
         self.reroute_obstacle_side = None
         self.reroute_trigger_sensor = None
+        self.reroute_rotation_target_yaw = self.yaw
+        self.reroute_rotation_direction = 0.0
+        self.reroute_rotation_attempts = 0
+        self._clear_obstacle_memory()
 
     def _point_to_line_distance(self, px, py):
         if self.path_line_start is None or self.path_line_end is None:
@@ -1760,6 +1956,70 @@ class MissionController(Node):
             return min(self.ir_raw['right'], self.ir_raw['front_right'])
         return min(self.ir_raw['left'], self.ir_raw['front_left'])
 
+    def _reroute_distance_from_start(self):
+        return math.hypot(
+            self.center_x - self.reroute_start_x,
+            self.center_y - self.reroute_start_y,
+        )
+
+    def _choose_rotation_search_direction(self):
+        left_clearance = min(self.ir_raw['left'], self.ir_raw['front_left'])
+        right_clearance = min(self.ir_raw['right'], self.ir_raw['front_right'])
+        if left_clearance > right_clearance + self.reroute_side_clear_hysteresis:
+            return 1.0
+        if right_clearance > left_clearance + self.reroute_side_clear_hysteresis:
+            return -1.0
+        if abs(self.reroute_direction) > 1e-6:
+            return self.reroute_direction
+        return 1.0 if left_clearance >= right_clearance else -1.0
+
+    def _reroute_wall_detected(self, envelope):
+        if envelope is None:
+            return False
+        if self.reroute_rotation_attempts >= self.reroute_rotation_max_attempts:
+            return False
+        if self._reroute_distance_from_start() < self.reroute_wall_follow_distance:
+            return False
+        return (
+            self._reroute_obstacle_side_distance() < self.reroute_side_clearance
+            or not self._front_path_clear()
+        )
+
+    def _start_reroute_rotation_search(self, reason):
+        self.reroute_step = 4
+        self.reroute_rotation_direction = self._choose_rotation_search_direction()
+        self.reroute_rotation_target_yaw = self._normalize(
+            self.yaw + self.reroute_rotation_direction * self.reroute_rotation_search_angle
+        )
+        self.reroute_rotation_attempts += 1
+        self.clear_count = 0
+        self.reroute_side_clear_count = 0
+        self.get_logger().warn(reason)
+
+    def _replan_reroute_after_rotation_search(self, envelope):
+        self.reroute_start_x = self.center_x
+        self.reroute_start_y = self.center_y
+        self.reroute_start_progress = self._path_progress(self.center_x, self.center_y)
+        self.reroute_plan_optimized = False
+        trigger_sensor = self._choose_trigger_sensor(self.obstacle_clear_distance)
+        if trigger_sensor is None:
+            trigger_sensor = self.reroute_trigger_sensor or self._choose_trigger_sensor() or 'front'
+        _, obstacle_side, self.reroute_direction, self.reroute_target_offset = self._select_reroute_plan(
+            envelope,
+            trigger_sensor,
+        )
+        self.reroute_obstacle_side = obstacle_side
+        self.reroute_rejoin_min_progress = self._geometry_based_rejoin_progress(envelope)
+        self.reroute_required_pass_distance = max(
+            self.reroute_rejoin_min_progress - self.reroute_start_progress,
+            0.5 * self.robot_length + self.obstacle_safety_margin,
+        )
+        self.reroute_step = 1
+        self.clear_count = 0
+        self.reroute_side_clear_count = 0
+        self._update_reroute_debug_points()
+        self.get_logger().info('Rotation search found a clearer sector — replanning the reroute lane')
+
     def _update_reroute_side_clear_count(self):
         if self._reroute_obstacle_side_distance() >= self.reroute_side_clearance + self.reroute_side_clear_hysteresis:
             self.reroute_side_clear_count += 1
@@ -1811,6 +2071,7 @@ class MissionController(Node):
         self.clear_count = 0
         self.raw_clear_count = 0
         self.reroute_trigger_sensor = self._choose_trigger_sensor()
+        self._latch_obstacle_memory(self.reroute_trigger_sensor)
         self._publish_stop()
         if self.active_leg_profile and self.active_leg_profile.get('remove_after_detect'):
             self._schedule_obstacle_removal(
@@ -1823,6 +2084,9 @@ class MissionController(Node):
         self.state = State.OBSTACLE_REROUTE
         self.reroute_step = 1
         self.reroute_plan_optimized = False
+        self.reroute_rotation_attempts = 0
+        self.reroute_rotation_direction = 0.0
+        self.reroute_rotation_target_yaw = self.yaw
         self.reroute_start_x = self.center_x
         self.reroute_start_y = self.center_y
         self.reroute_start_progress = self._path_progress(self.center_x, self.center_y)
@@ -1830,11 +2094,24 @@ class MissionController(Node):
         self.reroute_entry_time = self.get_clock().now()
         envelope = self._estimate_obstacle_envelope_path_frame()
 
-        trigger_sensor = self.reroute_trigger_sensor or self._choose_trigger_sensor() or 'front'
-        _, obstacle_side, self.reroute_direction, self.reroute_target_offset = self._select_reroute_plan(
-            envelope,
-            trigger_sensor,
+        trigger_sensor = (
+            self.obstacle_memory_trigger_sensor
+            or self.reroute_trigger_sensor
+            or self._choose_trigger_sensor()
+            or 'front'
         )
+        if self.obstacle_memory_bypass_side in ('left', 'right'):
+            offsets = self._candidate_bypass_offsets(envelope)
+            bypass_side = self.obstacle_memory_bypass_side
+            obstacle_side = 'right' if bypass_side == 'left' else 'left'
+            self.reroute_direction = 1.0 if bypass_side == 'left' else -1.0
+            self.reroute_target_offset = offsets[bypass_side]
+        else:
+            bypass_side, obstacle_side, self.reroute_direction, self.reroute_target_offset = self._select_reroute_plan(
+                envelope,
+                trigger_sensor,
+            )
+        self._latch_obstacle_memory(trigger_sensor, bypass_side)
         self.reroute_obstacle_side = obstacle_side
         self.reroute_rejoin_min_progress = self._geometry_based_rejoin_progress(envelope)
 
@@ -1849,6 +2126,13 @@ class MissionController(Node):
                 self.active_leg_profile['name'],
                 self.active_leg_profile['remove_after_reroute'],
             )
+        left_clearance = min(self.ir_raw['left'], self.ir_raw['front_left'])
+        right_clearance = min(self.ir_raw['right'], self.ir_raw['front_right'])
+        if max(left_clearance, right_clearance) < self.reroute_side_clearance:
+            self._start_reroute_rotation_search(
+                'Obstacle blocks both lateral lanes — rotating first to find a clearer bypass'
+            )
+            return
         self.get_logger().warn(
             'Obstacle remained blocked — shifting %s with footprint clearance' %
             ('left' if self.reroute_direction > 0.0 else 'right')
@@ -1907,6 +2191,7 @@ class MissionController(Node):
         if min_speed > 0.0 and abs(yaw_error) > 1e-6:
             magnitude = max(min_speed, abs(command))
             command = math.copysign(min(limit, magnitude), yaw_error)
+
         return command
 
     def _handle_reroute(self):
@@ -1933,6 +2218,12 @@ class MissionController(Node):
         ):
             self._optimize_reroute_plan_from_current_pose(
                 'Obstacle vanished during reroute — shortening rejoin from current pose'
+            )
+            return
+
+        if self.reroute_step in (1, 2) and self._reroute_wall_detected(current_envelope):
+            self._start_reroute_rotation_search(
+                'Obstacle keeps extending along the bypass lane — rotating to reacquire a clearer opening'
             )
             return
 
@@ -2003,6 +2294,28 @@ class MissionController(Node):
                 self.get_logger().info('Offset lane is clear — rejoining center path')
             return
 
+        if self.reroute_step == 4:
+            rotation_error = self._normalize(self.reroute_rotation_target_yaw - self.yaw)
+            front_clear = min(
+                self.ir_raw['front'],
+                self.ir_raw['front_left'],
+                self.ir_raw['front_right'],
+            ) >= self.reroute_rotation_clear_distance
+            if not front_clear and abs(rotation_error) > self.scan_ang_tol:
+                self._publish_motion(
+                    wz=self._rotation_command(
+                        rotation_error,
+                        speed_scale=self.scan_rotation_kp_scale,
+                        min_speed=self.scan_rotation_min_speed,
+                        max_speed=self.scan_rotation_max_speed,
+                    ),
+                    apply_speed_zone=False,
+                )
+                return
+
+            self._replan_reroute_after_rotation_search(current_envelope)
+            return
+
         rejoin_lookahead = self._rejoin_lookahead(line_error)
         rejoin_progress = max(current_progress + rejoin_lookahead, self.reroute_rejoin_min_progress)
         if target_progress is not None:
@@ -2063,8 +2376,8 @@ class MissionController(Node):
                     if self.waypoints:
                         self.path_line_start = (self.center_x, self.center_y)
                         self.path_line_end = self.waypoints[0][:2]
-                    self.state = State.ROTATE_TO_TARGET
-                    self.get_logger().info('Mission started! Heading to waypoint 0')
+                        self.state = State.ROTATE_TO_TARGET
+                        self.get_logger().info('Mission started! Heading to waypoint 0')
             return
 
         # Get current target
@@ -2092,6 +2405,7 @@ class MissionController(Node):
             State.ROTATE_TO_SCAN,
             State.ROTATE_BACK_TO_PATH,
         )
+        self._update_obstacle_memory()
         if self.enable_obstacle_avoidance and self.state in obstacle_sensitive_states:
             self._update_obstacle_counters()
             if self.front_blocked_count >= self.front_blocked_threshold:
@@ -2104,6 +2418,7 @@ class MissionController(Node):
         if self.state == State.OBSTACLE_HALT:
             self._publish_stop()
             self._update_obstacle_counters()
+            self._update_obstacle_memory()
             if self._all_sensors_raw_clear_for_motion():
                 self.raw_clear_count += 1
             else:
@@ -2140,6 +2455,8 @@ class MissionController(Node):
             if abs(angle_error) > self.ang_tol:
                 self._publish_motion(wz=self._rotation_command(angle_error))
             else:
+                # Unlock forced turn when rotation is complete
+                self.forced_turn_direction = 0
                 self.use_resume_heading_for_target_rotate = False
                 self.state = State.MOVE_FORWARD
                 self.path_line_start = (self.center_x, self.center_y)
@@ -2152,50 +2469,25 @@ class MissionController(Node):
         # ---- MOVE_FORWARD ----
         if self.state == State.MOVE_FORWARD:
             if dist > self.pos_tol:
-                # Holonomic tracking: move toward waypoint in robot frame.
-                if self.current_wp_idx >= 3:
-                    self.resume_heading_target = self._return_leg_heading_target(tx, ty)
-                cos_y = math.cos(self.yaw)
-                sin_y = math.sin(self.yaw)
-                body_x = dx * cos_y + dy * sin_y
-                body_y = -dx * sin_y + dy * cos_y
-                norm = math.hypot(body_x, body_y)
-                speed = min(self.lin_kp * dist, self.max_lin)
-                hold_heading_error = self._normalize(self.resume_heading_target - self.yaw)
-                if norm > 1e-6:
-                    if self.current_wp_idx >= 3:
-                        if abs(hold_heading_error) > self.scan_ang_tol:
-                            self._publish_motion(
-                                wz=self._rotation_command(
-                                    hold_heading_error,
-                                    speed_scale=self.scan_rotation_kp_scale,
-                                    min_speed=self.scan_rotation_min_speed,
-                                    max_speed=self.scan_rotation_max_speed,
-                                )
-                            )
-                            return
-                        if abs(body_y) > self.pos_tol:
-                            self.resume_heading_target = self._return_leg_heading_target(tx, ty)
-                            self.use_resume_heading_for_target_rotate = True
-                            self.state = State.ROTATE_TO_TARGET
-                            self._publish_stop()
-                            self.get_logger().info(
-                                'Return leg drifted off the waypoint line — rotating back onto the path'
-                            )
-                            return
-                        vx = speed * body_x / norm
-                        vy = 0.0
-                    else:
-                        vx = speed * body_x / norm
-                        vy = speed * body_y / norm
-                else:
-                    vx = 0.0
+                target_speed = 0.3
+
+                # THE CARVING ARC FIX:
+                # If recovering from a dodge (>20 degrees off target), disable lateral
+                # sliding (vy) so the robot drives forward and carves a smooth arc back.
+                # If aligned (<20 degrees), allow mecanum sliding for perfect centering.
+                if abs(angle_error) > math.radians(20.0):
+                    vx = target_speed
                     vy = 0.0
-                self._publish_motion(
-                    vx=vx,
-                    vy=vy,
-                    wz=self.ang_kp * hold_heading_error * 0.25,
-                )
+                else:
+                    vx = target_speed * math.cos(angle_error)
+                    vy = target_speed * math.sin(angle_error)
+
+                # Clamp the recovery steering speed so it doesn't snap violently
+                wz = self.ang_kp * angle_error
+                wz = max(-0.7, min(0.7, wz))
+
+                # Route through safety pipeline (Repulsion + Parking Cameras)
+                self._publish_motion(vx=vx, vy=vy, wz=wz, apply_speed_zone=False)
             else:
                 if not self.enable_stop_scan:
                     self._publish_stop()
@@ -2238,6 +2530,8 @@ class MissionController(Node):
                     )
                 )
             else:
+                # Unlock forced turn when rotation is complete
+                self.forced_turn_direction = 0
                 self._publish_stop()
                 desired_lift = self._lift_target_for_waypoint(self.current_wp_idx)
                 if self.scan_use_lift and desired_lift > 0.0:
@@ -2304,6 +2598,8 @@ class MissionController(Node):
                     )
                 )
             else:
+                # Unlock forced turn when rotation is complete
+                self.forced_turn_direction = 0
                 self._publish_stop()
                 if self.parking_mode:
                     self.parking_mode = False

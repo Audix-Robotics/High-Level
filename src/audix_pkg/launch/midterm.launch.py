@@ -20,6 +20,7 @@ from ament_index_python.packages import get_package_share_directory
 def generate_launch_description():
     pkg_share = get_package_share_directory('audix')
     pkg_parent = os.path.dirname(pkg_share)
+    models_path = os.path.join(pkg_share, 'models')
 
     world_path = os.path.join(pkg_share, 'world', 'debug_empty.sdf')
     ekf_config = os.path.join(pkg_share, 'config', 'ekf.yaml')
@@ -36,11 +37,11 @@ def generate_launch_description():
     # --- Environment ---
     gz_resource = SetEnvironmentVariable(
         name='GZ_SIM_RESOURCE_PATH',
-        value=f'{pkg_parent}:{pkg_share}'
+        value=f'{models_path}:{pkg_parent}:{pkg_share}'
     )
     ign_resource = SetEnvironmentVariable(
         name='IGN_GAZEBO_RESOURCE_PATH',
-        value=f'{pkg_parent}:{pkg_share}'
+        value=f'{models_path}:{pkg_parent}:{pkg_share}'
     )
 
     # --- Base Gazebo + scissor stack ---

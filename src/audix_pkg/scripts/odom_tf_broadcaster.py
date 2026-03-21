@@ -15,7 +15,7 @@ class OdomTfBroadcaster(Node):
 
         self.declare_parameter('odom_topic', '/odom')
         self.declare_parameter('odom_frame', 'odom')
-        self.declare_parameter('base_frame', 'base_footprint')
+        self.declare_parameter('base_frame', 'base_link')
 
         self._odom_topic = self.get_parameter('odom_topic').get_parameter_value().string_value
         self._odom_frame = self.get_parameter('odom_frame').get_parameter_value().string_value

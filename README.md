@@ -1,93 +1,73 @@
 # Audix ROS2 Jazzy Workspace
 
-This repository contains the Audix warehouse robot simulation stack on ROS 2 Jazzy and Gazebo Harmonic.
+Human-friendly summary of what the repo contains, how to run the full simulation, and where the detection/reroute logic lives.
 
-## Current Canonical Stack
-- Package name: `audix` (source folder: `src/audix_pkg`)
-- Main launch: `midterm.launch.py`
-- Gazebo world used by midterm launch: `world/debug_empty.sdf`
-- Robot launch base: `scissor_gazebo.launch.py`
-- Localization: `robot_localization` EKF (`config/ekf.yaml`)
-- Mission node: `scripts/mission_controller.py`
+Top-level idea
+- Package: `audix` (source in `src/audix_pkg`)
+- Simulation stack: ROS 2 Jazzy + Gazebo (gz-sim) + rviz2 for visualization
 
-## Build
-Run from repository root:
+Quick run (one command)
+Run this from the repository root to launch the arena simulation with sane cleanup and a single RViz window:
 
 ```bash
-cd /home/hiddenlegend07/Audix_ws
-source /opt/ros/jazzy/setup.bash
+./scripts/clean_launch_arena.sh
+```
+
+What `./scripts/clean_launch_arena.sh` does
+- Cleans up any stale simulation or visualization processes
+- Launches the Gazebo-based arena launch and associated nodes
+- Starts RViz after a short delay and tracks its PID for clean shutdown
+
+Key files and their purpose
+- `src/audix_pkg/launch/midterm.launch.py`: Main convenience launch used for classroom demos. Starts the Gazebo world and most nodes.
+- `src/audix_pkg/launch/scissor_gazebo.launch.py`: Lower-level Gazebo + robot spawn launch (used by `midterm.launch.py`).
+- `src/audix_pkg/launch/arena_experiment.launch.py`: Arena experiment launch that starts the Gazebo world, bridges, and experiment nodes. Note: RViz start was removed from this launch (RViz is started by `./scripts/clean_launch_arena.sh` to avoid duplicate windows).
+- `src/audix_pkg/urdf/audix.urdf`: Robot description; sensor frame origins are defined here and must match `sensor_positions` in the code.
+- `src/audix_pkg/config/ekf.yaml`: EKF configuration (frame names, sensor sources, covariances).
+- `src/audix_pkg/config/mission_params.yaml` and `src/audix_pkg/config/arena_experiment_params.yaml`: Tunable experiment and mission parameters (waypoints, thresholds, IR ranges, reroute timings).
+
+Main code that handles detection and reroute logic
+- `src/audix_pkg/scripts/arena_roamer.py`: Primary obstacle detection and avoidance node for the arena experiment. Handles IR topic subscriptions, binary sensor sequencing, mapping sensor names to topics, and the local reroute (3-point) behavior. This file contains the sensor-to-topic remapping and the visual markers used for debugging.
+- `src/audix_pkg/scripts/mission_controller.py`: Higher-level mission FSM (waypoint sequencing, EKF-based navigation, and mission-level reroute/probe sequencing). Contains mission parameters and the code that triggers reroutes when blocking obstacles are found.
+- `src/audix_pkg/scripts/arena_obstacle_manager.py`: Runtime obstacle spawning and tracking (used for experiments and replaying obstacle layouts).
+- `src/audix_pkg/scripts/cardinal_motion_debug.py`: Helpful debug utilities for cardinal motion tests and sensor offset tuning.
+
+Useful commands
+- Build and source:
+```bash
 colcon build --symlink-install --packages-select audix
 source install/setup.bash
 ```
-
-## Reliable Launch (Recommended)
-This command launches Gazebo + RViz + navigation stack and starts mission automatically.
-
+- Run the full experiment (recommended):
 ```bash
-cd /home/hiddenlegend07/Audix_ws
-source /opt/ros/jazzy/setup.bash
-source install/setup.bash
-ros2 launch audix midterm.launch.py use_rviz:=true use_slider_gui:=false run_navigation:=true run_cardinal_test:=false auto_start:=true auto_send_goal:=true
+./scripts/clean_launch_arena.sh
+```
+- If you need to run only the launch file (not recommended because it may start a second RViz):
+```bash
+ros2 launch audix src/audix_pkg/launch/arena_experiment.launch.py
 ```
 
-## Manual Mission Start Mode
-Use this when you want the simulation to launch and wait in IDLE until you trigger it.
+Files to inspect when debugging sensors or reroute behavior
+- `src/audix_pkg/urdf/audix.urdf` — verify the sensor joint origins and `gazebo` sensor `<range>` settings.
+- `src/audix_pkg/scripts/arena_roamer.py` — topic remapping, `sensor_positions`, `_sensor_direction_body`, and IR handling code.
+- `src/audix_pkg/scripts/mission_controller.py` — mission-level reroute logic and probe sequencing.
+- `src/audix_pkg/config/arena_experiment_params.yaml` and `mission_params.yaml` — thresholds that control when detection → reroute occurs.
 
+Quick checks while sim is running
+- Verify sensor topics:
 ```bash
-cd /home/hiddenlegend07/Audix_ws
-source /opt/ros/jazzy/setup.bash
-source install/setup.bash
-ros2 launch audix midterm.launch.py use_rviz:=true use_slider_gui:=false run_navigation:=true run_cardinal_test:=false auto_start:=false auto_send_goal:=false
+ros2 topic echo /ir_front/scan --once
+ros2 topic echo /ir_left/scan --once
+```
+- Check odometry and IMU:
+```bash
+ros2 topic echo /odometry/filtered --once
+ros2 topic echo /imu --once
 ```
 
-Then trigger mission manually from another terminal:
+Notes
+- RViz is intentionally started by `./scripts/clean_launch_arena.sh` to ensure only one RViz window opens and that it is cleaned up properly on exit.
+- Keep `use_sim_time: True` for any node running in simulation.
+- Do not modify files under `src/audix_pkg/meshes/`.
 
-```bash
-cd /home/hiddenlegend07/Audix_ws
-source /opt/ros/jazzy/setup.bash
-source install/setup.bash
-ros2 topic pub /robot_enable std_msgs/msg/Bool "{data: true}" --once
-ros2 service call /send_mission std_srvs/srv/Trigger "{}"
-```
-
-## Stop Everything
-Use this whenever stale processes cause inconsistent behavior.
-
-```bash
-pkill -9 -f "ros2|gz sim|gzserver|gzclient|rviz2|parameter_bridge|static_transform_publisher|robot_state_publisher|controller_manager|spawner|joint_state_publisher|scissor_lift_mapper|odom_tf_broadcaster|mission_controller|start_stop_node|goal_sender_node|cardinal_motion_debug|waypoints|audix" || true
-```
-
-## Quick Health Checks
-
-```bash
-source /opt/ros/jazzy/setup.bash
-source /home/hiddenlegend07/Audix_ws/install/setup.bash
-ros2 topic info /clock
-ros2 topic echo /joint_states --once
-ros2 topic echo /cmd_vel --once
-```
-
-Expected behavior:
-- `/clock` has at least 1 publisher while sim is running.
-- `/joint_states` publishes robot joints after spawn.
-- `/cmd_vel` stays zero in IDLE and becomes non-zero after mission starts.
-
-## Known Gotchas
-- `midterm.launch.py` defaults: `run_navigation:=false`, `auto_start:=false`, `auto_send_goal:=false`.
-  - If you launch with defaults, robot will not autonomously move.
-- If mission stays in IDLE, you must publish `/robot_enable` and call `/send_mission`.
-- Multiple leftover launch processes can break timing and TF behavior. Use the kill-all command before relaunching.
-- On the current main branch, keep `run_cardinal_test:=false` unless you intentionally want the cardinal debug run.
-
-## Important Paths
-- `src/audix_pkg/launch/midterm.launch.py`
-- `src/audix_pkg/launch/scissor_gazebo.launch.py`
-- `src/audix_pkg/scripts/mission_controller.py`
-- `src/audix_pkg/config/mission_params.yaml`
-- `src/audix_pkg/config/ekf.yaml`
-- `src/audix_pkg/world/debug_empty.sdf`
-
-## Team Notes
-- Keep waypoints and thresholds in `mission_params.yaml` (do not hardcode in Python).
-- Keep `use_sim_time: True` for simulation nodes.
-- Do not modify files under `meshes/`.
+If you want, I can run a quick TF/`robot_state_publisher` smoke test now to verify the URDF and sensor marker frames. 

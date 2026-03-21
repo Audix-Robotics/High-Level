@@ -1,10 +1,11 @@
 mission_controller:
   ros__parameters:
-    # Waypoints are ignored when straight_line_only is true.
-    waypoints: [1.5, 1.1, 0.0, 0.0]
+    # Shelf-centered stops along the aisle centerline (x=0.0), ordered south -> center -> north.
+    # Format: [x, y, yaw, lift_target]
+    waypoints: [0.0, -2.4, 0.0, 0.25, 0.0, 0.0, 0.0, 0.25, 0.0, 2.4, 0.0, 0.25]
 
     # --- Obstacle avoidance ---
-    safe_distance: 0.25            # m — trigger threshold for front sensors
+    safe_distance: 0.15            # m — trigger threshold for front sensors (15cm)
     side_safe_distance: 0.15       # m — trigger threshold for side sensors
     static_persistence_cycles: 12  # scans before classifying as static
     reroute_lateral_offset: 0.35   # m — strafe offset to bypass static obstacle
@@ -22,10 +23,10 @@ mission_controller:
     max_linear_speed: 0.3          # m/s
     max_angular_speed: 1.0         # rad/s
     position_tolerance: 0.05       # m
-    angle_tolerance: 0.05          # rad
+    angle_tolerance: 0.08          # rad
     scan_turn_degrees: 90.0
     scan_turn_direction: left
-    straight_line_only: true
+    straight_line_only: false
     straight_line_distance: 3.0
     enable_obstacle_avoidance: false
     enable_stop_scan: false
