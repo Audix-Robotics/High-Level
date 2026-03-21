@@ -707,10 +707,11 @@ class MissionController(Node):
             self.active_leg_spawned = True
             return
 
-        tangent, _ = self._path_unit_vectors()
+        tangent, lateral = self._path_unit_vectors()
+        lateral_offset = float(profile.get('spawn_lateral_offset', 0.0))
         profile['pose'] = (
-            self.center_x + tangent[0] * surprise_distance,
-            self.center_y + tangent[1] * surprise_distance,
+            self.center_x + tangent[0] * surprise_distance + lateral[0] * lateral_offset,
+            self.center_y + tangent[1] * surprise_distance + lateral[1] * lateral_offset,
         )
         self._spawn_box_obstacle(profile)
         self.active_leg_spawned = True
@@ -811,8 +812,12 @@ class MissionController(Node):
             )
 
         cmd = Twist()
-        cmd.linear.x = cmd_vx
-        cmd.linear.y = cmd_vy
+        if self.robot_body_frame_flip_180:
+            cmd.linear.x = -cmd_vx
+            cmd.linear.y = -cmd_vy
+        else:
+            cmd.linear.x = cmd_vx
+            cmd.linear.y = cmd_vy
         cmd.angular.z = cmd_wz
         self.cmd_pub.publish(cmd)
         self.last_cmd_vx = cmd_vx
@@ -911,6 +916,7 @@ class MissionController(Node):
         blocked_side = None
         if trigger_sensor in ('front_left', 'left'):
             blocked_side = 'left'
+                'spawn_lateral_offset': 0.30,
         elif trigger_sensor in ('front_right', 'right'):
             blocked_side = 'right'
         else:
@@ -920,6 +926,7 @@ class MissionController(Node):
                 blocked_side = 'left'
             elif right_clearance + self.reroute_side_clear_hysteresis < left_clearance:
                 blocked_side = 'right'
+                'spawn_lateral_offset': -0.28,
 
         if bypass_side not in ('left', 'right'):
             if blocked_side == 'left':
@@ -1085,8 +1092,14 @@ class MissionController(Node):
     def _return_leg_heading_target(self, tx, ty):
         return self._front_facing_heading_to(tx, ty)
 
+    def _front_heading_from_vector(self, dx, dy):
+        heading = math.atan2(dy, dx)
+        if self.robot_body_frame_flip_180:
+            heading += math.pi
+        return self._normalize(heading)
+
     def _front_facing_heading_to(self, tx, ty):
-        return self._normalize(math.atan2(ty - self.center_y, tx - self.center_x))
+        return self._front_heading_from_vector(tx - self.center_x, ty - self.center_y)
 
     def _make_pose(self, x, y, yaw):
         pose = PoseStamped()
@@ -1473,10 +1486,10 @@ class MissionController(Node):
     def _compute_resume_heading(self, tx, ty):
         if self.current_wp_idx + 1 < len(self.waypoints):
             nx, ny, _, _ = self.waypoints[self.current_wp_idx + 1]
-            return math.atan2(ny - ty, nx - tx)
+            return self._front_heading_from_vector(nx - tx, ny - ty)
         if self.current_wp_idx > 0:
             px, py, _, _ = self.waypoints[self.current_wp_idx - 1]
-            return math.atan2(ty - py, tx - px)
+            return self._front_heading_from_vector(tx - px, ty - py)
         return self.yaw
 
     def _start_skid_scan_mission(self):
@@ -2392,7 +2405,7 @@ class MissionController(Node):
         dx = tx - self.center_x
         dy = ty - self.center_y
         dist = math.sqrt(dx**2 + dy**2)
-        angle_to_target = math.atan2(dy, dx)
+        angle_to_target = self._front_facing_heading_to(tx, ty)
         rotate_target = self.resume_heading_target if self.use_resume_heading_for_target_rotate else angle_to_target
         angle_error = self._normalize(rotate_target - self.yaw)
         scan_yaw_error = self._normalize(self.scan_heading_target - self.yaw)
@@ -2510,12 +2523,19 @@ class MissionController(Node):
                     self.resume_heading_target = self.mission_start_yaw
                 else:
                     self.resume_heading_target = self._compute_resume_heading(tx, ty)
-                self.scan_heading_target = self._normalize(
-                    self.resume_heading_target +
-                    self._scan_direction_sign() * self.scan_turn_rad
-                )
+                if not self.straight_line_only:
+                    # In waypoint mode, waypoint yaw is the explicit shelf-facing heading.
+                    shelf_heading = tyaw
+                    if self.robot_body_frame_flip_180:
+                        shelf_heading += math.pi
+                    self.scan_heading_target = self._normalize(shelf_heading)
+                else:
+                    self.scan_heading_target = self._normalize(
+                        self.resume_heading_target +
+                        self._scan_direction_sign() * self.scan_turn_rad
+                    )
                 self.state = State.ROTATE_TO_SCAN
-                self.get_logger().info('At stop point — rotating 90deg toward shelf')
+                self.get_logger().info('At stop point — rotating to shelf-facing heading')
             return
 
         # ---- ROTATE_TO_SCAN ----

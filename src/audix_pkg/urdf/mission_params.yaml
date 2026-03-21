@@ -2,7 +2,7 @@ mission_controller:
   ros__parameters:
     # Shelf-centered stops along the aisle centerline (x=0.0), ordered south -> center -> north.
     # Format: [x, y, yaw, lift_target]
-    waypoints: [0.0, -2.4, 0.0, 0.25, 0.0, 0.0, 0.0, 0.25, 0.0, 2.4, 0.0, 0.25]
+    waypoints: [0.0, -2.4, 0.0, 0.25, 0.0, 0.0, 3.14159, 0.25, 0.0, 2.4, 0.0, 0.25]
 
     # --- Obstacle avoidance ---
     safe_distance: 0.15            # m — trigger threshold for front sensors (15cm)
@@ -42,6 +42,7 @@ mecanum_kinematics:
     wheel_base_half: 0.09          # m  (half front-to-back axle distance)
     track_width_half: 0.1574       # m  (half left-to-right wheel distance)
     robot_body_frame_flip_180: true  # RobotBody is pi-rotated from base_link
+    invert_linear_x: false           # Forward commands should move the robot in its visual forward direction
 
 start_stop_node:
   ros__parameters:

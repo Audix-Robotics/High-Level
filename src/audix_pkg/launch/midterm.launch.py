@@ -56,9 +56,9 @@ def generate_launch_description():
             'world_file': world_path,
             'world_name': 'warehouse',
             'spawn_x': '0.0',
-            'spawn_y': '0.0',
+            'spawn_y': '-3.9',
             'spawn_z': '0.06',
-            'spawn_yaw': '0.0',
+            'spawn_yaw': '-1.570796',
         }.items(),
     )
 
