@@ -96,7 +96,7 @@ class ArenaRoamer(Node):
         self.declare_parameter('cmd_deadband_linear', 0.015)
         self.declare_parameter('cmd_deadband_lateral', 0.015)
         self.declare_parameter('cmd_deadband_angular', 0.035)
-        self.declare_parameter('repulse_decay_sec', 1.50)
+        self.declare_parameter('repulse_decay_sec', 0.5)
         self.declare_parameter('control_mode', 'acceptance_path')
         self.declare_parameter('route_name', 'double_pinch_figure8')
         self.declare_parameter('route_loop', False)
@@ -245,8 +245,8 @@ class ArenaRoamer(Node):
         self.sensor_last_update_sec = {key: None for key in self.ir}
         self.ir_default_range_min = 0.05
         self.ir_default_range_max = 0.25
-        # For time-sequenced binary trigger handling (front sensors)
-        self._last_ir_trigger = {name: 0.0 for name in ('front', 'front_left', 'front_right')}
+        # For time-sequenced binary trigger handling (per-sensor timestamps)
+        self._last_ir_trigger = {k: 0.0 for k in self.ir}
         self.ir_half_fov = 0.30543
 
         self.sensor_positions = {

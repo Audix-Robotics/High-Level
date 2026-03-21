@@ -6,15 +6,15 @@ Panels:
       Expanded:
         - /Global Options1
         - /Status1
+        - /Grid1
         - /TF1
-        - /TF1/Status1
       Splitter Ratio: 0.5
     Tree Height: 1280
 Visualization Manager:
   Class: ""
   Displays:
     - Alpha: 0.2800000011920929
-      Cell Size: 1
+      Cell Size: 0.07999999821186066
       Class: rviz_default_plugins/Grid
       Color: 160; 160; 164
       Enabled: true
@@ -28,7 +28,7 @@ Visualization Manager:
         Y: 0
         Z: 0
       Plane: XY
-      Plane Cell Count: 10
+      Plane Cell Count: 110
       Reference Frame: <Fixed Frame>
       Value: true
     - Alpha: 0.6000000238418579
@@ -205,6 +205,10 @@ Visualization Manager:
       Frame Timeout: 15
       Frames:
         All Enabled: true
+        arena:
+          Value: true
+        arena10:
+          Value: true
         back_left_wheel_link:
           Value: true
         back_right_wheel_link:
@@ -267,62 +271,61 @@ Visualization Manager:
           Value: true
         top_stud_link:
           Value: true
-        warehouse:
-          Value: true
       Marker Scale: 0.20000000298023224
       Name: TF
       Show Arrows: true
       Show Axes: true
       Show Names: true
       Tree:
-        base_footprint:
-          base_link:
-            back_left_wheel_link:
-              {}
-            back_right_wheel_link:
-              {}
-            front_left_wheel_link:
-              {}
-            front_right_wheel_link:
-              {}
-            imu_link:
-              {}
-            ir_back_link:
-              {}
-            ir_front_left_link:
-              {}
-            ir_front_link:
-              {}
-            ir_front_right_link:
-              {}
-            ir_left_link:
-              {}
-            ir_right_link:
-              {}
-            scissors_lift_base:
-              bottom_stud_link:
-                left_link1:
-                  left_link4:
-                    left_link5:
-                      camera_link:
-                        camera_optical_link:
+        arena:
+          arena10:
+            odom:
+              base_footprint:
+                {}
+              base_link:
+                back_left_wheel_link:
+                  {}
+                back_right_wheel_link:
+                  {}
+                front_left_wheel_link:
+                  {}
+                front_right_wheel_link:
+                  {}
+                imu_link:
+                  {}
+                ir_back_link:
+                  {}
+                ir_front_left_link:
+                  {}
+                ir_front_link:
+                  {}
+                ir_front_right_link:
+                  {}
+                ir_left_link:
+                  {}
+                ir_right_link:
+                  {}
+                scissors_lift_base:
+                  bottom_stud_link:
+                    left_link1:
+                      left_link4:
+                        left_link5:
+                          camera_link:
+                            camera_optical_link:
+                              {}
+                    right_link1:
+                      right_link4:
+                        right_link5:
                           {}
-                right_link1:
-                  right_link4:
-                    right_link5:
-                      {}
-              left_link2:
-                left_link3:
-                  left_link6:
-                    top_stud_link:
-                      {}
-              right_link2:
-                right_link3:
-                  right_link6:
-                    {}
-        warehouse:
-          odom:
-            {}
+                  left_link2:
+                    left_link3:
+                      left_link6:
+                        top_stud_link:
+                          {}
+                  right_link2:
+                    right_link3:
+                      right_link6:
+                        {}
       Update Interval: 0
       Value: true
     - Alpha: 1
@@ -385,21 +388,32 @@ Visualization Manager:
       Enabled: true
       Name: WaypointMarkers
       Namespaces:
-        detected_obstacles: true
-        dynamic_obstacles: true
-        ir_cone_edges: true
-        ir_cones: true
-        ir_hits: true
-        mission_labels: true
-        mission_state: true
-        mission_targets: true
-        reroute_targets: true
+        acceptance_route: true
+        acceptance_route_labels: true
+        arena: true
+        arena_ir_cones: true
+        arena_ir_edges: true
+        arena_ir_hits: true
+        arena_ir_origins: true
+        arena_ir_threshold: true
       Topic:
         Depth: 5
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /debug/targets
+      Value: true
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: MarkerArray
+      Namespaces:
+        {}
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /debug/arena_obstacles
       Value: true
   Enabled: true
   Global Options:
@@ -415,6 +429,14 @@ Visualization Manager:
     - Class: rviz_default_plugins/FocusCamera
     - Class: rviz_default_plugins/Measure
       Line color: 128; 128; 0
+    - Class: rviz_default_plugins/PublishPoint
+      Single click: true
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /clicked_point
   Transformation:
     Current:
       Class: rviz_default_plugins/TF
@@ -422,25 +444,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 2.8459231853485107
+      Distance: 13.819573402404785
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: -0.09251687675714493
-        Y: 0.08983611315488815
+        X: -0.5108541250228882
+        Y: -0.01236126758158207
         Z: 0.15390832722187042
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.45539820194244385
+      Pitch: 1.135398030281067
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 1.380397915840149
+      Yaw: 3.1953978538513184
     Saved: ~
 Window Geometry:
   Displays:

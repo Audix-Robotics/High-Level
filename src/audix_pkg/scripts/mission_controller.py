@@ -896,7 +896,7 @@ class MissionController(Node):
             return None
         threshold = self._effective_detect_distance() if threshold is None else threshold
         candidates = []
-        for sensor_name in ('front', 'front_left', 'front_right', 'left', 'right'):
+        for sensor_name in ('front', 'front_left', 'front_right'):
             candidate = self._sensor_blocks_path(sensor_name, threshold)
             if candidate is not None:
                 candidates.append(candidate)
@@ -1838,34 +1838,37 @@ class MissionController(Node):
         return True
 
     def _sensor_repulsion_body_vector(self):
-        directions = {
-            'front': (1.0, 0.0),
-            'front_left': (1.0, 0.9),
-            'front_right': (1.0, -0.9),
-            'left': (0.0, 1.0),
-            'right': (0.0, -1.0),
-            'back': (-1.0, 0.0),
-        }
-        repulse_x = 0.0
-        repulse_y = 0.0
-        active_sensors = []
+        now_s = self.get_clock().now().nanoseconds / 1e9
+        active_threats = []
+        time_since_trigger = float('inf')
+
+        for name in ('front', 'front_left', 'front_right'):
+            dist = self._sensor_range_for_detection(name)
+            if math.isfinite(dist) and dist <= 0.20:
+                self._last_ir_trigger[name] = now_s
+                active_threats.append(name)
+                time_since_trigger = 0.0
+            else:
+                last = self._last_ir_trigger.get(name, 0.0)
+                elapsed = now_s - last
+                if elapsed <= self.repulse_decay_sec:
+                    active_threats.append(name)
+                    if elapsed < time_since_trigger:
+                        time_since_trigger = elapsed
+
+        repulse_x, repulse_y = 0.0, 0.0
         primary_sensor = None
         primary_range = float('inf')
-        for sensor_name, sensor_range in self.ir.items():
-            if not math.isfinite(sensor_range):
-                continue
-            threshold = self._sensor_clearance_threshold(sensor_name)
-            if sensor_range >= threshold:
-                continue
-            urgency = (threshold - sensor_range) / max(threshold, 1e-6)
-            direction_x, direction_y = directions[sensor_name]
-            repulse_x += direction_x * urgency
-            repulse_y += direction_y * urgency
-            active_sensors.append(sensor_name)
-            if sensor_range < primary_range:
-                primary_range = sensor_range
-                primary_sensor = sensor_name
-        return repulse_x, repulse_y, active_sensors, primary_sensor
+
+        if active_threats:
+            if time_since_trigger <= 0.40:
+                repulse_x = -0.50
+            else:
+                repulse_x = -0.30
+            primary_sensor = active_threats[0]
+            primary_range = 0.0
+
+        return repulse_x, repulse_y, [primary_sensor] if primary_sensor else [], primary_sensor
 
     def _focused_escape_body_vector(self, sensor_name):
         if sensor_name == 'front_left':
