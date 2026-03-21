@@ -1,7 +1,8 @@
 mission_controller:
   ros__parameters:
-    # Waypoints are ignored when straight_line_only is true.
-    waypoints: [1.5, 1.1, 0.0, 0.0]
+    # Shelf-centered stops along the aisle centerline (x=0.0), ordered south -> center -> north.
+    # Format: [x, y, yaw, lift_target]
+    waypoints: [0.0, -2.4, 0.0, 0.25, 0.0, 0.0, 3.14159, 0.25, 0.0, 2.4, 0.0, 0.25]
 
     # --- Obstacle avoidance ---
     obstacle_speed_full: 0.30        # m/s when front path is clear
@@ -55,20 +56,20 @@ mission_controller:
     max_linear_speed: 0.3          # m/s
     max_angular_speed: 1.0         # rad/s
     position_tolerance: 0.05       # m
-    angle_tolerance: 0.05          # rad
+    angle_tolerance: 0.08          # rad
     scan_turn_degrees: 90.0
     scan_turn_direction: left
     scripted_skid_scan_mode: false
     skid_lateral_distance: 0.6
     end_goal_distance: 4.0
     scan_use_lift: true
-    straight_line_only: true
+    straight_line_only: false
     straight_line_distance: 7.2
     straight_line_lift_height: 0.271   # ~80% of 0.3383 m max lift height
     enable_obstacle_avoidance: true
     enable_stop_scan: true
     # Vector repulsion decay: shorter fade avoids long phantom-tail pushes
-    repulse_decay_sec: 1.2
+    repulse_decay_sec: 0.5
     status_log_to_terminal: true
     status_log_period_sec: 0.5
     debug_visualization: true
@@ -77,7 +78,7 @@ mission_controller:
     robot_center_offset_x: 0.0
     robot_center_offset_y: 0.0
     cmd_linear_accel_limit: 0.9     # m/s^2 forward acceleration limit
-    cmd_linear_decel_limit: 3.5     # m/s^2 forward braking limit
+    cmd_linear_decel_limit: 1.8     # m/s^2 forward braking limit
     cmd_lateral_accel_limit: 1.1    # m/s^2 lateral acceleration limit
     cmd_lateral_decel_limit: 2.2    # m/s^2 lateral braking limit
     cmd_angular_accel_limit: 2.8    # rad/s^2 angular acceleration limit
@@ -89,7 +90,7 @@ mecanum_kinematics:
     wheel_base_half: 0.09          # m  (half front-to-back axle distance)
     track_width_half: 0.1574       # m  (half left-to-right wheel distance)
     robot_body_frame_flip_180: true  # RobotBody is pi-rotated from base_link
-    invert_linear_x: true            # Positive wheel spin drives the chassis backward in this model
+    invert_linear_x: false           # Forward commands should move the robot in its visual forward direction
 
 start_stop_node:
   ros__parameters:
