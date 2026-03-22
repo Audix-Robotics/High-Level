@@ -100,7 +100,7 @@ arena_roamer:
     cmd_lateral_sign: 1.0
     route_fail_on_timeout: false
     goal_timeout_sec: 60.0
-    route_waypoint_tolerance: 0.30
+    route_waypoint_tolerance: 0.05
     route_waypoint_dwell_sec: 0.5
     obstacle_detect_distance: 0.25
     obstacle_danger_distance: 0.25

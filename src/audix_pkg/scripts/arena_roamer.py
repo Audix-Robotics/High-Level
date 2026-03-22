@@ -8,8 +8,9 @@ from geometry_msgs.msg import PoseStamped, Twist
 from nav_msgs.msg import Odometry, Path
 from rclpy.node import Node
 from sensor_msgs.msg import LaserScan
-from std_msgs.msg import String, Float64
+from std_msgs.msg import String, Float64, Bool
 from visualization_msgs.msg import Marker, MarkerArray
+from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy
 
 
 def clamp(value, low, high):
@@ -242,6 +243,13 @@ class ArenaRoamer(Node):
         self.last_avoid_time = 0.0
         self.create_subscription(Twist, '/avoid_cmd_vel', self._avoid_cb, 10)
 
+        # Start/Stop enable flag (default: disabled)
+        self.enabled = False
+        q = QoSProfile(depth=1)
+        q.durability = DurabilityPolicy.TRANSIENT_LOCAL
+        q.reliability = ReliabilityPolicy.RELIABLE
+        self.create_subscription(Bool, '/robot_enable', self._enable_cb, q)
+
         # timers, debug publishers, and goal keepouts
         self.create_timer(self.control_period, self._control_loop)
         self.create_timer(0.2, self._publish_debug)
@@ -357,6 +365,13 @@ class ArenaRoamer(Node):
         # store the latest avoidance suggestion and timestamp
         self.last_avoid_cmd = msg
         self.last_avoid_time = self._now_sec()
+
+    def _enable_cb(self, msg):
+        # /robot_enable subscriber callback: set enabled flag
+        try:
+            self.enabled = bool(msg.data)
+        except Exception:
+            self.enabled = False
 
     def _build_route_waypoints(self, route_name):
         routes = {
@@ -784,8 +799,19 @@ class ArenaRoamer(Node):
             self.robot_path = self.robot_path[-800:]
 
     def _center_xy(self, base_x, base_y, yaw):
-        # robot_center_offset is moved to zeroed YAML; center is the base origin
-        return base_x, base_y
+        # Use URDF inertial origin as physical center offset relative to base_link.
+        # From urdf/audix.urdf inertial origin for base_link:
+        #    xyz="-0.00676560919261 0.000825603080184 0.0555112241124055"
+        # This gives a small offset (meters): offset_x = -0.00676560919261, offset_y = 0.000825603080184
+        # Apply rotation by current yaw to project to world frame.
+        try:
+            offset_x = -0.00676560919261
+            offset_y = 0.000825603080184
+            cx = base_x + offset_x * math.cos(yaw) - offset_y * math.sin(yaw)
+            cy = base_y + offset_x * math.sin(yaw) + offset_y * math.cos(yaw)
+            return cx, cy
+        except Exception:
+            return base_x, base_y
 
     def _geometry_body_yaw(self):
         if self.robot_body_frame_flip_180:
@@ -1487,6 +1513,15 @@ class ArenaRoamer(Node):
             self._publish_cmd(0.0, 0.0, 0.0)
             return
 
+        # Respect /robot_enable toggle: default is disabled until GUI enables
+        if not getattr(self, 'enabled', False):
+            self.state_name = 'DISABLED'
+            self.motion_name = 'STOP'
+            self._reset_motion_selection()
+            self._reset_blocked_side()
+            self._publish_cmd(0.0, 0.0, 0.0)
+            return
+
         if not self.startup_gate_complete:
             if self._all_sensors_clear_binary():
                 self.startup_clear_cycles += 1
@@ -1668,30 +1703,14 @@ class ArenaRoamer(Node):
         goal_tolerance = self.route_waypoint_tolerance if self.control_mode == 'acceptance_path' else self.goal_reached_tolerance
         if goal_distance <= goal_tolerance:
             if self.control_mode == 'acceptance_path':
-                if self.route_goal_hold_until_sec <= 0.0:
-                    self.route_goal_hold_until_sec = self._now_sec() + self.route_waypoint_dwell_sec
-                if self._now_sec() < self.route_goal_hold_until_sec:
-                    self.state_name = 'WAYPOINT_SETTLE'
-                    self.motion_name = 'STOP'
-                    self._reset_motion_selection()
-                    self._reset_blocked_side()
-                    self._publish_cmd(0.0, 0.0, 0.0)
-                    # Trigger lift on first settle tick for this waypoint
-                    self._trigger_lift_for_waypoint(self.route_waypoint_index)
-                    return
-                self._advance_route_waypoint('Waypoint reached.')
-                if self.route_complete:
-                    self.state_name = 'ROUTE_COMPLETE'
-                    self.motion_name = 'STOP'
-                    self._reset_motion_selection()
-                    self._reset_blocked_side()
-                    self._publish_cmd(0.0, 0.0, 0.0)
-                    return
+                # FSM handles all advancement — just enter WAYPOINT_SETTLE
+                self.state_name = 'WAYPOINT_SETTLE'
+                self.motion_name = 'STOP'
+                self._reset_motion_selection()
+                self._reset_blocked_side()
+                self._publish_cmd(0.0, 0.0, 0.0)
             else:
                 self._choose_new_goal('Goal reached.')
-            goal_dx = self.goal_x - self.center_x
-            goal_dy = self.goal_y - self.center_y
-            goal_distance = math.hypot(goal_dx, goal_dy)
 
         if self._now_sec() - self.goal_started_sec >= self.goal_timeout_sec:
             if self.control_mode == 'acceptance_path' and self.route_fail_on_timeout:
@@ -1738,6 +1757,124 @@ class ArenaRoamer(Node):
 
         closest_front = self._sensor_min('front', 'front_left', 'front_right')
         closest_any = min(self._sensor_control_value(name) for name in self.sensor_names)
+
+        # WAYPOINT_SETTLE state machine: handle precise scan/rotate/lift sequence
+        if self.state_name == 'WAYPOINT_SETTLE':
+            f = getattr(self, '_waypoint_scan', None)
+            if f is None:
+                self._waypoint_scan = {
+                    'state': 'idle',
+                    'start_sec': self._now_sec(),
+                    'origin_yaw': self._geometry_body_yaw(),
+                    'scan_target': 0.0,
+                    'sign': 1.0,
+                }
+                f = self._waypoint_scan
+
+            state = f['state']
+            now = self._now_sec()
+
+            def _hard_stop():
+                cmd = Twist()
+                cmd.linear.x = 0.0
+                cmd.linear.y = 0.0
+                cmd.angular.z = 0.0
+                self.cmd_pub.publish(cmd)
+                self.last_cmd_vx = 0.0
+                self.last_cmd_vy = 0.0
+                self.last_cmd_wz = 0.0
+                self.last_cmd_time_sec = now
+
+            # idle: full stop, compute rotation target
+            if state == 'idle':
+                _hard_stop()
+                f['origin_yaw'] = self._geometry_body_yaw()
+                direction = self._scan_direction_for_index(self.route_waypoint_index)
+                # right = CW = negative wz; left = CCW = positive wz
+                sign = -1.0 if direction == 'right' else 1.0
+                f['sign'] = sign
+                f['scan_target'] = self._normalize(
+                    self._geometry_body_yaw() + sign * self.scan_turn_rad
+                )
+                f['state'] = 'rotating_to_scan'
+                f['start_sec'] = now
+                return
+
+            # rotating_to_scan: pure in-place rotation, zero linear
+            if state == 'rotating_to_scan':
+                target = f['scan_target']
+                err = self._normalize(target - self._geometry_body_yaw())
+                elapsed = now - f['start_sec']
+                wz = math.copysign(
+                    max(0.15, min(abs(err) * 2.0, self.max_angular_speed)),
+                    err,
+                )
+                cmd = Twist()
+                cmd.linear.x = 0.0
+                cmd.linear.y = 0.0
+                cmd.angular.z = wz
+                self.cmd_pub.publish(cmd)
+                self.last_cmd_vx = 0.0
+                self.last_cmd_vy = 0.0
+                self.last_cmd_wz = wz
+                self.last_cmd_time_sec = now
+                # converged or timeout (5 s safety)
+                if abs(err) < math.radians(3.0) or elapsed > 5.0:
+                    _hard_stop()
+                    f['state'] = 'lifting'
+                    f['start_sec'] = now
+                return
+
+            # lifting: command lift height, hold for dwell time
+            if state == 'lifting':
+                _hard_stop()
+                self._trigger_lift_for_waypoint(self.route_waypoint_index)
+                if now - f['start_sec'] >= self.lift_dwell_time:
+                    f['state'] = 'lowering'
+                    f['start_sec'] = now
+                return
+
+            # lowering: drop lift to zero, hold briefly
+            if state == 'lowering':
+                _hard_stop()
+                msg = Float64()
+                msg.data = 0.0
+                self.lift_pub.publish(msg)
+                if now - f['start_sec'] >= 1.5:
+                    f['state'] = 'rotating_back'
+                    f['start_sec'] = now
+                return
+
+            # rotating_back: pure in-place rotation back to origin_yaw
+            if state == 'rotating_back':
+                target = f['origin_yaw']
+                err = self._normalize(target - self._geometry_body_yaw())
+                elapsed = now - f['start_sec']
+                wz = math.copysign(
+                    max(0.15, min(abs(err) * 2.0, self.max_angular_speed)),
+                    err,
+                )
+                cmd = Twist()
+                cmd.linear.x = 0.0
+                cmd.linear.y = 0.0
+                cmd.angular.z = wz
+                self.cmd_pub.publish(cmd)
+                self.last_cmd_vx = 0.0
+                self.last_cmd_vy = 0.0
+                self.last_cmd_wz = wz
+                self.last_cmd_time_sec = now
+                if abs(err) < math.radians(3.0) or elapsed > 5.0:
+                    _hard_stop()
+                    f['state'] = 'done'
+                return
+
+            # done: clean up and advance
+            if state == 'done':
+                self._waypoint_scan = None
+                self.route_goal_hold_until_sec = 0.0
+                self._advance_route_waypoint('Scan complete')
+                self.state_name = 'NAV'
+                return
 
         if self._escape_hold_active() and hottest_sensor is not None:
             escape_x, escape_y = self._focused_escape_body_vector(hottest_sensor)
@@ -2046,6 +2183,8 @@ class ArenaRoamer(Node):
 
         if goal_distance < 1.0:
             speed_cap *= max(0.35, goal_distance)
+            # Prevent stalling due to static friction when approaching very close
+            speed_cap = max(speed_cap, 0.15)
 
         if hottest_sensor is not None and hottest_range <= self.hard_escape_distance:
             speed_cap = min(speed_cap, self.hard_escape_speed)

@@ -29,6 +29,7 @@ install(
 		scripts/scissor_lift_mapper.py
 		scripts/scissor_slider_gui.py
 		scripts/start_stop_node.py
+		scripts/start_stop_gui.py
 		scripts/waypoints_control.py
 		scripts/waypoints_final.py
 		scripts/ir_digital_bridge.py

@@ -54,6 +54,9 @@ cleanup() {
   if [ -n "${RVIZ_PID:-}" ]; then
     kill "${RVIZ_PID}" 2>/dev/null || true
   fi
+  if [ -n "${GUI_PID:-}" ]; then
+    kill "${GUI_PID}" 2>/dev/null || true
+  fi
   if [ -n "${LAUNCH_PID:-}" ]; then
     kill "${LAUNCH_PID}" 2>/dev/null || true
   fi
@@ -69,6 +72,11 @@ trap cleanup EXIT INT TERM
 
 # Give simulator and bridges time to initialize before RViz
 sleep 8
+
+# Start the Start/Stop GUI so the robot remains in STOP until user presses START
+echo "Starting start_stop_gui..."
+python3 src/audix_pkg/scripts/start_stop_gui.py &
+GUI_PID=$!
 
 # Start a single RViz instance using the project's config
 RVIZ_CONFIG=src/audix_pkg/rviz/full_mission.rviz
