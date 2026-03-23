@@ -33,6 +33,8 @@ install(
 		scripts/waypoints_control.py
 		scripts/waypoints_final.py
 		scripts/ir_digital_bridge.py
+		source install/setup.bash
+		ros2 launch audix full_mission.launch.py robot_namespace:=audix		scripts/publish_robot_description.py
 	DESTINATION lib/${PROJECT_NAME}
 )
 

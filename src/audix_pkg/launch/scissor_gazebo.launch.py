@@ -23,7 +23,7 @@ def generate_launch_description():
     pkg_share = get_package_share_directory('audix')
     pkg_share_parent = os.path.dirname(pkg_share)
 
-    model_path = os.path.join(pkg_share, 'urdf', 'audix.urdf')
+    model_path = os.path.join(pkg_share, 'urdf', 'audix.urdf.xacro')
     rviz_config = os.path.join(pkg_share, 'rviz', 'config.rviz')
     controllers_yaml = os.path.join(pkg_share, 'config', 'controllers.yaml')
     mission_config = os.path.join(pkg_share, 'config', 'mission_params.yaml')
@@ -34,8 +34,12 @@ def generate_launch_description():
     spawn_z = LaunchConfiguration('spawn_z')
     spawn_yaw = LaunchConfiguration('spawn_yaw')
     use_gazebo_gui = LaunchConfiguration('use_gazebo_gui')
+    robot_namespace = LaunchConfiguration('robot_namespace')
 
-    robot_description = Command(['xacro ', model_path])
+    robot_description = Command([
+        'xacro ', model_path,
+        ' robot_namespace:=', robot_namespace,
+    ])
 
     use_robot_state_publisher = LaunchConfiguration('use_robot_state_publisher')
 
@@ -112,11 +116,20 @@ def generate_launch_description():
         output='screen',
         arguments=[
             '-world', world_name,
+            '-name', robot_namespace,
             '-string', robot_description,
-            '-name', 'audix',
             '-x', spawn_x, '-y', spawn_y, '-z', spawn_z,
             '-R', '0.0', '-P', '0.0', '-Y', spawn_yaw,
         ],
+    )
+
+    # Publish the expanded xacro to /robot_description so gz_ros2_control
+    # controller_manager can initialize. Publish at 1Hz until shutdown.
+    publish_robot_description = Node(
+        package='audix',
+        executable='publish_robot_description.py',
+        output='screen',
+        arguments=[model_path, robot_namespace],
     )
 
     # ── Clock bridge (sim time only) ──────────────────────────────────
@@ -170,7 +183,7 @@ def generate_launch_description():
         arguments=[
             'joint_state_broadcaster',
             '--param-file', controllers_yaml,
-            '--controller-manager', '/controller_manager',
+            '--controller-manager', [robot_namespace, '/controller_manager'],
             '--controller-manager-timeout', '30',
         ],
     )
@@ -182,7 +195,7 @@ def generate_launch_description():
         arguments=[
             'mecanum_velocity_controller',
             '--param-file', controllers_yaml,
-            '--controller-manager', '/controller_manager',
+            '--controller-manager', [robot_namespace, '/controller_manager'],
             '--controller-manager-timeout', '30',
         ],
     )
@@ -194,7 +207,7 @@ def generate_launch_description():
         arguments=[
             'scissor_position_controller',
             '--param-file', controllers_yaml,
-            '--controller-manager', '/controller_manager',
+            '--controller-manager', [robot_namespace, '/controller_manager'],
             '--controller-manager-timeout', '30',
         ],
     )
@@ -286,6 +299,7 @@ def generate_launch_description():
         DeclareLaunchArgument('spawn_y', default_value='0.0', description='Robot spawn Y'),
         DeclareLaunchArgument('spawn_z', default_value='0.025', description='Robot spawn Z'),
         DeclareLaunchArgument('spawn_yaw', default_value='0.0', description='Robot spawn yaw'),
+        DeclareLaunchArgument('robot_namespace', default_value='audix', description='Namespace for this robot instance'),
 
         gz_resource_path,
         ign_resource_path,
@@ -293,6 +307,7 @@ def generate_launch_description():
         gazebo,
         gazebo_gui,
         robot_state_publisher_node,
+        publish_robot_description,
         spawn_entity,
         world_to_odom_node,
         bridge_clock,

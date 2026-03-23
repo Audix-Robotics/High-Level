@@ -162,9 +162,25 @@ class ScissorLiftMapper(Node):
         """Returns {joint_name: (lower, upper)} for controlled joints that define limits."""
         try:
             pkg_share = get_package_share_directory('audix')
-            urdf_path = os.path.join(pkg_share, 'urdf', 'audix.urdf')
-            tree = ET.parse(urdf_path)
-            root = tree.getroot()
+            pkg_urdf_dir = os.path.join(pkg_share, 'urdf')
+            urdf_static = os.path.join(pkg_urdf_dir, 'audix.urdf')
+            urdf_xacro = os.path.join(pkg_urdf_dir, 'audix.urdf.xacro')
+
+            if os.path.exists(urdf_static):
+                tree = ET.parse(urdf_static)
+                root = tree.getroot()
+            elif os.path.exists(urdf_xacro):
+                # Expand the xacro at runtime and parse the resulting URDF XML.
+                try:
+                    import subprocess
+
+                    proc = subprocess.run(['xacro', urdf_xacro], capture_output=True, text=True, check=True)
+                    root = ET.fromstring(proc.stdout)
+                except Exception as exc:  # noqa: BLE001
+                    self.get_logger().warn(f'Failed to expand xacro for joint limits: {exc}')
+                    return {}
+            else:
+                raise FileNotFoundError(f'No URDF or xacro found in {pkg_urdf_dir}')
         except Exception as exc:  # noqa: BLE001
             self.get_logger().warn(f'Failed to parse URDF for joint limits: {exc}')
             return {}
