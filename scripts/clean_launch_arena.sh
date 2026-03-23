@@ -33,6 +33,13 @@ pkill -f mecanum_kinematics || true
 pkill -f odom_tf_broadcaster || true
 pkill -f world_to_odom_publisher || true
 pkill -f ros2 || true
+pkill -f start_stop_gui || true
+pkill -f start_stop_gui.py || true
+pkill -f start_stop_node || true
+pkill -f start_stop_node.py || true
+pkill -9 -f start_stop || true
+pkill -9 -f start_stop_gui || true
+pkill -9 -f start_stop_node || true
 
 sleep 1
 
@@ -67,6 +74,13 @@ cleanup() {
   pkill -f gzserver || true
   pkill -f gzclient || true
   pkill -f rviz2 || true
+  pkill -f start_stop_gui || true
+  pkill -f start_stop_gui.py || true
+  pkill -f start_stop_node || true
+  pkill -f start_stop_node.py || true
+  pkill -9 -f start_stop || true
+  pkill -9 -f start_stop_gui || true
+  pkill -9 -f start_stop_node || true
 }
 trap cleanup EXIT INT TERM
 

@@ -5,6 +5,7 @@ mission_controller:
     obstacle_speed_slow: 0.18
     obstacle_speed_creep: 0.08
     obstacle_detect_distance: 0.25
+    obstacle_detect_distance_front: 0.17
     obstacle_clear_distance: 0.25
     obstacle_danger_distance: 0.25
     obstacle_side_min: 0.15
@@ -102,9 +103,10 @@ arena_roamer:
     goal_timeout_sec: 60.0
     route_waypoint_tolerance: 0.05
     route_waypoint_dwell_sec: 0.5
-    obstacle_detect_distance: 0.25
-    obstacle_danger_distance: 0.25
-    obstacle_clear_distance: 0.25
+    obstacle_detect_distance: 0.15
+    obstacle_detect_distance_front_center: 0.15
+    obstacle_danger_distance: 0.15
+    obstacle_clear_distance: 0.15
     max_linear_speed: 0.3
     max_lateral_speed: 0.3
     max_angular_speed: 1.6

@@ -59,6 +59,8 @@ class ArenaRoamer(Node):
         self.declare_parameter('reroute_correct_heading_tol_deg', 8.0)
         # Use single 15 cm detection/clear distance across the project
         self.declare_parameter('obstacle_detect_distance', 0.15)
+        self.declare_parameter('obstacle_detect_distance_front', 0.17)
+        self.declare_parameter('obstacle_detect_distance_front_center', 0.15)
         self.declare_parameter('obstacle_danger_distance', 0.15)
         self.declare_parameter('obstacle_clear_distance', 0.15)
         self.declare_parameter('startup_clearance_distance', 0.24)
@@ -152,6 +154,8 @@ class ArenaRoamer(Node):
         self.reroute_post_clear_pause = float(self.get_parameter('reroute_post_clear_pause').value)
         self.reroute_correct_heading_tol = math.radians(float(self.get_parameter('reroute_correct_heading_tol_deg').value))
         self.obstacle_detect_distance = float(self.get_parameter('obstacle_detect_distance').value)
+        self.obstacle_detect_distance_front = float(self.get_parameter('obstacle_detect_distance_front').value)
+        self.obstacle_detect_distance_front_center = float(self.get_parameter('obstacle_detect_distance_front_center').value)
         self.obstacle_danger_distance = float(self.get_parameter('obstacle_danger_distance').value)
         self.obstacle_clear_distance = float(self.get_parameter('obstacle_clear_distance').value)
         self.startup_clearance_distance = float(self.get_parameter('startup_clearance_distance').value)
@@ -288,6 +292,7 @@ class ArenaRoamer(Node):
         self.robot_path = []
         # Reroute state: None or dict with keys: phase, start_sec, sensor
         self.reroute_state = None
+        self.front_only_count = 0
         self.randomizer = random.Random(self.random_seed)
         self.state_name = 'WARMUP'
         self.motion_name = 'STOP'
@@ -309,25 +314,30 @@ class ArenaRoamer(Node):
 
         wp_flat = self.get_parameter('waypoints').value
         parsed_waypoints = []
+        parsed_yaws = []
         parsed_lift_heights = []
 
         if wp_flat and len(wp_flat) >= 4 and not (len(wp_flat) == 1 and wp_flat[0] == 0.0):
             if isinstance(wp_flat[0], (list, tuple)):
                 for wp in wp_flat:
                     parsed_waypoints.append((float(wp[0]), float(wp[1])))
+                    parsed_yaws.append(float(wp[2]) if len(wp) > 2 else 0.0)
                     parsed_lift_heights.append(float(wp[3]) if len(wp) > 3 else 0.0)
             else:
                 for i in range(0, len(wp_flat), 4):
                     parsed_waypoints.append((float(wp_flat[i]), float(wp_flat[i+1])))
+                    parsed_yaws.append(float(wp_flat[i+2]) if i+2 < len(wp_flat) else 0.0)
                     parsed_lift_heights.append(float(wp_flat[i+3]) if i+3 < len(wp_flat) else 0.0)
 
         if parsed_waypoints:
             self.route_waypoints = parsed_waypoints
+            self.route_yaws = parsed_yaws
             self.route_lift_heights = parsed_lift_heights
             self.control_mode = 'acceptance_path'
             self.route_loop = False
         else:
             self.route_waypoints = self._build_route_waypoints(self.route_name) if self.control_mode == 'acceptance_path' else []
+            self.route_yaws = [0.0] * len(self.route_waypoints)
             self.route_lift_heights = [0.0] * len(self.route_waypoints)
 
         self.lift_active_until_sec = 0.0
@@ -860,8 +870,13 @@ class ArenaRoamer(Node):
 
     def _sensor_hit_visible(self, sensor_name):
         raw_range = self.ir_raw.get(sensor_name, float('inf'))
-        range_max = self.ir_range_max.get(sensor_name, self.ir_default_range_max)
-        return math.isfinite(raw_range) and raw_range < range_max
+        if sensor_name == 'front':
+            active_detect_dist = self.obstacle_detect_distance_front_center
+        elif sensor_name in ('front_left', 'front_right'):
+            active_detect_dist = self.obstacle_detect_distance_front
+        else:
+            active_detect_dist = self.obstacle_detect_distance
+        return math.isfinite(raw_range) and raw_range <= active_detect_dist
 
     def _sensor_blocked(self, sensor_name):
         # Binary interpretation of IR: blocked if sensor reports a hit
@@ -954,7 +969,16 @@ class ArenaRoamer(Node):
             range_max = self.ir_range_max.get(sensor_name, self.ir_default_range_max)
             if not math.isfinite(range_max):
                 range_max = self.ir_default_range_max
-            detect_range = min(self.obstacle_detect_distance, range_max)
+            if sensor_name == 'front':
+                active_detect_dist = self.obstacle_detect_distance_front_center
+            elif sensor_name in ('front_left', 'front_right'):
+                active_detect_dist = self.obstacle_detect_distance_front
+            else:
+                active_detect_dist = self.obstacle_detect_distance
+
+            raw_display_range = self._sensor_display_range(sensor_name)
+            display_range = min(raw_display_range, active_detect_dist)
+            detect_range = min(active_detect_dist, range_max)
             threshold_arc = []
             for step in range(arc_segments + 1):
                 ratio = step / arc_segments
@@ -1107,28 +1131,24 @@ class ArenaRoamer(Node):
         # Track triggers and active threats from forward-facing sensors
         active_threats = []
         time_since_trigger = float('inf')
-        # Determine whether any front sensor is currently physically blocked
         current_front_blocked = False
         for name in ('front', 'front_left', 'front_right'):
             raw = self.ir_raw.get(name, float('inf'))
-            if math.isfinite(raw) and raw <= self.obstacle_detect_distance:
+            active_dist = self.obstacle_detect_distance_front_center if name == 'front' else self.obstacle_detect_distance_front
+            if math.isfinite(raw) and raw <= active_dist:
                 current_front_blocked = True
                 break
 
         for name in ('front', 'front_left', 'front_right'):
             dist = self._sensor_control_value(name)
-            if math.isfinite(dist) and dist <= self.obstacle_detect_distance:
-                # register trigger time
+            active_dist = self.obstacle_detect_distance_front_center if name == 'front' else self.obstacle_detect_distance_front
+            if math.isfinite(dist) and dist <= active_dist:
                 self._last_ir_trigger[name] = now
                 active_threats.append(name)
                 time_since_trigger = 0.0
             else:
                 last = self._last_ir_trigger.get(name, 0.0)
                 elapsed = now - last
-                # Only honor phantom-tail (decayed) entries when there is at
-                # least one front sensor currently physically blocked. If all
-                # front sensors are clear right now, do not resurrect decayed
-                # entries — return zero repulsion instead.
                 if elapsed <= self.repulse_decay_sec and current_front_blocked:
                     active_threats.append(name)
                     if elapsed < time_since_trigger:
@@ -1789,13 +1809,11 @@ class ArenaRoamer(Node):
             if state == 'idle':
                 _hard_stop()
                 f['origin_yaw'] = self._geometry_body_yaw()
-                direction = self._scan_direction_for_index(self.route_waypoint_index)
-                # right = CW = negative wz; left = CCW = positive wz
-                sign = -1.0 if direction == 'right' else 1.0
-                f['sign'] = sign
-                f['scan_target'] = self._normalize(
-                    self._geometry_body_yaw() + sign * self.scan_turn_rad
-                )
+                
+                # Rotate exactly to the absolute target yaw defined in the waypoint array
+                target_yaw = self.route_yaws[self.route_waypoint_index]
+                f['scan_target'] = self._normalize(target_yaw)
+                
                 f['state'] = 'rotating_to_scan'
                 f['start_sec'] = now
                 return
@@ -1889,19 +1907,33 @@ class ArenaRoamer(Node):
             return
 
         # --- REROUTE STATE MACHINE (3-point turn style) ---
-        # Trigger reroute when a forward-facing sensor detects an obstacle.
-        # The reroute will: back-diagonal away from the detected side, stop,
-        # rotate in place away from obstacle, drive forward, then pause and
-        # correct heading toward the path if clear. Repeat until cleared.
-        # Trigger on any forward-facing sensor (center should not be dropped).
         if hottest_sensor in ('front', 'front_left', 'front_right'):
             now = self._now_sec()
             if self.reroute_state is None and now > self.reroute_cooldown_until:
                 # Trigger reroute — do NOT skip or advance the current waypoint.
                 # Keep waypoint so robot will continue attempting to reach it
                 # after the reroute completes.
-                self.reroute_state = {'phase': 'back_diag', 'start_sec': now, 'sensor': hottest_sensor}
-                # record reroute start time; cooldown/origin handled elsewhere
+                is_loop = getattr(self, '_check_for_oscillation_loop', lambda *a: False)(self.center_x, self.center_y, self.yaw, hottest_sensor, now)
+                only_front = (hottest_sensor == 'front' and not self._sensors_blocked_any('front_left', 'front_right'))
+                if only_front:
+                    self.front_only_count += 1
+                else:
+                    self.front_only_count = 0
+
+                if is_loop:
+                    self.get_logger().warn('OSCILLATION LOOP DETECTED! Executing mirrored evasion.')
+                    self.reroute_state = {'phase': 'loop_back', 'start_sec': now, 'sensor': hottest_sensor}
+                    if hasattr(self, 'reroute_history'):
+                        self.reroute_history.clear()
+                elif only_front and self.front_only_count >= 2:
+                    self.get_logger().info('Front-only stall detected. Lateral probing.')
+                    self.reroute_state = {'phase': 'probe_right', 'start_sec': now, 'start_x': self.x, 'start_y': self.y, 'sensor': 'front'}
+                    self.front_only_count = 0
+                else:
+                    self.reroute_state = {'phase': 'back_diag', 'start_sec': now, 'sensor': hottest_sensor}
+
+                if hasattr(self, '_record_reroute_event'):
+                    self._record_reroute_event(self.center_x, self.center_y, self.yaw, hottest_sensor, now)
 
         if self.reroute_state is not None:
             state = self.reroute_state
@@ -1915,6 +1947,56 @@ class ArenaRoamer(Node):
             # desired back/away vector is opposite of escape vector
             back_dir_x = -esc_x / norm
             back_dir_y = -esc_y / norm
+
+            # Phase: probe_right (Strafe right 5cm to find a corner)
+            if state['phase'] == 'probe_right':
+                if self._sensor_blocked('front_right'):
+                    state['phase'] = 'back_diag'
+                    state['sensor'] = 'front_right'
+                    state['start_sec'] = self._now_sec()
+                    return
+                if self._sensor_blocked('front_left'):
+                    state['phase'] = 'back_diag'
+                    state['sensor'] = 'front_left'
+                    state['start_sec'] = self._now_sec()
+                    return
+
+                dist = math.hypot(self.x - state['start_x'], self.y - state['start_y'])
+                if dist >= 0.05 or elapsed > 1.5:
+                    state['phase'] = 'probe_left'
+                    state['start_x'] = self.x
+                    state['start_y'] = self.y
+                    state['start_sec'] = self._now_sec()
+                    return
+
+                # Strafe right (negative vy)
+                self._publish_cmd(0.0, -0.18, 0.0)
+                return
+
+            # Phase: probe_left (Strafe left 10cm to find opposite corner)
+            if state['phase'] == 'probe_left':
+                if self._sensor_blocked('front_left'):
+                    state['phase'] = 'back_diag'
+                    state['sensor'] = 'front_left'
+                    state['start_sec'] = self._now_sec()
+                    return
+                if self._sensor_blocked('front_right'):
+                    state['phase'] = 'back_diag'
+                    state['sensor'] = 'front_right'
+                    state['start_sec'] = self._now_sec()
+                    return
+
+                dist = math.hypot(self.x - state['start_x'], self.y - state['start_y'])
+                if dist >= 0.10 or elapsed > 3.0:
+                    # Give up, fallback to normal back_diag
+                    state['phase'] = 'back_diag'
+                    state['sensor'] = 'front'
+                    state['start_sec'] = self._now_sec()
+                    return
+                
+                # Strafe left (positive vy)
+                self._publish_cmd(0.0, 0.18, 0.0)
+                return
 
             # Phase: back_diag
             if state['phase'] == 'back_diag':
