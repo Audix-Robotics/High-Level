@@ -102,6 +102,8 @@ class WarehouseFleetManager(Node):
         self.generated_model_dir.mkdir(parents=True, exist_ok=True)
         self.robot_description_xml = FilePath(self.robot_model_path).read_text(encoding='utf-8')
         self.controllers_config = yaml.safe_load(FilePath(self.controllers_yaml_path).read_text(encoding='utf-8')) or {}
+        self.mission_params_path = os.path.join(pkg_share, 'config', 'mission_params.yaml')
+        self.ekf_config_path = os.path.join(pkg_share, 'config', 'ekf.yaml')
 
         self.sensor_positions = {
             'back': (0.16255, -0.00323),
@@ -621,7 +623,7 @@ class WarehouseFleetManager(Node):
         if robot_id not in self.robot_odom_subs:
             self.robot_odom_subs[robot_id] = self.create_subscription(
                 Odometry,
-                f'/robot_{robot_id}/odom',
+                f'/robot_{robot_id}/odometry/filtered',
                 partial(self.on_robot_odom, robot_id=robot_id),
                 10,
             )
@@ -815,16 +817,45 @@ class WarehouseFleetManager(Node):
 
             self._spawn_process(
                 robot_id,
-                'navigator',
+                'ekf',
                 [
-                    'ros2', 'run', 'audix', 'fleet_robot_navigator.py',
+                    'ros2', 'run', 'robot_localization', 'ekf_node',
                     '--ros-args',
                     '-r', f'__ns:=/{robot_name}',
+                    '--params-file', self.ekf_config_path,
+                    '-r', '/odom:=odom',
+                    '-r', '/imu:=imu',
+                    '-r', '/odometry/filtered:=odometry/filtered',
                     '-p', 'use_sim_time:=true',
-                    '-p', 'position_tolerance:=0.24',
-                    '-p', 'max_linear_speed:=0.35',
-                    '-p', 'max_lateral_speed:=0.35',
-                    '-p', 'max_angular_speed:=1.0',
+                    '-p', 'publish_tf:=false',
+                ],
+            )
+            self._spawn_process(
+                robot_id,
+                'navigator',
+                [
+                    'ros2', 'run', 'audix', 'arena_roamer.py',
+                    '--ros-args',
+                    '-r', f'__ns:=/{robot_name}',
+                    '--params-file', self.mission_params_path,
+                    '-r', '/odometry/filtered:=odometry/filtered',
+                    '-r', '/cmd_vel:=cmd_vel',
+                    '-r', '/scissor_lift/slider:=scissor_lift/slider',
+                    '-r', '/ir_front/scan:=ir_front/scan',
+                    '-r', '/ir_front_right/scan:=ir_front_right/scan',
+                    '-r', '/ir_front_left/scan:=ir_front_left/scan',
+                    '-r', '/ir_right/scan:=ir_right/scan',
+                    '-r', '/ir_left/scan:=ir_left/scan',
+                    '-r', '/ir_back/scan:=ir_back/scan',
+                    '-r', '/avoid_cmd_vel:=avoid_cmd_vel',
+                    '-r', '/debug/planned_path:=debug/planned_path',
+                    '-r', '/debug/robot_path:=debug/robot_path',
+                    '-r', '/debug/targets:=debug/targets',
+                    '-r', '/debug/state:=debug/state',
+                    '-r', '/robot_enable:=robot_enable',
+                    '-p', 'use_sim_time:=true',
+                    '-p', 'start_enabled:=true',
+                    '-p', 'enable_dynamic_missions:=true',
                 ],
             )
             self._spawn_process(
@@ -857,7 +888,7 @@ class WarehouseFleetManager(Node):
                     'ros2', 'run', 'audix', 'odom_tf_broadcaster.py',
                     '--ros-args',
                     '-p', 'use_sim_time:=true',
-                    '-p', f'odom_topic:=/{robot_name}/odom',
+                    '-p', f'odom_topic:=/{robot_name}/odometry/filtered',
                     '-p', 'odom_frame:=odom',
                     '-p', f'base_frame:={robot_name}/base_footprint',
                 ],
@@ -892,6 +923,8 @@ class WarehouseFleetManager(Node):
 
         fallback_patterns = [
             f'robot_state_publisher.*__ns:=/{robot_name}',
+            f'ekf_node.*__ns:=/{robot_name}',
+            f'arena_roamer.py.*__ns:=/{robot_name}',
             f'fleet_robot_navigator.py.*__ns:=/{robot_name}',
             f'mecanum_kinematics.py.*__ns:=/{robot_name}',
             f'scissor_lift_mapper.py.*__ns:=/{robot_name}',
@@ -1255,28 +1288,6 @@ class WarehouseFleetManager(Node):
                         z_pos + 0.08,
                     )
                 )
-
-            cone = Marker()
-            cone.header.frame_id = 'odom'
-            cone.header.stamp = timestamp
-            cone.ns = f'fleet_ir_cones_robot_{robot_id}'
-            cone.id = marker_id
-            cone.type = Marker.TRIANGLE_LIST
-            cone.action = Marker.ADD
-            cone.pose.orientation.w = 1.0
-            cone.scale.x = 1.0
-            cone.scale.y = 1.0
-            cone.scale.z = 1.0
-            cone.color.r = color_r
-            cone.color.g = color_g
-            cone.color.b = color_b
-            cone.color.a = 0.25
-            for step in range(12):
-                cone.points.append(self._make_marker_point(origin_x, origin_y, z_pos + 0.08))
-                cone.points.append(arc_points[step])
-                cone.points.append(arc_points[step + 1])
-            markers.append(cone)
-            marker_id += 1
 
             outline = Marker()
             outline.header.frame_id = 'odom'

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import json
 import math
 import random
 
@@ -125,6 +126,8 @@ class ArenaRoamer(Node):
         self.declare_parameter('lift_dwell_time', 2.0)
         self.declare_parameter('scan_turn_degrees', 90.0)
         self.declare_parameter('scan_directions', 'right,left,right')
+        self.declare_parameter('start_enabled', False)
+        self.declare_parameter('enable_dynamic_missions', False)
 
         self.arena_min_x = float(self.get_parameter('arena_min_x').value)
         self.arena_max_x = float(self.get_parameter('arena_max_x').value)
@@ -223,6 +226,7 @@ class ArenaRoamer(Node):
         self.blocked_clearance_margin = float(self.get_parameter('blocked_clearance_margin').value)
         self.avoid_override_enable = bool(self.get_parameter('avoid_override_enable').value)
         self.avoid_override_timeout = float(self.get_parameter('avoid_override_timeout_sec').value)
+        self.enable_dynamic_missions = bool(self.get_parameter('enable_dynamic_missions').value)
 
         self.cmd_pub = self.create_publisher(Twist, '/cmd_vel', 10)
         self.path_pub = self.create_publisher(Path, '/debug/planned_path', 10)
@@ -248,11 +252,16 @@ class ArenaRoamer(Node):
         self.create_subscription(Twist, '/avoid_cmd_vel', self._avoid_cb, 10)
 
         # Start/Stop enable flag (default: disabled)
-        self.enabled = False
+        self.enabled = bool(self.get_parameter('start_enabled').value)
         q = QoSProfile(depth=1)
         q.durability = DurabilityPolicy.TRANSIENT_LOCAL
         q.reliability = ReliabilityPolicy.RELIABLE
         self.create_subscription(Bool, '/robot_enable', self._enable_cb, q)
+
+        if self.enable_dynamic_missions:
+            self.create_subscription(Path, 'mission_waypoints', self._mission_waypoints_cb, 10)
+            self.create_subscription(String, 'mission_descriptor', self._mission_descriptor_cb, 10)
+            self.create_subscription(String, 'mission_control', self._mission_control_cb, 10)
 
         # timers, debug publishers, and goal keepouts
         self.create_timer(self.control_period, self._control_loop)
@@ -370,6 +379,9 @@ class ArenaRoamer(Node):
         self.reroute_cooldown_until = 0.0
         # Lightweight post-reroute probe state
         self.probe_state = None
+        self.dynamic_mission_descriptor = None
+        self.dynamic_mission_name = ''
+        self.mission_paused = False
 
     def _avoid_cb(self, msg):
         # store the latest avoidance suggestion and timestamp
@@ -382,6 +394,97 @@ class ArenaRoamer(Node):
             self.enabled = bool(msg.data)
         except Exception:
             self.enabled = False
+
+    def _load_acceptance_route(self, parsed_waypoints, parsed_yaws, parsed_lift_heights, reason):
+        self.route_waypoints = list(parsed_waypoints)
+        self.route_yaws = list(parsed_yaws)
+        self.route_lift_heights = list(parsed_lift_heights)
+        self.route_waypoint_index = 0
+        self.route_goal_hold_until_sec = 0.0
+        self.route_complete = False
+        self.route_failed = False
+        self.goal_x = None
+        self.goal_y = None
+        self.goal_started_sec = self._now_sec()
+        self.lift_active_until_sec = 0.0
+        self.lift_triggered_for_waypoint = -1
+        self.waypoint_scan_state = 'idle'
+        self.waypoint_scan_target_yaw = 0.0
+        self.waypoint_scan_resume_yaw = 0.0
+        self.waypoint_scan_start_sec = 0.0
+        self._waypoint_scan = None
+        self.just_activated_waypoint = False
+        self.reroute_state = None
+        self.probe_state = None
+        self._reset_motion_selection()
+        self._reset_blocked_side()
+
+        msg = Float64()
+        msg.data = 0.0
+        self.lift_pub.publish(msg)
+
+        if self.route_waypoints:
+            self.control_mode = 'acceptance_path'
+            self._activate_route_waypoint(0, reason)
+            self.get_logger().info('%s loaded %d waypoint(s).' % (reason, len(self.route_waypoints)))
+        else:
+            self.control_mode = 'acceptance_path'
+            self.get_logger().info('%s cleared route.' % reason)
+
+    def _descriptor_to_route(self, descriptor):
+        parsed_waypoints = []
+        parsed_yaws = []
+        parsed_lift_heights = []
+        for waypoint in descriptor.get('waypoints', []):
+            position = waypoint.get('position', [0.0, 0.0, 0.0])
+            parsed_waypoints.append((float(position[0]), float(position[1])))
+            parsed_yaws.append(float(waypoint.get('scan_yaw', 0.0)))
+            parsed_lift_heights.append(float(waypoint.get('lift_height', 0.0)))
+        return parsed_waypoints, parsed_yaws, parsed_lift_heights
+
+    def _mission_descriptor_cb(self, msg):
+        try:
+            descriptor = json.loads(msg.data)
+        except json.JSONDecodeError:
+            self.get_logger().warn('Ignoring invalid mission descriptor JSON.')
+            return
+        self.dynamic_mission_descriptor = descriptor
+        self.dynamic_mission_name = str(descriptor.get('mission_name', '')).strip()
+        parsed_waypoints, parsed_yaws, parsed_lift_heights = self._descriptor_to_route(descriptor)
+        self.mission_paused = False
+        self.enabled = True
+        self._load_acceptance_route(parsed_waypoints, parsed_yaws, parsed_lift_heights, 'Dynamic mission')
+
+    def _mission_waypoints_cb(self, msg):
+        if self.dynamic_mission_descriptor and self.dynamic_mission_descriptor.get('waypoints'):
+            return
+        parsed_waypoints = [
+            (float(pose.pose.position.x), float(pose.pose.position.y))
+            for pose in msg.poses
+        ]
+        parsed_yaws = [0.0] * len(parsed_waypoints)
+        parsed_lift_heights = [0.0] * len(parsed_waypoints)
+        self.mission_paused = False
+        self.enabled = True
+        self._load_acceptance_route(parsed_waypoints, parsed_yaws, parsed_lift_heights, 'Path mission')
+
+    def _mission_control_cb(self, msg):
+        command = str(msg.data).strip().lower()
+        if command == 'pause':
+            self.mission_paused = True
+            self._publish_cmd(0.0, 0.0, 0.0)
+            return
+        if command == 'resume':
+            self.mission_paused = False
+            self.enabled = True
+            return
+        if command == 'cancel':
+            self.mission_paused = False
+            self.dynamic_mission_descriptor = None
+            self.dynamic_mission_name = ''
+            self._load_acceptance_route([], [], [], 'Mission cancel')
+            self._publish_cmd(0.0, 0.0, 0.0)
+            return
 
     def _build_route_waypoints(self, route_name):
         routes = {
@@ -1536,6 +1639,14 @@ class ArenaRoamer(Node):
         # Respect /robot_enable toggle: default is disabled until GUI enables
         if not getattr(self, 'enabled', False):
             self.state_name = 'DISABLED'
+            self.motion_name = 'STOP'
+            self._reset_motion_selection()
+            self._reset_blocked_side()
+            self._publish_cmd(0.0, 0.0, 0.0)
+            return
+
+        if self.mission_paused:
+            self.state_name = 'PAUSED'
             self.motion_name = 'STOP'
             self._reset_motion_selection()
             self._reset_blocked_side()

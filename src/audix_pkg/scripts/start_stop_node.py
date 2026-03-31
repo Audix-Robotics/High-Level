@@ -9,6 +9,7 @@ Publishing False at any time = immediate emergency stop.
 
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import Bool
 
 
@@ -22,7 +23,11 @@ class StartStopNode(Node):
         self.auto_start = self.get_parameter('auto_start').value
         self.delay = self.get_parameter('start_delay').value
 
-        self.pub = self.create_publisher(Bool, '/robot_enable', 10)
+        qos = QoSProfile(depth=1)
+        qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
+        qos.reliability = ReliabilityPolicy.RELIABLE
+
+        self.pub = self.create_publisher(Bool, '/robot_enable', qos)
         self.started = False
 
         if self.auto_start:

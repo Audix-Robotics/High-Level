@@ -1,5 +1,17 @@
-# Warehouse Fleet Routines
-
 missions: {}
-
-saved_routines: {}
+saved_routines:
+  robot_0_routine:
+    lane_id: 2
+    start_x: -2.5
+    spacing: 1.0
+    scan_duration: 2.0
+    waypoints:
+    - x: -2.5
+      direction: left
+      levels: 3
+    - x: -1.5
+      direction: left
+      levels: 3
+    - x: -0.5
+      direction: left
+      levels: 3

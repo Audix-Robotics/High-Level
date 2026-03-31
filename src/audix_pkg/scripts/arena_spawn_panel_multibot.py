@@ -80,6 +80,10 @@ class WarehouseFleetSpawnPanel(Node):
 
         self.selected_robot_var = tk.IntVar(value=0)
         self.rviz_mode_var = tk.StringVar(value='idle')
+        default_lane_choice = self.lane_id_to_display.get(2)
+        if default_lane_choice is None and self.lane_choices:
+            default_lane_choice = self.lane_choices[0][0]
+        self.spawn_lane_var = tk.StringVar(value=default_lane_choice or '')
 
         self.create_fleet_header_frame()
         self.notebook = ttk.Notebook(self.root)
@@ -202,14 +206,12 @@ class WarehouseFleetSpawnPanel(Node):
         tk.Spinbox(frame, from_=0, to=10, textvariable=self.single_robot_id_var, width=5).pack(side='left', padx=5)
 
         tk.Label(frame, text='Lane:').pack(side='left')
-        self.lane_var = tk.StringVar(value='Center')
-        lane_options = ['North', 'Mid-North', 'Center', 'Mid-South', 'South']
         ttk.Combobox(
             frame,
-            textvariable=self.lane_var,
-            values=lane_options,
+            textvariable=self.spawn_lane_var,
+            values=[label for label, _ in self.lane_choices],
             state='readonly',
-            width=12,
+            width=18,
         ).pack(side='left', padx=5)
         tk.Button(frame, text='Spawn Robot', command=self.spawn_single_robot).pack(side='left', padx=5)
 
@@ -411,6 +413,8 @@ class WarehouseFleetSpawnPanel(Node):
             )
 
     def spawn_fleet(self):
+        if not self._wait_for_service(self.spawn_robot_client, 'Spawn Robot'):
+            return
         for robot_id in range(self.num_robots_var.get()):
             request = SpawnRobot.Request()
             request.robot_id = robot_id
@@ -419,6 +423,8 @@ class WarehouseFleetSpawnPanel(Node):
             future.add_done_callback(lambda fut, rid=robot_id: self._handle_spawn_response(fut, rid))
 
     def clear_all_robots(self):
+        if not self._wait_for_service(self.despawn_robot_client, 'Despawn Robot'):
+            return
         for robot_id in list(self.latest_status.keys()):
             request = DespawnRobot.Request()
             request.robot_id = robot_id
@@ -426,16 +432,11 @@ class WarehouseFleetSpawnPanel(Node):
             future.add_done_callback(lambda fut, rid=robot_id: self._handle_despawn_response(fut, rid))
 
     def spawn_single_robot(self):
-        lane_map = {
-            'North': 0,
-            'Mid-North': 1,
-            'Center': 2,
-            'Mid-South': 3,
-            'South': 4,
-        }
+        if not self._wait_for_service(self.spawn_robot_client, 'Spawn Robot'):
+            return
         request = SpawnRobot.Request()
         request.robot_id = self.single_robot_id_var.get()
-        request.lane_id = lane_map.get(self.lane_var.get(), 2)
+        request.lane_id = self.lane_display_to_id.get(self.spawn_lane_var.get(), 2)
         self.selected_robot_var.set(request.robot_id)
         self._update_rviz_status_label()
         future = self.spawn_robot_client.call_async(request)
@@ -613,10 +614,24 @@ class WarehouseFleetSpawnPanel(Node):
     def remove_robot(self, robot_id):
         self.rviz_waypoint_drafts.pop(int(robot_id), None)
         self._update_rviz_status_label()
+        if not self._wait_for_service(self.despawn_robot_client, 'Despawn Robot'):
+            return
         request = DespawnRobot.Request()
         request.robot_id = int(robot_id)
         future = self.despawn_robot_client.call_async(request)
         future.add_done_callback(lambda fut, rid=robot_id: self._handle_despawn_response(fut, rid))
+
+    def _wait_for_service(self, client, action_name):
+        if client.wait_for_service(timeout_sec=1.5):
+            return True
+        messagebox.showerror(action_name, 'Fleet service is not available yet')
+        return False
+
+    def _next_available_robot_id(self):
+        for robot_id in range(0, 11):
+            if robot_id not in self.latest_status:
+                return robot_id
+        return self.single_robot_id_var.get()
 
     def select_target_robot(self):
         robot_id = int(self.selected_robot_var.get())
@@ -764,6 +779,10 @@ class WarehouseFleetSpawnPanel(Node):
             return
         if result and not result.success:
             messagebox.showwarning('Spawn Robot', result.message)
+            return
+        self.selected_robot_var.set(int(robot_id))
+        self.single_robot_id_var.set(self._next_available_robot_id())
+        self._update_rviz_status_label()
 
     def _handle_despawn_response(self, future, robot_id):
         try:

@@ -23,7 +23,13 @@ def generate_launch_description():
     pkg_share = get_package_share_directory('audix')
     pkg_share_parent = os.path.dirname(pkg_share)
 
+<<<<<<< Updated upstream
     model_path = os.path.join(pkg_share, 'urdf', 'audix.urdf')
+=======
+    model_path = os.path.join(pkg_share, 'urdf', 'audix.urdf.xacro')
+    if not os.path.exists(model_path):
+        model_path = os.path.join(os.getcwd(), 'src', 'audix_pkg', 'urdf', 'audix.urdf.xacro')
+>>>>>>> Stashed changes
     rviz_config = os.path.join(pkg_share, 'rviz', 'config.rviz')
     controllers_yaml = os.path.join(pkg_share, 'config', 'controllers.yaml')
     mission_config = os.path.join(pkg_share, 'config', 'mission_params.yaml')
@@ -286,7 +292,10 @@ def generate_launch_description():
         DeclareLaunchArgument('spawn_y', default_value='0.0', description='Robot spawn Y'),
         DeclareLaunchArgument('spawn_z', default_value='0.025', description='Robot spawn Z'),
         DeclareLaunchArgument('spawn_yaw', default_value='0.0', description='Robot spawn yaw'),
+<<<<<<< Updated upstream
 
+=======
+>>>>>>> Stashed changes
         gz_resource_path,
         ign_resource_path,
         fastdds_transport,
