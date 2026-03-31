@@ -73,18 +73,18 @@ class MecanumKinematics(Node):
         self._have_joint_feedback = False
 
         # Subscribers
-        self.create_subscription(Twist, '/cmd_vel', self.cmd_vel_cb, 10)
+        self.create_subscription(Twist, 'cmd_vel', self.cmd_vel_cb, 10)
         # Always subscribe to joint_states; joint_state_cb will update PID feedback
         # and also perform odometry when publish_odom is True.
-        self.create_subscription(JointState, '/joint_states', self.joint_state_cb, 10)
+        self.create_subscription(JointState, 'joint_states', self.joint_state_cb, 10)
 
         # Publishers
         self.wheel_pub = self.create_publisher(
             Float64MultiArray,
-            '/mecanum_velocity_controller/commands',
+            'mecanum_velocity_controller/commands',
             10
         )
-        self.odom_pub = self.create_publisher(Odometry, '/mecanum_odom', 10) if self.publish_odom else None
+        self.odom_pub = self.create_publisher(Odometry, 'mecanum_odom', 10) if self.publish_odom else None
 
         # Odometry state
         self.x = 0.0

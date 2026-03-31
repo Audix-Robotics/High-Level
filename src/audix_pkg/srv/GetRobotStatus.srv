@@ -1,0 +1,4 @@
+int32 robot_id
+---
+audix/RobotStatus robot_status
+bool success

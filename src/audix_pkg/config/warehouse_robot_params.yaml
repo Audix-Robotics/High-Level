@@ -1,0 +1,23 @@
+# Per-robot parameter overrides
+
+robots:
+  robot_0:
+    assigned_lane: 0
+    max_linear_speed: 0.42
+    max_lateral_speed: 0.42
+
+  robot_1:
+    assigned_lane: 2
+    max_linear_speed: 0.40
+    max_lateral_speed: 0.40
+
+  robot_2:
+    assigned_lane: 4
+    max_linear_speed: 0.42
+    max_lateral_speed: 0.42
+
+fleet:
+  collision_buffer: 0.5
+  lane_margin: 0.3
+  waypoint_tolerance: 0.24
+  reroute_on_other_robot: false

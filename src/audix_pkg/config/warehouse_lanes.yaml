@@ -1,0 +1,87 @@
+# Warehouse Lane Configuration
+# 5 lanes for multi-robot warehouse navigation
+
+warehouse:
+  bounds:
+    min_x: -2.90
+    max_x: 2.90
+    min_y: -4.80
+    max_y: 4.80
+
+lanes:
+  lane_0:
+    name: "North Lane"
+    min_y: 3.50
+    max_y: 4.70
+    center_y: 4.10
+    width: 1.20
+    color: [1.0, 0.0, 0.0]
+
+  lane_1:
+    name: "Mid-North Lane"
+    min_y: 1.20
+    max_y: 2.10
+    center_y: 1.65
+    width: 0.90
+    color: [1.0, 0.5, 0.0]
+
+  lane_2:
+    name: "Center Lane"
+    min_y: -0.50
+    max_y: 0.50
+    center_y: 0.00
+    width: 1.00
+    color: [1.0, 1.0, 0.0]
+
+  lane_3:
+    name: "Mid-South Lane"
+    min_y: -2.10
+    max_y: -1.20
+    center_y: -1.65
+    width: 0.90
+    color: [0.0, 1.0, 0.0]
+
+  lane_4:
+    name: "South Lane"
+    min_y: -4.70
+    max_y: -3.50
+    center_y: -4.10
+    width: 1.20
+    color: [0.0, 0.0, 1.0]
+
+scan_shelves:
+  wp0:
+    name: "South Scan Shelf"
+    position: [0.70, -2.40, 0.0]
+    lane: 3
+
+  wp1:
+    name: "Center Scan Shelf"
+    position: [-0.70, 0.00, 0.0]
+    lane: 2
+
+  wp2:
+    name: "North Scan Shelf"
+    position: [0.70, 2.40, 0.0]
+    lane: 1
+
+default_fleet:
+  num_robots: 3
+  robots:
+    robot_0:
+      lane: 0
+      spawn_x: 0.0
+      spawn_y: 4.10
+      spawn_yaw: 0.0
+
+    robot_1:
+      lane: 2
+      spawn_x: 0.0
+      spawn_y: 0.00
+      spawn_yaw: 0.0
+
+    robot_2:
+      lane: 4
+      spawn_x: 0.0
+      spawn_y: -4.10
+      spawn_yaw: 0.0

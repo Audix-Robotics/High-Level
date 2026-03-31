@@ -1,0 +1,6 @@
+int32 robot_id
+string mission_name
+geometry_msgs/Pose[] custom_waypoints
+---
+bool success
+string message

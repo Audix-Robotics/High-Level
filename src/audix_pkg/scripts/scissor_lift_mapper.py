@@ -50,14 +50,14 @@ class ScissorLiftMapper(Node):
 
         self.slider_sub = self.create_subscription(
             Float64,
-            '/scissor_lift/slider',
+            'scissor_lift/slider',
             self.slider_callback,
             10,
         )
 
         self.joint_state_sub = self.create_subscription(
             JointState,
-            '/joint_states',
+            'joint_states',
             self.joint_state_callback,
             10,
         )
@@ -65,13 +65,13 @@ class ScissorLiftMapper(Node):
         # Legacy input support (meters of bottom stud stroke).
         self.cmd_sub = self.create_subscription(
             Float64,
-            '/camera_lift/command',
+            'camera_lift/command',
             self.legacy_stroke_callback,
             10,
         )
         self.cmd_sub_legacy = self.create_subscription(
             Float64,
-            '/scissor_lift/command',
+            'scissor_lift/command',
             self.legacy_stroke_callback,
             10,
         )
@@ -80,7 +80,7 @@ class ScissorLiftMapper(Node):
         # Joint order MUST match the scissor_position_controller joints list in controllers.yaml.
         self.cmd_publisher = self.create_publisher(
             Float64MultiArray,
-            '/scissor_position_controller/commands',
+            'scissor_position_controller/commands',
             10,
         )
 
