@@ -1,6 +1,3 @@
-# Warehouse Lane Configuration
-# 5 lanes for multi-robot warehouse navigation
-
 warehouse:
   bounds:
     min_x: -2.90
@@ -8,80 +5,170 @@ warehouse:
     min_y: -4.80
     max_y: 4.80
 
+shelves:
+  shelf_a:
+    name: "Shelf A"
+    center: [2.20, 2.20, 0.0]
+    dimensions: [0.4399, 1.3067]
+    height_m: 1.9592
+  shelf_b:
+    name: "Shelf B"
+    center: [2.20, 0.00, 0.0]
+    dimensions: [0.4399, 1.3067]
+    height_m: 1.9592
+  shelf_c:
+    name: "Shelf C"
+    center: [2.20, -2.20, 0.0]
+    dimensions: [0.4399, 1.3067]
+    height_m: 1.9592
+
 lanes:
   lane_0:
-    name: "North Lane"
-    min_y: 3.50
-    max_y: 4.70
-    center_y: 4.10
-    width: 1.20
-    color: [1.0, 0.0, 0.0]
+    operator_name: "Lane 1"
+    name: "Lane 1"
+    shelf: shelf_a
+    side: lower
+    min_x: 0.35
+    max_x: 1.95
+    min_y: 1.20
+    max_y: 1.70
+    center_x: 1.15
+    center_y: 1.45
+    width: 0.60
+    home_pad: {x: 0.50, y: 1.45, yaw: 0.0}
+    stop_range_x: [0.65, 1.85]
+    return_pad: {x: 0.50, y: 1.45}
+    scan_yaw: 0.0
+    color: [0.98, 0.88, 0.14]
 
   lane_1:
-    name: "Mid-North Lane"
-    min_y: 1.20
-    max_y: 2.10
-    center_y: 1.65
-    width: 0.90
-    color: [1.0, 0.5, 0.0]
+    operator_name: "Lane 2"
+    name: "Lane 2"
+    shelf: shelf_a
+    side: upper
+    min_x: 0.35
+    max_x: 1.95
+    min_y: 2.70
+    max_y: 3.20
+    center_x: 1.15
+    center_y: 2.95
+    width: 0.60
+    home_pad: {x: 0.50, y: 2.95, yaw: 0.0}
+    stop_range_x: [0.65, 1.85]
+    return_pad: {x: 0.50, y: 2.95}
+    scan_yaw: 0.0
+    color: [0.90, 0.78, 0.10]
 
   lane_2:
-    name: "Center Lane"
-    min_y: -0.50
-    max_y: 0.50
-    center_y: 0.00
-    width: 1.00
-    color: [1.0, 1.0, 0.0]
+    operator_name: "Lane 3"
+    name: "Lane 3"
+    shelf: shelf_b
+    side: lower
+    min_x: 0.35
+    max_x: 1.95
+    min_y: -1.05
+    max_y: -0.45
+    center_x: 1.15
+    center_y: -0.75
+    width: 0.60
+    home_pad: {x: 0.50, y: -0.75, yaw: 0.0}
+    stop_range_x: [0.65, 1.85]
+    return_pad: {x: 0.50, y: -0.75}
+    scan_yaw: 0.0
+    color: [1.0, 0.52, 0.10]
 
   lane_3:
-    name: "Mid-South Lane"
-    min_y: -2.10
-    max_y: -1.20
-    center_y: -1.65
-    width: 0.90
-    color: [0.0, 1.0, 0.0]
+    operator_name: "Lane 4"
+    name: "Lane 4"
+    shelf: shelf_b
+    side: upper
+    min_x: 0.35
+    max_x: 1.95
+    min_y: 0.45
+    max_y: 1.05
+    center_x: 1.15
+    center_y: 0.75
+    width: 0.60
+    home_pad: {x: 0.50, y: 0.75, yaw: 0.0}
+    stop_range_x: [0.65, 1.85]
+    return_pad: {x: 0.50, y: 0.75}
+    scan_yaw: 0.0
+    color: [0.92, 0.42, 0.08]
 
   lane_4:
-    name: "South Lane"
-    min_y: -4.70
-    max_y: -3.50
-    center_y: -4.10
-    width: 1.20
-    color: [0.0, 0.0, 1.0]
+    operator_name: "Lane 5"
+    name: "Lane 5"
+    shelf: shelf_c
+    side: lower
+    min_x: 0.35
+    max_x: 1.95
+    min_y: -3.20
+    max_y: -2.70
+    center_x: 1.15
+    center_y: -2.95
+    width: 0.60
+    home_pad: {x: 0.50, y: -2.95, yaw: 0.0}
+    stop_range_x: [0.65, 1.85]
+    return_pad: {x: 0.50, y: -2.95}
+    scan_yaw: 0.0
+    color: [1.0, 0.22, 0.18]
+
+  lane_5:
+    operator_name: "Lane 6"
+    name: "Lane 6"
+    shelf: shelf_c
+    side: upper
+    min_x: 0.35
+    max_x: 1.95
+    min_y: -1.70
+    max_y: -1.20
+    center_x: 1.15
+    center_y: -1.45
+    width: 0.60
+    home_pad: {x: 0.50, y: -1.45, yaw: 0.0}
+    stop_range_x: [0.65, 1.85]
+    return_pad: {x: 0.50, y: -1.45}
+    scan_yaw: 0.0
+    color: [0.88, 0.16, 0.14]
 
 scan_shelves:
   wp0:
-    name: "South Scan Shelf"
+    name: "Scan Shelf C"
     position: [0.70, -2.40, 0.0]
-    lane: 3
+    yaw: 1.5707963267948966
 
   wp1:
-    name: "Center Scan Shelf"
+    name: "Scan Shelf B"
     position: [-0.70, 0.00, 0.0]
-    lane: 2
+    yaw: 1.5707963267948966
 
   wp2:
-    name: "North Scan Shelf"
+    name: "Scan Shelf A"
     position: [0.70, 2.40, 0.0]
-    lane: 1
+    yaw: 1.5707963267948966
+
+scan_levels:
+  low: 0.05
+  mid: 0.17
+  high: 0.34
 
 default_fleet:
   num_robots: 3
   robots:
     robot_0:
       lane: 0
-      spawn_x: 0.0
-      spawn_y: 4.10
+      spawn_x: 0.50
+      spawn_y: 1.45
       spawn_yaw: 0.0
 
     robot_1:
       lane: 2
-      spawn_x: 0.0
-      spawn_y: 0.00
+      spawn_x: 0.50
+      spawn_y: -0.75
       spawn_yaw: 0.0
 
     robot_2:
       lane: 4
-      spawn_x: 0.0
-      spawn_y: -4.10
+      spawn_x: 0.50
+      spawn_y: -2.95
       spawn_yaw: 0.0

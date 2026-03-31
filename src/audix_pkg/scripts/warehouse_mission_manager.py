@@ -44,6 +44,9 @@ class WarehouseMissionManager(Node):
         self.waypoint_tolerance = float(
             self.robot_params.get('fleet', {}).get('waypoint_tolerance', 0.24)
         )
+        self.yaw_tolerance = math.radians(
+            float(self.robot_params.get('fleet', {}).get('yaw_tolerance_deg', 5.0))
+        )
         self.collision_buffer = float(
             self.robot_params.get('fleet', {}).get('collision_buffer', 0.5)
         )
@@ -82,7 +85,7 @@ class WarehouseMissionManager(Node):
             )
             self.create_subscription(
                 Odometry,
-                f'/robot_{robot_id}/odometry/filtered',
+                f'/robot_{robot_id}/mecanum_odom',
                 partial(self.on_robot_odom, robot_id=robot_id),
                 10,
             )
@@ -109,12 +112,25 @@ class WarehouseMissionManager(Node):
                 'y': pose.pose.position.y,
                 'z': pose.pose.position.z,
                 'dwell_time': 0.0,
+                'position_tolerance': self.waypoint_tolerance,
+                'required_yaw': None,
+                'yaw_tolerance': self.yaw_tolerance,
             }
             for pose in msg.poses
         ]
         if descriptor.get('waypoints') and len(descriptor['waypoints']) == len(waypoints):
             for waypoint, source in zip(waypoints, descriptor['waypoints']):
                 waypoint['dwell_time'] = float(source.get('dwell_time', 0.0))
+                waypoint['position_tolerance'] = float(
+                    source.get('position_tolerance', self.waypoint_tolerance)
+                )
+                if 'scan_yaw' in source:
+                    waypoint['required_yaw'] = float(source.get('scan_yaw', 0.0))
+                elif 'arrival_yaw' in source:
+                    waypoint['required_yaw'] = float(source.get('arrival_yaw', 0.0))
+                waypoint['yaw_tolerance'] = math.radians(
+                    float(source.get('yaw_tolerance_deg', math.degrees(self.yaw_tolerance)))
+                )
 
         is_valid, warning = self.validate_mission_path(robot_id, waypoints)
         self.robot_missions[robot_id] = {
@@ -158,6 +174,10 @@ class WarehouseMissionManager(Node):
             if waypoint['y'] < float(bounds.get('min_y', -999.0)) or waypoint['y'] > float(bounds.get('max_y', 999.0)):
                 return False, 'Waypoint outside warehouse Y bounds'
             if lane_config:
+                if waypoint['x'] < float(lane_config.get('min_x', -999.0)) - lane_margin:
+                    warnings.append('Mission leaves assigned lane')
+                if waypoint['x'] > float(lane_config.get('max_x', 999.0)) + lane_margin:
+                    warnings.append('Mission leaves assigned lane')
                 if waypoint['y'] < float(lane_config.get('min_y', -999.0)) - lane_margin:
                     warnings.append('Mission leaves assigned lane')
                 if waypoint['y'] > float(lane_config.get('max_y', 999.0)) + lane_margin:
@@ -210,10 +230,14 @@ class WarehouseMissionManager(Node):
         self.marker_pub.publish(self._build_mission_markers())
 
     def on_robot_odom(self, msg, robot_id):
+        orientation = msg.pose.pose.orientation
+        siny_cosp = 2.0 * (orientation.w * orientation.z + orientation.x * orientation.y)
+        cosy_cosp = 1.0 - 2.0 * (orientation.y * orientation.y + orientation.z * orientation.z)
         self.robot_positions[robot_id] = (
             msg.pose.pose.position.x,
             msg.pose.pose.position.y,
             msg.pose.pose.position.z,
+            math.atan2(siny_cosp, cosy_cosp),
         )
 
     def check_mission_progress(self):
@@ -239,7 +263,16 @@ class WarehouseMissionManager(Node):
             position = self.robot_positions[robot_id]
             target = waypoints[current_index]
             distance = math.hypot(position[0] - target['x'], position[1] - target['y'])
-            if distance <= self.waypoint_tolerance:
+            target_tolerance = float(target.get('position_tolerance', self.waypoint_tolerance))
+            required_yaw = target.get('required_yaw')
+            yaw_ok = True
+            if required_yaw is not None:
+                yaw_error = math.atan2(
+                    math.sin(float(required_yaw) - position[3]),
+                    math.cos(float(required_yaw) - position[3]),
+                )
+                yaw_ok = abs(yaw_error) <= float(target.get('yaw_tolerance', self.yaw_tolerance))
+            if distance <= target_tolerance and yaw_ok:
                 dwell_time = float(target.get('dwell_time', 0.0))
                 if dwell_time > 0.0:
                     if mission['dwell_started_sec'] is None:
@@ -263,7 +296,7 @@ class WarehouseMissionManager(Node):
     def _publish_robot_status(self, robot_id):
         mission = self.robot_missions.get(robot_id, {})
         position = self.robot_positions.get(robot_id, (0.0, 0.0, 0.0))
-        lane_name = self._lane_name_from_position(position[1])
+        lane_name = self._lane_name_from_position(position[0], position[1])
 
         status = RobotStatus()
         status.robot_id = robot_id
@@ -276,11 +309,23 @@ class WarehouseMissionManager(Node):
         status.robot_state = mission.get('state', 'IDLE')
         self.status_update_pub.publish(status)
 
-    def _lane_name_from_position(self, y_position):
+    def _lane_name_from_position(self, x_position, y_position):
         lanes = self.warehouse_config.get('lanes', {})
         for lane in lanes.values():
-            if float(lane.get('min_y', -999.0)) <= y_position <= float(lane.get('max_y', 999.0)):
+            if (
+                float(lane.get('min_x', -999.0)) <= x_position <= float(lane.get('max_x', 999.0))
+                and float(lane.get('min_y', -999.0)) <= y_position <= float(lane.get('max_y', 999.0))
+            ):
                 return lane.get('name', 'Unknown Lane')
+        nearest_lane = min(
+            lanes.values(),
+            key=lambda lane: math.hypot(
+                float(lane.get('center_x', 0.0)) - x_position,
+                float(lane.get('center_y', 0.0)) - y_position,
+            ),
+        ) if lanes else None
+        if nearest_lane is not None:
+            return nearest_lane.get('name', 'Unknown Lane')
         return 'Unknown Lane'
 
     def _build_mission_markers(self):

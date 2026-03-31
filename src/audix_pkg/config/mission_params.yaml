@@ -94,7 +94,7 @@ start_stop_node:
 
 arena_roamer:
   ros__parameters:
-    waypoints: [0.0, -2.4, 0.0, 0.30, 0.0, 0.0, 3.14159, 0.60, 0.0, 2.4, 0.0, 0.90]
+    waypoints: [0.0]
     lift_dwell_time: 3.0
     debug_frame_id: odom
     cmd_forward_sign: -1.0

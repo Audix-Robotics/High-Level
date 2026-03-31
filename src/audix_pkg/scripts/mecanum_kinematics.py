@@ -35,6 +35,9 @@ class MecanumKinematics(Node):
         self.declare_parameter('robot_body_frame_flip_180', True)
         self.declare_parameter('invert_linear_x', True)
         self.declare_parameter('publish_odom', False)
+        self.declare_parameter('initial_x', 0.0)
+        self.declare_parameter('initial_y', 0.0)
+        self.declare_parameter('initial_yaw', 0.0)
 
         self.r = self.get_parameter('wheel_radius').value
         self.lx = self.get_parameter('wheel_base_half').value
@@ -42,6 +45,9 @@ class MecanumKinematics(Node):
         self.flip_180 = self.get_parameter('robot_body_frame_flip_180').value
         self.invert_linear_x = bool(self.get_parameter('invert_linear_x').value)
         self.publish_odom = bool(self.get_parameter('publish_odom').value)
+        self.initial_x = float(self.get_parameter('initial_x').value)
+        self.initial_y = float(self.get_parameter('initial_y').value)
+        self.initial_yaw = float(self.get_parameter('initial_yaw').value)
 
         # PID parameters for per-wheel PI velocity controllers (exposed as ROS params)
         self.declare_parameter('kp_vel', 7.0)
@@ -87,9 +93,9 @@ class MecanumKinematics(Node):
         self.odom_pub = self.create_publisher(Odometry, 'mecanum_odom', 10) if self.publish_odom else None
 
         # Odometry state
-        self.x = 0.0
-        self.y = 0.0
-        self.yaw = 0.0
+        self.x = self.initial_x
+        self.y = self.initial_y
+        self.yaw = self.initial_yaw
         self.last_time = None
         self.wheel_velocities = [0.0, 0.0, 0.0, 0.0]  # fl, fr, bl, br
 
@@ -102,7 +108,10 @@ class MecanumKinematics(Node):
         ]
 
         self.get_logger().info(
-            f'Mecanum kinematics ready: r={self.r}, lx={self.lx}, ly={self.ly}'
+            (
+                f'Mecanum kinematics ready: r={self.r}, lx={self.lx}, ly={self.ly}, '
+                f'pose=({self.x:.2f}, {self.y:.2f}, {self.yaw:.2f})'
+            )
         )
 
     def cmd_vel_cb(self, msg: Twist):

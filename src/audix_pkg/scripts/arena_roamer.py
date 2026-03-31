@@ -338,7 +338,12 @@ class ArenaRoamer(Node):
                     parsed_yaws.append(float(wp_flat[i+2]) if i+2 < len(wp_flat) else 0.0)
                     parsed_lift_heights.append(float(wp_flat[i+3]) if i+3 < len(wp_flat) else 0.0)
 
-        if parsed_waypoints:
+        if self.enable_dynamic_missions:
+            self.route_waypoints = []
+            self.route_yaws = []
+            self.route_lift_heights = []
+            self.control_mode = 'acceptance_path'
+        elif parsed_waypoints:
             self.route_waypoints = parsed_waypoints
             self.route_yaws = parsed_yaws
             self.route_lift_heights = parsed_lift_heights
@@ -865,6 +870,33 @@ class ArenaRoamer(Node):
         self.goal_x = None
         self.goal_y = None
         self.get_logger().info('Acceptance route complete.')
+
+    def _waypoint_requires_scan(self, waypoint_index):
+        if waypoint_index >= len(self.route_waypoints):
+            return False
+        lift_height = 0.0
+        if waypoint_index < len(self.route_lift_heights):
+            lift_height = float(self.route_lift_heights[waypoint_index])
+        target_yaw = 0.0
+        if waypoint_index < len(self.route_yaws):
+            target_yaw = float(self.route_yaws[waypoint_index])
+        return abs(lift_height) > 1e-4 or abs(target_yaw) > 1e-4
+
+    def _scan_batch_indices(self, start_index):
+        if start_index >= len(self.route_waypoints):
+            return []
+        base_x, base_y = self.route_waypoints[start_index]
+        base_yaw = self.route_yaws[start_index] if start_index < len(self.route_yaws) else 0.0
+        batch = [start_index]
+        for index in range(start_index + 1, len(self.route_waypoints)):
+            next_x, next_y = self.route_waypoints[index]
+            next_yaw = self.route_yaws[index] if index < len(self.route_yaws) else 0.0
+            if math.hypot(next_x - base_x, next_y - base_y) > self.route_waypoint_tolerance:
+                break
+            if abs(self._normalize(next_yaw - base_yaw)) > math.radians(3.0):
+                break
+            batch.append(index)
+        return batch
 
     def _ir_cb(self, key, msg):
         rmin = msg.range_min if msg.range_min > 0.0 else 0.01
@@ -1834,12 +1866,15 @@ class ArenaRoamer(Node):
         goal_tolerance = self.route_waypoint_tolerance if self.control_mode == 'acceptance_path' else self.goal_reached_tolerance
         if goal_distance <= goal_tolerance:
             if self.control_mode == 'acceptance_path':
-                # FSM handles all advancement — just enter WAYPOINT_SETTLE
-                self.state_name = 'WAYPOINT_SETTLE'
                 self.motion_name = 'STOP'
                 self._reset_motion_selection()
                 self._reset_blocked_side()
                 self._publish_cmd(0.0, 0.0, 0.0)
+                if self._waypoint_requires_scan(self.route_waypoint_index):
+                    self.state_name = 'WAYPOINT_SETTLE'
+                else:
+                    self._advance_route_waypoint('Drive waypoint reached')
+                    self.state_name = 'NAV'
             else:
                 self._choose_new_goal('Goal reached.')
 
@@ -1920,6 +1955,8 @@ class ArenaRoamer(Node):
             if state == 'idle':
                 _hard_stop()
                 f['origin_yaw'] = self._geometry_body_yaw()
+                f['batch_indices'] = self._scan_batch_indices(self.route_waypoint_index)
+                f['level_index'] = 0
                 
                 # Rotate exactly to the absolute target yaw defined in the waypoint array
                 target_yaw = self.route_yaws[self.route_waypoint_index]
@@ -1957,9 +1994,31 @@ class ArenaRoamer(Node):
             # lifting: command lift height, hold for dwell time
             if state == 'lifting':
                 _hard_stop()
-                self._trigger_lift_for_waypoint(self.route_waypoint_index)
+                batch_indices = f.get('batch_indices') or [self.route_waypoint_index]
+                active_index = batch_indices[min(f.get('level_index', 0), len(batch_indices) - 1)]
+                height = self.route_lift_heights[active_index] if active_index < len(self.route_lift_heights) else 0.0
+                msg = Float64()
+                msg.data = max(0.0, min(1.0, height))
+                self.lift_pub.publish(msg)
                 if now - f['start_sec'] >= self.lift_dwell_time:
-                    f['state'] = 'lowering'
+                    if f.get('level_index', 0) + 1 < len(batch_indices):
+                        f['level_index'] = f.get('level_index', 0) + 1
+                        f['state'] = 'next_level'
+                    else:
+                        f['state'] = 'lowering'
+                    f['start_sec'] = now
+                return
+
+            if state == 'next_level':
+                _hard_stop()
+                batch_indices = f.get('batch_indices') or [self.route_waypoint_index]
+                active_index = batch_indices[min(f.get('level_index', 0), len(batch_indices) - 1)]
+                next_height = self.route_lift_heights[active_index] if active_index < len(self.route_lift_heights) else 0.0
+                msg = Float64()
+                msg.data = max(0.0, min(1.0, next_height))
+                self.lift_pub.publish(msg)
+                if now - f['start_sec'] >= 1.0:
+                    f['state'] = 'lifting'
                     f['start_sec'] = now
                 return
 
@@ -1999,6 +2058,8 @@ class ArenaRoamer(Node):
 
             # done: clean up and advance
             if state == 'done':
+                batch_indices = f.get('batch_indices') or [self.route_waypoint_index]
+                self.route_waypoint_index = batch_indices[-1]
                 self._waypoint_scan = None
                 self.route_goal_hold_until_sec = 0.0
                 self._advance_route_waypoint('Scan complete')

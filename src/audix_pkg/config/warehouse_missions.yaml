@@ -1,17 +1,20 @@
-missions: {}
-saved_routines:
-  robot_0_routine:
-    lane_id: 2
-    start_x: -2.5
-    spacing: 1.0
-    scan_duration: 2.0
+missions:
+  default_original:
+    mission_name: default_original
+    source: template
+    mission_mode: default_original
     waypoints:
-    - x: -2.5
-      direction: left
-      levels: 3
-    - x: -1.5
-      direction: left
-      levels: 3
-    - x: -0.5
-      direction: left
-      levels: 3
+      - position: [0.70, -2.40, 0.0]
+        arrival_yaw: 1.5707963267948966
+        position_tolerance: 0.05
+        dwell_time: 0.0
+      - position: [-0.70, 0.00, 0.0]
+        arrival_yaw: 1.5707963267948966
+        position_tolerance: 0.05
+        dwell_time: 0.0
+      - position: [0.70, 2.40, 0.0]
+        arrival_yaw: 1.5707963267948966
+        position_tolerance: 0.05
+        dwell_time: 0.0
+
+saved_routines: {}

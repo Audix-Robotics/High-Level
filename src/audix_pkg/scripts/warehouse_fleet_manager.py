@@ -67,6 +67,12 @@ class WarehouseFleetManager(Node):
         self.declare_parameter('ir_half_fov', 0.30543)
         self.declare_parameter('ir_display_range_min', 0.05)
         self.declare_parameter('ir_display_range_max', 0.25)
+        self.declare_parameter('robot_center_offset_x', 0.0)
+        self.declare_parameter('robot_center_offset_y', 0.0)
+        self.declare_parameter('robot_body_frame_flip_180', True)
+        self.declare_parameter('obstacle_detect_distance', 0.15)
+        self.declare_parameter('obstacle_detect_distance_front', 0.17)
+        self.declare_parameter('obstacle_detect_distance_front_center', 0.15)
 
         self.world_name = str(self.get_parameter('world_name').value)
         self.robot_model_path = str(self.get_parameter('robot_model_path').value)
@@ -81,6 +87,16 @@ class WarehouseFleetManager(Node):
         self.ir_half_fov = float(self.get_parameter('ir_half_fov').value)
         self.ir_display_range_min = float(self.get_parameter('ir_display_range_min').value)
         self.ir_display_range_max = float(self.get_parameter('ir_display_range_max').value)
+        self.robot_center_offset_x = float(self.get_parameter('robot_center_offset_x').value)
+        self.robot_center_offset_y = float(self.get_parameter('robot_center_offset_y').value)
+        self.robot_body_frame_flip_180 = bool(self.get_parameter('robot_body_frame_flip_180').value)
+        self.obstacle_detect_distance = float(self.get_parameter('obstacle_detect_distance').value)
+        self.obstacle_detect_distance_front = float(
+            self.get_parameter('obstacle_detect_distance_front').value
+        )
+        self.obstacle_detect_distance_front_center = float(
+            self.get_parameter('obstacle_detect_distance_front_center').value
+        )
 
         self.warehouse_config = self.load_yaml_config('warehouse_config_path')
         self.missions_config = self.load_yaml_config('missions_config_path')
@@ -112,6 +128,14 @@ class WarehouseFleetManager(Node):
             'front': (-0.20195, 0.00482),
             'front_right': (-0.18323, -0.11962),
             'right': (-0.00537, -0.15346),
+        }
+        self.sensor_topics = {
+            'front': 'ir_front',
+            'front_left': 'ir_front_right',
+            'front_right': 'ir_front_left',
+            'left': 'ir_right',
+            'right': 'ir_left',
+            'back': 'ir_back',
         }
         self.sensor_order = ['front', 'front_left', 'front_right', 'left', 'right', 'back']
 
@@ -153,7 +177,7 @@ class WarehouseFleetManager(Node):
         request = SpawnRobot.Request()
         request.robot_id = robot_index
         request.lane_id = int(
-            default_fleet.get('robots', {}).get(f'robot_{robot_index}', {}).get('lane', robot_index % 5)
+            default_fleet.get('robots', {}).get(f'robot_{robot_index}', {}).get('lane', robot_index % 6)
         )
         response = SpawnRobot.Response()
         lane_config = self._lane_config(request.lane_id)
@@ -189,6 +213,22 @@ class WarehouseFleetManager(Node):
         robot_id = int(request.robot_id)
         lane_id = int(request.lane_id)
         if robot_id in self.spawned_robot_ids:
+            if not self._robot_runtime_healthy(robot_id):
+                lane_config = self._lane_config(lane_id)
+                spawn_x, spawn_y, spawn_yaw = self._spawn_pose_for_robot(robot_id, lane_id, lane_config)
+                success, message = self._recover_existing_robot(
+                    robot_id,
+                    lane_id,
+                    spawn_x,
+                    spawn_y,
+                    spawn_yaw,
+                )
+                response.success = success
+                response.message = message
+                if success:
+                    self.selected_robot_id = robot_id
+                    self.publish_fleet_status()
+                return response
             response.success = False
             response.message = f'robot_{robot_id} already exists'
             return response
@@ -198,10 +238,18 @@ class WarehouseFleetManager(Node):
         success, message = self._spawn_robot_at_pose(robot_id, lane_id, spawn_x, spawn_y, spawn_yaw)
         if not success:
             if 'already exists' in message.lower() or 'entity named' in message.lower():
-                self._register_robot_state(robot_id, lane_id, lane_config, spawn_x, spawn_y)
-                self.selected_robot_id = robot_id
-                response.success = True
-                response.message = f'Attached to existing robot_{robot_id}'
+                success, message = self._recover_existing_robot(
+                    robot_id,
+                    lane_id,
+                    spawn_x,
+                    spawn_y,
+                    spawn_yaw,
+                )
+                response.success = success
+                response.message = message
+                if success:
+                    self.selected_robot_id = robot_id
+                    self.publish_fleet_status()
                 return response
             response.success = False
             response.message = message
@@ -212,7 +260,7 @@ class WarehouseFleetManager(Node):
         self.publish_fleet_status()
         response.success = True
         response.message = (
-            f'Spawned robot_{robot_id} in {lane_config.get("name", lane_id)} '
+            f'Spawned robot_{robot_id} in {lane_config.get("operator_name", f"Lane {lane_id + 1}")} '
             f'at ({spawn_x:.2f}, {spawn_y:.2f})'
         )
         return response
@@ -267,12 +315,16 @@ class WarehouseFleetManager(Node):
         else:
             mission = self.missions_config.get('missions', {}).get(mission_name)
             if mission is None:
+                mission = self._descriptor_from_saved_routine(mission_name)
+            if mission is None:
                 response.success = False
                 response.message = f'Unknown mission: {mission_name}'
                 return response
             descriptor = {
-                'mission_name': mission_name,
-                'source': 'template',
+                'mission_name': mission.get('mission_name', mission_name),
+                'source': mission.get('source', 'template'),
+                'mission_mode': mission.get('mission_mode', mission.get('mode', 'default_original')),
+                'lane_id': mission.get('lane_id'),
                 'waypoints': mission.get('waypoints', []),
             }
 
@@ -327,7 +379,7 @@ class WarehouseFleetManager(Node):
             return
 
         position = msg.pose.pose.position
-        lane_id, lane_name = self._lane_from_y(position.y)
+        lane_id, lane_name = self._lane_from_position(position.x, position.y)
         state = self.robot_states[robot_id]
         orientation = msg.pose.pose.orientation
         state['position'] = (position.x, position.y, position.z)
@@ -388,8 +440,8 @@ class WarehouseFleetManager(Node):
             if robot_id is None:
                 self.get_logger().warn('No free robot slots available for RViz spawn')
                 return
-            lane_id, _ = self._lane_from_y(y_pos)
-            success, message = self._spawn_robot_at_pose(robot_id, lane_id, x_pos, y_pos, 0.0)
+            lane_id, _ = self._lane_from_position(x_pos, y_pos)
+            success, message = self._spawn_robot_at_pose(robot_id, lane_id, x_pos, y_pos, math.pi)
             if success:
                 self.selected_robot_id = robot_id
                 self.pending_waypoints.pop(robot_id, None)
@@ -422,6 +474,34 @@ class WarehouseFleetManager(Node):
         command = msg.data.strip()
         if not command:
             return
+
+        if command.startswith('{'):
+            try:
+                payload = json.loads(command)
+            except json.JSONDecodeError:
+                self.get_logger().warn('Invalid JSON RViz command payload')
+                return
+
+            keyword = str(payload.get('command', '')).strip().lower()
+            if keyword == 'set_waypoints':
+                robot_id = int(payload.get('robot_id', -1))
+                if robot_id not in self.robot_states:
+                    self.get_logger().warn(f'robot_{robot_id} is not active')
+                    return
+                waypoints = []
+                for point in payload.get('waypoints', []):
+                    if len(point) < 2:
+                        continue
+                    waypoints.append((float(point[0]), float(point[1]), float(point[2]) if len(point) > 2 else 0.0))
+                if waypoints:
+                    self.pending_waypoints[robot_id] = waypoints
+                else:
+                    self.pending_waypoints.pop(robot_id, None)
+                self.fleet_viz_pub.publish(self._build_visualization_markers())
+                return
+            self.get_logger().warn(f'Unknown JSON RViz command: {keyword}')
+            return
+
         parts = command.split()
         keyword = parts[0].lower()
 
@@ -511,12 +591,13 @@ class WarehouseFleetManager(Node):
             default_robot = defaults.get(f'robot_{robot_id}', {})
             spawn_x = float(default_robot.get('spawn_x', 0.0))
             spawn_y = float(default_robot.get('spawn_y', lane_config.get('center_y', 0.0)))
-            spawn_yaw = float(default_robot.get('spawn_yaw', 0.0))
+            spawn_yaw = float(default_robot.get('spawn_yaw', math.pi))
             return spawn_x, spawn_y, spawn_yaw
 
-        spawn_x = 0.0
-        spawn_y = float(lane_config.get('center_y', 0.0))
-        spawn_yaw = 0.0
+        home_pad = lane_config.get('home_pad', {})
+        spawn_x = float(home_pad.get('x', 0.0))
+        spawn_y = float(home_pad.get('y', lane_config.get('center_y', 0.0)))
+        spawn_yaw = float(home_pad.get('yaw', math.pi))
         return spawn_x, spawn_y, spawn_yaw
 
     def _spawn_robot_at_pose(self, robot_id, lane_id, spawn_x, spawn_y, spawn_yaw):
@@ -536,6 +617,9 @@ class WarehouseFleetManager(Node):
                 robot_id,
                 robot_name,
                 controller_params_path,
+                spawn_x,
+                spawn_y,
+                spawn_yaw,
             )
             if not runtime_success:
                 self._delete_robot_gz(robot_name)
@@ -545,6 +629,58 @@ class WarehouseFleetManager(Node):
                 return False, runtime_message
             return True, f'Spawned {robot_name} at ({spawn_x:.2f}, {spawn_y:.2f})'
         return False, message
+
+    def _robot_runtime_healthy(self, robot_id):
+        runtime = self.robot_runtime.get(robot_id, {})
+        required_keys = (
+            'robot_state_publisher',
+            'bridge',
+            'ekf',
+            'navigator',
+            'mecanum',
+            'scissor_mapper',
+            'odom_tf',
+        )
+        for key in required_keys:
+            process = runtime.get(key)
+            if process is None or process.poll() is not None:
+                return False
+        return True
+
+    def _recover_existing_robot(self, robot_id, lane_id, spawn_x, spawn_y, spawn_yaw):
+        robot_name = f'robot_{robot_id}'
+        lane_config = self._lane_config(lane_id)
+        controller_params_path = self._write_namespaced_controller_config(robot_id)
+
+        self._stop_robot_runtime(robot_id)
+        self.spawned_robot_ids.discard(robot_id)
+        self.robot_states.pop(robot_id, None)
+        self.pending_waypoints.pop(robot_id, None)
+
+        self._register_robot_state(robot_id, lane_id, lane_config, spawn_x, spawn_y)
+        runtime_success, runtime_message = self._start_robot_runtime(
+            robot_id,
+            robot_name,
+            controller_params_path,
+            spawn_x,
+            spawn_y,
+            spawn_yaw,
+        )
+        if runtime_success:
+            return True, f'Attached to existing {robot_name} and restored runtime'
+
+        self._stop_robot_runtime(robot_id)
+        self.spawned_robot_ids.discard(robot_id)
+        self.robot_states.pop(robot_id, None)
+
+        delete_success, delete_message = self._delete_robot_gz(robot_name)
+        if not delete_success:
+            return False, (
+                f'Failed to recover existing {robot_name}: {runtime_message}. '
+                f'Cleanup also failed: {delete_message}'
+            )
+
+        return self._spawn_robot_at_pose(robot_id, lane_id, spawn_x, spawn_y, spawn_yaw)
 
     def _build_namespaced_model_xml(self, robot_name, controller_params_path):
         with open(self.robot_model_path, 'r', encoding='utf-8') as model_file:
@@ -608,9 +744,9 @@ class WarehouseFleetManager(Node):
         self.spawned_robot_ids.add(robot_id)
         self.robot_states[robot_id] = {
             'position': (spawn_x, spawn_y, self.spawn_z),
-            'yaw': 0.0,
+            'yaw': float(lane_config.get('home_pad', {}).get('yaw', math.pi)),
             'lane_id': lane_id,
-            'lane_name': lane_config.get('name', f'Lane {lane_id}'),
+            'lane_name': lane_config.get('operator_name', f'Lane {lane_id + 1}'),
             'current_mission': '',
             'waypoints_completed': 0,
             'total_waypoints': 0,
@@ -623,7 +759,7 @@ class WarehouseFleetManager(Node):
         if robot_id not in self.robot_odom_subs:
             self.robot_odom_subs[robot_id] = self.create_subscription(
                 Odometry,
-                f'/robot_{robot_id}/odometry/filtered',
+                f'/robot_{robot_id}/mecanum_odom',
                 partial(self.on_robot_odom, robot_id=robot_id),
                 10,
             )
@@ -633,7 +769,7 @@ class WarehouseFleetManager(Node):
                 self.robot_scan_subs[robot_id].append(
                     self.create_subscription(
                         LaserScan,
-                        f'/robot_{robot_id}/ir_{sensor_name}/scan',
+                        f'/robot_{robot_id}/{self.sensor_topics[sensor_name]}/scan',
                         partial(self.on_robot_scan, robot_id=robot_id, sensor_name=sensor_name),
                         10,
                     )
@@ -769,7 +905,7 @@ class WarehouseFleetManager(Node):
             return False, output or f'Failed to start {controller_name} for {robot_name}'
         return True, output or f'Started {controller_name} for {robot_name}'
 
-    def _start_robot_runtime(self, robot_id, robot_name, controller_params_path):
+    def _start_robot_runtime(self, robot_id, robot_name, controller_params_path, spawn_x, spawn_y, spawn_yaw):
         self._stop_robot_runtime(robot_id)
         try:
             params_path = self._write_robot_state_publisher_params(robot_id)
@@ -823,7 +959,7 @@ class WarehouseFleetManager(Node):
                     '--ros-args',
                     '-r', f'__ns:=/{robot_name}',
                     '--params-file', self.ekf_config_path,
-                    '-r', '/odom:=odom',
+                    '-r', '/odom:=mecanum_odom',
                     '-r', '/imu:=imu',
                     '-r', '/odometry/filtered:=odometry/filtered',
                     '-p', 'use_sim_time:=true',
@@ -838,7 +974,7 @@ class WarehouseFleetManager(Node):
                     '--ros-args',
                     '-r', f'__ns:=/{robot_name}',
                     '--params-file', self.mission_params_path,
-                    '-r', '/odometry/filtered:=odometry/filtered',
+                    '-r', '/odometry/filtered:=mecanum_odom',
                     '-r', '/cmd_vel:=cmd_vel',
                     '-r', '/scissor_lift/slider:=scissor_lift/slider',
                     '-r', '/ir_front/scan:=ir_front/scan',
@@ -854,7 +990,7 @@ class WarehouseFleetManager(Node):
                     '-r', '/debug/state:=debug/state',
                     '-r', '/robot_enable:=robot_enable',
                     '-p', 'use_sim_time:=true',
-                    '-p', 'start_enabled:=true',
+                    '-p', 'start_enabled:=false',
                     '-p', 'enable_dynamic_missions:=true',
                 ],
             )
@@ -867,7 +1003,10 @@ class WarehouseFleetManager(Node):
                     '-r', f'__ns:=/{robot_name}',
                     '-r', 'joint_states:=joint_state_broadcaster/joint_states',
                     '-p', 'use_sim_time:=true',
-                    '-p', 'publish_odom:=false',
+                    '-p', 'publish_odom:=true',
+                    '-p', f'initial_x:={spawn_x}',
+                    '-p', f'initial_y:={spawn_y}',
+                    '-p', f'initial_yaw:={spawn_yaw}',
                 ],
             )
             self._spawn_process(
@@ -888,7 +1027,7 @@ class WarehouseFleetManager(Node):
                     'ros2', 'run', 'audix', 'odom_tf_broadcaster.py',
                     '--ros-args',
                     '-p', 'use_sim_time:=true',
-                    '-p', f'odom_topic:=/{robot_name}/odometry/filtered',
+                    '-p', f'odom_topic:=/{robot_name}/mecanum_odom',
                     '-p', 'odom_frame:=odom',
                     '-p', f'base_frame:={robot_name}/base_footprint',
                 ],
@@ -928,7 +1067,7 @@ class WarehouseFleetManager(Node):
             f'fleet_robot_navigator.py.*__ns:=/{robot_name}',
             f'mecanum_kinematics.py.*__ns:=/{robot_name}',
             f'scissor_lift_mapper.py.*__ns:=/{robot_name}',
-            f'odom_tf_broadcaster.py.*odom_topic:=/{robot_name}/odom',
+            f'odom_tf_broadcaster.py.*odom_topic:=/{robot_name}/mecanum_odom',
             f'parameter_bridge.*/{robot_name}/cmd_vel@',
         ]
         for pattern in fallback_patterns:
@@ -991,17 +1130,25 @@ class WarehouseFleetManager(Node):
         return True, output
 
 
-    def _lane_from_y(self, y_position):
+    def _lane_from_position(self, x_position, y_position):
         lanes = self.warehouse_config.get('lanes', {})
         for lane_key, lane_config in lanes.items():
-            if lane_config.get('min_y', -999.0) <= y_position <= lane_config.get('max_y', 999.0):
-                return int(lane_key.split('_')[-1]), lane_config.get('name', lane_key)
+            if (
+                float(lane_config.get('min_x', -999.0)) <= x_position <= float(lane_config.get('max_x', 999.0))
+                and float(lane_config.get('min_y', -999.0)) <= y_position <= float(lane_config.get('max_y', 999.0))
+            ):
+                lane_id = int(lane_key.split('_')[-1])
+                return lane_id, lane_config.get('operator_name', f'Lane {lane_id + 1}')
 
         nearest_lane = min(
             lanes.items(),
-            key=lambda item: abs(float(item[1].get('center_y', 0.0)) - y_position),
+            key=lambda item: math.hypot(
+                float(item[1].get('center_x', 0.0)) - x_position,
+                float(item[1].get('center_y', 0.0)) - y_position,
+            ),
         )
-        return int(nearest_lane[0].split('_')[-1]), nearest_lane[1].get('name', nearest_lane[0])
+        lane_id = int(nearest_lane[0].split('_')[-1])
+        return lane_id, nearest_lane[1].get('operator_name', f'Lane {lane_id + 1}')
 
     def _build_path_message(self, descriptor):
         path_msg = Path()
@@ -1018,6 +1165,60 @@ class WarehouseFleetManager(Node):
             pose.pose.orientation.w = 1.0
             path_msg.poses.append(pose)
         return path_msg
+
+    def _descriptor_from_saved_routine(self, routine_name):
+        routine = self.missions_config.get('saved_routines', {}).get(routine_name)
+        if routine is None:
+            return None
+        if isinstance(routine.get('descriptor'), dict):
+            descriptor = dict(routine['descriptor'])
+            descriptor.setdefault('mission_name', routine_name)
+            descriptor.setdefault('source', routine.get('mode', 'saved_routine'))
+            descriptor.setdefault('mission_mode', routine.get('mode', 'saved_routine'))
+            descriptor.setdefault('lane_id', routine.get('lane_id'))
+            return descriptor
+        if 'waypoints' not in routine:
+            return None
+        lane_id = int(routine.get('lane_id', 0))
+        lane_cfg = self._lane_config(lane_id)
+        lane_x = float(lane_cfg.get('center_x', 0.0))
+        descriptor = {
+            'mission_name': routine_name,
+            'source': 'saved_routine',
+            'mission_mode': routine.get('mode', 'saved_routine'),
+            'lane_id': lane_id,
+            'waypoints': [],
+        }
+        for waypoint in routine.get('waypoints', []):
+            direction = str(waypoint.get('direction', 'right')).strip().lower()
+            scan_yaw = self._scan_yaw_from_direction(direction, lane_cfg)
+            levels = max(1, int(waypoint.get('levels', 1)))
+            for level_index in range(levels):
+                descriptor['waypoints'].append(
+                    {
+                        'position': [float(waypoint.get('x', lane_x)), float(waypoint.get('y', 0.0)), 0.0],
+                        'lift_height': self._lift_height_for_level(level_index + 1),
+                        'scan_yaw': scan_yaw,
+                        'dwell_time': float(routine.get('scan_duration', 0.0)),
+                        'position_tolerance': 0.05,
+                    }
+                )
+        return descriptor
+
+    def _scan_yaw_from_direction(self, direction, lane_cfg=None):
+        if lane_cfg is not None and direction in {'lane', 'shelf', 'auto'}:
+            return float(lane_cfg.get('scan_yaw', 0.0))
+        lookup = {
+            'left': math.pi / 2.0,
+            'right': -math.pi / 2.0,
+            'forward': 0.0,
+            'back': math.pi,
+        }
+        return lookup.get(direction, float((lane_cfg or {}).get('scan_yaw', 0.0)))
+
+    def _lift_height_for_level(self, level):
+        mapping = {1: 0.34, 2: 0.67, 3: 1.0}
+        return mapping.get(int(level), 1.0)
 
     def _build_robot_status_msg(self, robot_id, state):
         msg = RobotStatus()
@@ -1052,6 +1253,10 @@ class WarehouseFleetManager(Node):
         clear.action = Marker.DELETEALL
         markers.markers.append(clear)
         marker_id = 1
+
+        lane_markers = self._build_lane_guide_markers(timestamp, marker_id)
+        markers.markers.extend(lane_markers)
+        marker_id = len(markers.markers)
 
         for robot_id, state in sorted(self.robot_states.items()):
             x_pos, y_pos, z_pos = state.get('position', (0.0, 0.0, 0.0))
@@ -1148,6 +1353,81 @@ class WarehouseFleetManager(Node):
 
         return markers
 
+    def _build_lane_guide_markers(self, timestamp, start_id):
+        markers = []
+        marker_id = start_id
+        lanes = self.warehouse_config.get('lanes', {})
+        for lane_key, lane_cfg in sorted(lanes.items(), key=lambda item: int(item[0].split('_')[-1])):
+            lane_id = int(lane_key.split('_')[-1])
+            bounds = lane_cfg.get(
+                'stop_range_x',
+                [
+                    self.warehouse_config.get('warehouse', {}).get('bounds', {}).get('min_x', -2.0),
+                    self.warehouse_config.get('warehouse', {}).get('bounds', {}).get('max_x', 2.0),
+                ],
+            )
+            line = Marker()
+            line.header.frame_id = 'odom'
+            line.header.stamp = timestamp
+            line.ns = 'fleet_lane_guides'
+            line.id = marker_id
+            line.type = Marker.LINE_STRIP
+            line.action = Marker.ADD
+            line.pose.orientation.w = 1.0
+            line.scale.x = 0.03
+            color = lane_cfg.get('color', [0.6, 0.6, 0.6])
+            line.color.r = float(color[0])
+            line.color.g = float(color[1])
+            line.color.b = float(color[2])
+            line.color.a = 0.5
+            line.points.append(self._make_marker_point(float(bounds[0]), float(lane_cfg.get('center_y', 0.0)), 0.03))
+            line.points.append(self._make_marker_point(float(bounds[1]), float(lane_cfg.get('center_y', 0.0)), 0.03))
+            markers.append(line)
+            marker_id += 1
+
+            home_pad = lane_cfg.get('home_pad', {})
+            pad = Marker()
+            pad.header.frame_id = 'odom'
+            pad.header.stamp = timestamp
+            pad.ns = 'fleet_home_pads'
+            pad.id = marker_id
+            pad.type = Marker.CYLINDER
+            pad.action = Marker.ADD
+            pad.pose.position.x = float(home_pad.get('x', 0.0))
+            pad.pose.position.y = float(home_pad.get('y', lane_cfg.get('center_y', 0.0)))
+            pad.pose.position.z = 0.015
+            pad.pose.orientation.w = 1.0
+            pad.scale.x = 0.36
+            pad.scale.y = 0.36
+            pad.scale.z = 0.03
+            pad.color.r = float(color[0])
+            pad.color.g = float(color[1])
+            pad.color.b = float(color[2])
+            pad.color.a = 0.32
+            markers.append(pad)
+            marker_id += 1
+
+            label = Marker()
+            label.header.frame_id = 'odom'
+            label.header.stamp = timestamp
+            label.ns = 'fleet_lane_labels'
+            label.id = marker_id
+            label.type = Marker.TEXT_VIEW_FACING
+            label.action = Marker.ADD
+            label.pose.position.x = float(home_pad.get('x', 0.0)) + 0.45
+            label.pose.position.y = float(home_pad.get('y', lane_cfg.get('center_y', 0.0)))
+            label.pose.position.z = 0.18
+            label.pose.orientation.w = 1.0
+            label.scale.z = 0.14
+            label.color.r = 1.0
+            label.color.g = 1.0
+            label.color.b = 1.0
+            label.color.a = 0.95
+            label.text = lane_cfg.get('operator_name', f'Lane {lane_id + 1}')
+            markers.append(label)
+            marker_id += 1
+        return markers
+
     def _build_pending_waypoint_markers(self, timestamp, start_id):
         markers = []
         marker_id = start_id
@@ -1220,7 +1500,12 @@ class WarehouseFleetManager(Node):
 
     def _sensor_origin_body(self, sensor_name):
         sensor_x, sensor_y = self.sensor_positions[sensor_name]
-        return -0.16 - sensor_x, -0.15 - sensor_y
+        return self.robot_center_offset_x - sensor_x, self.robot_center_offset_y - sensor_y
+
+    def _geometry_body_yaw(self, yaw):
+        if self.robot_body_frame_flip_180:
+            return yaw + math.pi
+        return yaw
 
     def _sensor_direction_body(self, sensor_name):
         directions = {
@@ -1247,6 +1532,15 @@ class WarehouseFleetManager(Node):
         world_y = body_x * math.sin(yaw) + body_y * math.cos(yaw)
         return center_x + world_x, center_y + world_y
 
+    def _sensor_hit_active(self, sensor_name, sensor_range):
+        if not math.isfinite(sensor_range):
+            return False
+        if sensor_name == 'front':
+            return sensor_range <= self.obstacle_detect_distance_front_center
+        if sensor_name in {'front_left', 'front_right'}:
+            return sensor_range <= self.obstacle_detect_distance_front
+        return sensor_range <= self.obstacle_detect_distance
+
     def _ir_cone_color(self, sensor_name):
         if sensor_name == 'front':
             return 1.0, 0.35, 0.25
@@ -1266,9 +1560,10 @@ class WarehouseFleetManager(Node):
 
         for sensor_name in self.sensor_order:
             origin_body_x, origin_body_y = self._sensor_origin_body(sensor_name)
-            origin_x, origin_y = self._body_point_to_world(origin_body_x, origin_body_y, x_pos, y_pos, yaw + math.pi)
+            geometry_yaw = self._geometry_body_yaw(yaw)
+            origin_x, origin_y = self._body_point_to_world(origin_body_x, origin_body_y, x_pos, y_pos, geometry_yaw)
             dir_body_x, dir_body_y = self._sensor_direction_body(sensor_name)
-            sensor_yaw = yaw + math.pi + math.atan2(dir_body_y, dir_body_x)
+            sensor_yaw = geometry_yaw + math.atan2(dir_body_y, dir_body_x)
             sensor_range = sensor_ranges.get(sensor_name, float('inf'))
             range_max = sensor_max_ranges.get(sensor_name, self.ir_display_range_max)
             display_range = range_max
@@ -1308,7 +1603,7 @@ class WarehouseFleetManager(Node):
             markers.append(outline)
             marker_id += 1
 
-            if math.isfinite(sensor_range):
+            if self._sensor_hit_active(sensor_name, sensor_range):
                 hit = Marker()
                 hit.header.frame_id = 'odom'
                 hit.header.stamp = timestamp

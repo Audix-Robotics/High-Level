@@ -23,6 +23,22 @@ kill_pattern() {
   pkill "$signal" -f "$pattern" 2>/dev/null || true
 }
 
+cleanup_all() {
+  for pattern in "${patterns[@]}"; do
+    kill_pattern -TERM "$pattern"
+  done
+  sleep 2
+  for pattern in "${patterns[@]}"; do
+    kill_pattern -KILL "$pattern"
+  done
+  kill_pattern -TERM 'gz gui'
+  kill_pattern -TERM 'gz sim'
+  kill_pattern -TERM 'ign gazebo'
+  kill_pattern -KILL 'gz gui'
+  kill_pattern -KILL 'gz sim'
+  kill_pattern -KILL 'ign gazebo'
+}
+
 echo "[run_fleet_phase] Killing lingering fleet, Gazebo, and ROS processes..."
 
 patterns=(
@@ -63,9 +79,7 @@ done
 
 sleep 2
 
-for pattern in "${patterns[@]}"; do
-  kill_pattern -KILL "$pattern"
-done
+cleanup_all
 
 rm -f /tmp/audix_fleet_models/robot_*.urdf /tmp/audix_fleet_models/robot_*_controllers.yaml /tmp/audix_fleet_models/robot_*_rsp.yaml 2>/dev/null || true
 ros2 daemon stop >/dev/null 2>&1 || true
@@ -91,10 +105,14 @@ if [[ "$MODE" == "gui" ]]; then
   USE_OBSTACLE_MANAGER=true
 fi
 
-exec ros2 launch audix full_mission_fleet.launch.py \
+trap cleanup_all EXIT INT TERM
+
+ros2 launch audix full_mission_fleet.launch.py \
   num_robots:="$NUM_ROBOTS" \
   use_fleet_manager:=true \
   use_gazebo_gui:="$USE_GAZEBO_GUI" \
   use_rviz:="$USE_RVIZ" \
   use_spawn_panel:="$USE_SPAWN_PANEL" \
   use_obstacle_manager:="$USE_OBSTACLE_MANAGER"
+
+wait
