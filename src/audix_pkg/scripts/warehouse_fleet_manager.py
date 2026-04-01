@@ -600,6 +600,9 @@ class WarehouseFleetManager(Node):
         spawn_yaw = float(home_pad.get('yaw', math.pi))
         return spawn_x, spawn_y, spawn_yaw
 
+    def _physical_spawn_yaw(self, logical_yaw):
+        return logical_yaw
+
     def _spawn_robot_at_pose(self, robot_id, lane_id, spawn_x, spawn_y, spawn_yaw):
         robot_name = f'robot_{robot_id}'
         lane_config = self._lane_config(lane_id)
@@ -1030,6 +1033,7 @@ class WarehouseFleetManager(Node):
                     '-p', f'odom_topic:=/{robot_name}/mecanum_odom',
                     '-p', 'odom_frame:=odom',
                     '-p', f'base_frame:={robot_name}/base_footprint',
+                    '-p', 'robot_body_frame_flip_180:=false',
                 ],
             )
         except (OSError, subprocess.SubprocessError) as exc:
@@ -1075,6 +1079,7 @@ class WarehouseFleetManager(Node):
 
     def _spawn_robot_gz(self, robot_name, spawn_x, spawn_y, spawn_yaw, controller_params_path):
         robot_xml = self._build_namespaced_model_xml(robot_name, controller_params_path)
+        physical_spawn_yaw = self._physical_spawn_yaw(spawn_yaw)
         try:
             temp_path = self.generated_model_dir / f'{robot_name}.urdf'
             temp_path.write_text(robot_xml, encoding='utf-8')
@@ -1089,7 +1094,7 @@ class WarehouseFleetManager(Node):
                     '-z', str(self.spawn_z),
                     '-R', '0.0',
                     '-P', '0.0',
-                    '-Y', str(spawn_yaw),
+                    '-Y', str(physical_spawn_yaw),
                 ],
                 capture_output=True,
                 text=True,
@@ -1503,9 +1508,7 @@ class WarehouseFleetManager(Node):
         return self.robot_center_offset_x - sensor_x, self.robot_center_offset_y - sensor_y
 
     def _geometry_body_yaw(self, yaw):
-        if self.robot_body_frame_flip_180:
-            return yaw + math.pi
-        return yaw
+        return yaw + math.pi
 
     def _sensor_direction_body(self, sensor_name):
         directions = {
@@ -1685,7 +1688,8 @@ def main(args=None):
         for robot_id in list(node.robot_runtime):
             node._stop_robot_runtime(robot_id)
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == '__main__':

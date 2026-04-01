@@ -134,7 +134,7 @@ class WarehouseFleetSpawnPanel(Node):
 
     def _lane_choice_from_name(self, lane_name):
         lane_name = (lane_name or '').strip().lower()
-        for label, lane_id in self.lane_choices:
+        for label, lane_id in self.mission_lane_choices:
             if lane_id < 0:
                 continue
             lane_cfg = self.warehouse_config.get('lanes', {}).get(f'lane_{lane_id}', {})
@@ -464,7 +464,7 @@ class WarehouseFleetSpawnPanel(Node):
     def spawn_fleet(self):
         if not self._wait_for_service(self.spawn_robot_client, 'Spawn Robot'):
             return
-        lane_count = max(1, len(self.lane_choices))
+        lane_count = max(1, len(self.spawn_lane_choices))
         for robot_id in range(self.num_robots_var.get()):
             request = SpawnRobot.Request()
             request.robot_id = robot_id
@@ -561,7 +561,7 @@ class WarehouseFleetSpawnPanel(Node):
 
     def _active_lane_id_for_robot(self, robot_id):
         lane_name = self.latest_status.get(robot_id, {}).get('lane_name', '').strip().lower()
-        for label, lane_id in self.lane_choices:
+        for label, lane_id in self.mission_lane_choices:
             if lane_id < 0:
                 continue
             lane_cfg = self._lane_config(lane_id)

@@ -16,10 +16,12 @@ class OdomTfBroadcaster(Node):
         self.declare_parameter('odom_topic', '/odom')
         self.declare_parameter('odom_frame', 'odom')
         self.declare_parameter('base_frame', 'base_link')
+        self.declare_parameter('robot_body_frame_flip_180', False)
 
         self._odom_topic = self.get_parameter('odom_topic').get_parameter_value().string_value
         self._odom_frame = self.get_parameter('odom_frame').get_parameter_value().string_value
         self._base_frame = self.get_parameter('base_frame').get_parameter_value().string_value
+        self._flip_180 = bool(self.get_parameter('robot_body_frame_flip_180').value)
         self._latest_translation = None
         self._latest_rotation = None
         self._received_odom = False
@@ -46,21 +48,18 @@ class OdomTfBroadcaster(Node):
         self._latest_translation = msg.pose.pose.position
 
         orientation = msg.pose.pose.orientation
-        norm = math.sqrt(
-            orientation.x * orientation.x
-            + orientation.y * orientation.y
-            + orientation.z * orientation.z
-            + orientation.w * orientation.w
+        yaw = math.atan2(
+            2.0 * (orientation.w * orientation.z + orientation.x * orientation.y),
+            1.0 - 2.0 * (orientation.y * orientation.y + orientation.z * orientation.z),
         )
-        if norm > 0.0:
-            self._latest_rotation = (
-                orientation.x / norm,
-                orientation.y / norm,
-                orientation.z / norm,
-                orientation.w / norm,
-            )
-        else:
-            self._latest_rotation = (0.0, 0.0, 0.0, 1.0)
+        if self._flip_180:
+            yaw = math.atan2(math.sin(yaw - math.pi), math.cos(yaw - math.pi))
+        self._latest_rotation = (
+            0.0,
+            0.0,
+            math.sin(yaw * 0.5),
+            math.cos(yaw * 0.5),
+        )
 
     def _publish_latest_transform(self) -> None:
         if self._latest_translation is None or self._latest_rotation is None:
@@ -93,7 +92,8 @@ def main() -> None:
         rclpy.spin(node)
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == '__main__':

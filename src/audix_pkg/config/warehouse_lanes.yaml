@@ -1,7 +1,7 @@
 warehouse:
   bounds:
     min_x: -2.90
-    max_x: 2.90
+    max_x: 5.90
     min_y: -4.80
     max_y: 4.80
 
@@ -28,17 +28,17 @@ lanes:
     name: "Lane 1"
     shelf: shelf_a
     side: lower
-    min_x: 0.35
-    max_x: 1.95
+    min_x: 1.05
+    max_x: 3.65
     min_y: 1.20
     max_y: 1.70
-    center_x: 1.15
+    center_x: 2.35
     center_y: 1.45
     width: 0.60
-    home_pad: {x: 0.50, y: 1.45, yaw: 0.0}
-    stop_range_x: [0.65, 1.85]
-    return_pad: {x: 0.50, y: 1.45}
-    scan_yaw: 0.0
+    home_pad: {x: 3.50, y: 1.45, yaw: 0.0}
+    stop_range_x: [3.50, 1.30]
+    return_pad: {x: 3.50, y: 1.45}
+    scan_yaw: 3.141592653589793
     color: [0.98, 0.88, 0.14]
 
   lane_1:
@@ -46,17 +46,17 @@ lanes:
     name: "Lane 2"
     shelf: shelf_a
     side: upper
-    min_x: 0.35
-    max_x: 1.95
+    min_x: 1.05
+    max_x: 3.65
     min_y: 2.70
     max_y: 3.20
-    center_x: 1.15
+    center_x: 2.35
     center_y: 2.95
     width: 0.60
-    home_pad: {x: 0.50, y: 2.95, yaw: 0.0}
-    stop_range_x: [0.65, 1.85]
-    return_pad: {x: 0.50, y: 2.95}
-    scan_yaw: 0.0
+    home_pad: {x: 3.50, y: 2.95, yaw: 0.0}
+    stop_range_x: [3.50, 1.30]
+    return_pad: {x: 3.50, y: 2.95}
+    scan_yaw: 3.141592653589793
     color: [0.90, 0.78, 0.10]
 
   lane_2:
@@ -64,17 +64,17 @@ lanes:
     name: "Lane 3"
     shelf: shelf_b
     side: lower
-    min_x: 0.35
-    max_x: 1.95
+    min_x: 1.05
+    max_x: 3.65
     min_y: -1.05
     max_y: -0.45
-    center_x: 1.15
+    center_x: 2.35
     center_y: -0.75
     width: 0.60
-    home_pad: {x: 0.50, y: -0.75, yaw: 0.0}
-    stop_range_x: [0.65, 1.85]
-    return_pad: {x: 0.50, y: -0.75}
-    scan_yaw: 0.0
+    home_pad: {x: 3.50, y: -0.75, yaw: 0.0}
+    stop_range_x: [3.50, 1.30]
+    return_pad: {x: 3.50, y: -0.75}
+    scan_yaw: 3.141592653589793
     color: [1.0, 0.52, 0.10]
 
   lane_3:
@@ -82,17 +82,17 @@ lanes:
     name: "Lane 4"
     shelf: shelf_b
     side: upper
-    min_x: 0.35
-    max_x: 1.95
+    min_x: 1.05
+    max_x: 3.65
     min_y: 0.45
     max_y: 1.05
-    center_x: 1.15
+    center_x: 2.35
     center_y: 0.75
     width: 0.60
-    home_pad: {x: 0.50, y: 0.75, yaw: 0.0}
-    stop_range_x: [0.65, 1.85]
-    return_pad: {x: 0.50, y: 0.75}
-    scan_yaw: 0.0
+    home_pad: {x: 3.50, y: 0.75, yaw: 0.0}
+    stop_range_x: [3.50, 1.30]
+    return_pad: {x: 3.50, y: 0.75}
+    scan_yaw: 3.141592653589793
     color: [0.92, 0.42, 0.08]
 
   lane_4:
@@ -100,17 +100,17 @@ lanes:
     name: "Lane 5"
     shelf: shelf_c
     side: lower
-    min_x: 0.35
-    max_x: 1.95
+    min_x: 1.05
+    max_x: 3.65
     min_y: -3.20
     max_y: -2.70
-    center_x: 1.15
+    center_x: 2.35
     center_y: -2.95
     width: 0.60
-    home_pad: {x: 0.50, y: -2.95, yaw: 0.0}
-    stop_range_x: [0.65, 1.85]
-    return_pad: {x: 0.50, y: -2.95}
-    scan_yaw: 0.0
+    home_pad: {x: 3.50, y: -2.95, yaw: 0.0}
+    stop_range_x: [3.50, 1.30]
+    return_pad: {x: 3.50, y: -2.95}
+    scan_yaw: 3.141592653589793
     color: [1.0, 0.22, 0.18]
 
   lane_5:
@@ -118,17 +118,17 @@ lanes:
     name: "Lane 6"
     shelf: shelf_c
     side: upper
-    min_x: 0.35
-    max_x: 1.95
+    min_x: 1.05
+    max_x: 3.65
     min_y: -1.70
     max_y: -1.20
-    center_x: 1.15
+    center_x: 2.35
     center_y: -1.45
     width: 0.60
-    home_pad: {x: 0.50, y: -1.45, yaw: 0.0}
-    stop_range_x: [0.65, 1.85]
-    return_pad: {x: 0.50, y: -1.45}
-    scan_yaw: 0.0
+    home_pad: {x: 3.50, y: -1.45, yaw: 0.0}
+    stop_range_x: [3.50, 1.30]
+    return_pad: {x: 3.50, y: -1.45}
+    scan_yaw: 3.141592653589793
     color: [0.88, 0.16, 0.14]
 
 scan_shelves:
@@ -157,18 +157,18 @@ default_fleet:
   robots:
     robot_0:
       lane: 0
-      spawn_x: 0.50
+      spawn_x: 3.50
       spawn_y: 1.45
       spawn_yaw: 0.0
 
     robot_1:
       lane: 2
-      spawn_x: 0.50
+      spawn_x: 3.50
       spawn_y: -0.75
       spawn_yaw: 0.0
 
     robot_2:
       lane: 4
-      spawn_x: 0.50
+      spawn_x: 3.50
       spawn_y: -2.95
       spawn_yaw: 0.0

@@ -57,11 +57,12 @@
     </model>
 
     <!-- ============================================================ -->
-    <!--  AWS WAREHOUSE SHELL — scaled 0.5 to fit the robot area      -->
-    <!--  All visual-only, visibility_flags 0x02 = invisible to lidar -->
+    <!--  AWS WAREHOUSE SHELL — stretched in +X to match extended     -->
+    <!--  right-side lane space while remaining visual-only.          -->
     <!-- ============================================================ -->
     <model name='aws_visual_shell'>
       <static>true</static>
+      <pose>1.50 0 0 0 0 0</pose>
       <link name='link'>
         <!-- Ground (floor with painted markings) -->
         <visual name='aws_ground_visual'>
@@ -70,7 +71,7 @@
           <geometry>
             <mesh>
               <uri>model://aws_robomaker_warehouse_GroundB_01/meshes/aws_robomaker_warehouse_GroundB_01_visual.DAE</uri>
-              <scale>0.5 0.5 0.5</scale>
+              <scale>0.75862069 0.5 0.5</scale>
             </mesh>
           </geometry>
         </visual>
@@ -81,7 +82,7 @@
           <geometry>
             <mesh>
               <uri>model://aws_robomaker_warehouse_WallB_01/meshes/aws_robomaker_warehouse_WallB_01_visual.DAE</uri>
-              <scale>0.5 0.5 0.5</scale>
+              <scale>0.75862069 0.5 0.5</scale>
             </mesh>
           </geometry>
         </visual>
@@ -92,7 +93,7 @@
           <geometry>
             <mesh>
               <uri>model://aws_robomaker_warehouse_RoofB_01/meshes/aws_robomaker_warehouse_RoofB_01_visual.DAE</uri>
-              <scale>0.5 0.5 0.5</scale>
+              <scale>0.75862069 0.5 0.5</scale>
             </mesh>
           </geometry>
         </visual>
@@ -100,26 +101,27 @@
     </model>
 
     <!-- ============================================================ -->
-    <!--  COLLISION WALLS — invisible boxes matching scaled warehouse  -->
-    <!--  ~5.75m (X) x 9.55m (Y), centered at origin                 -->
+    <!--  COLLISION WALLS — invisible boxes matching active lane area -->
+    <!--  Extended east-side bounds keep fleet pads clear of the old  -->
+    <!--  warehouse shell collision line.                             -->
     <!-- ============================================================ -->
     <model name='warehouse_bounds_collision'>
       <static>true</static>
       <link name='link'>
         <collision name='wall_north'>
-          <pose>0.0 4.80 0.75 0 0 0</pose>
-          <geometry><box><size>5.80 0.12 1.5</size></box></geometry>
+          <pose>1.50 4.80 0.75 0 0 0</pose>
+          <geometry><box><size>8.80 0.12 1.5</size></box></geometry>
         </collision>
         <collision name='wall_south'>
-          <pose>0.0 -4.80 0.75 0 0 0</pose>
-          <geometry><box><size>5.80 0.12 1.5</size></box></geometry>
+          <pose>1.50 -4.80 0.75 0 0 0</pose>
+          <geometry><box><size>8.80 0.12 1.5</size></box></geometry>
         </collision>
         <collision name='wall_west'>
           <pose>-2.90 0.0 0.75 0 0 0</pose>
           <geometry><box><size>0.12 9.60 1.5</size></box></geometry>
         </collision>
         <collision name='wall_east'>
-          <pose>2.90 0.0 0.75 0 0 0</pose>
+          <pose>5.90 0.0 0.75 0 0 0</pose>
           <geometry><box><size>0.12 9.60 1.5</size></box></geometry>
         </collision>
       </link>
