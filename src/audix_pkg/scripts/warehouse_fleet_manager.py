@@ -300,16 +300,21 @@ class WarehouseFleetManager(Node):
                     or abs(float(pose.orientation.w) - 1.0) > 1e-6
                 )
                 if has_program_metadata:
-                    waypoint['dwell_time'] = max(0.0, float(pose.orientation.y))
-                    waypoint['lift_height'] = max(0.0, float(pose.orientation.x))
-                    waypoint['scan_yaw'] = math.atan2(
+                    decoded_yaw = math.atan2(
                         2.0 * pose.orientation.w * pose.orientation.z,
                         1.0 - 2.0 * pose.orientation.z * pose.orientation.z,
                     )
+                    if float(pose.orientation.x) < -0.5:
+                        waypoint['arrival_yaw'] = decoded_yaw
+                    else:
+                        waypoint['dwell_time'] = max(0.0, float(pose.orientation.y))
+                        waypoint['lift_height'] = max(0.0, float(pose.orientation.x))
+                        waypoint['scan_yaw'] = decoded_yaw
                 waypoints.append(waypoint)
             descriptor = {
                 'mission_name': mission_name or f'custom_robot_{robot_id}',
-                'source': 'custom',
+                'source': self._infer_custom_mission_mode(mission_name),
+                'mission_mode': self._infer_custom_mission_mode(mission_name),
                 'waypoints': waypoints,
             }
         else:
@@ -327,6 +332,8 @@ class WarehouseFleetManager(Node):
                 'lane_id': mission.get('lane_id'),
                 'waypoints': mission.get('waypoints', []),
             }
+
+        descriptor = self._normalize_descriptor(descriptor)
 
         self._publish_robot_mission(robot_id, descriptor)
         self.publish_fleet_status()
@@ -798,7 +805,7 @@ class WarehouseFleetManager(Node):
         self.robot_mission_pubs[robot_id].publish(self._build_path_message(descriptor))
 
         self.robot_states[robot_id]['current_mission'] = descriptor['mission_name']
-        self.robot_states[robot_id]['total_waypoints'] = len(descriptor['waypoints'])
+        self.robot_states[robot_id]['total_waypoints'] = int(descriptor.get('stop_count', len(descriptor['waypoints'])))
         self.robot_states[robot_id]['waypoints_completed'] = 0
         self.robot_states[robot_id]['mission_progress_pct'] = 0.0
         self.robot_states[robot_id]['robot_state'] = 'MOVING'
@@ -899,6 +906,23 @@ class WarehouseFleetManager(Node):
         params_path.write_text(yaml.safe_dump(override_config, sort_keys=False), encoding='utf-8')
         return params_path
 
+    def _write_roamer_override_params(self, robot_id):
+        robot_name = f'robot_{robot_id}'
+        params_path = self.generated_model_dir / f'{robot_name}_arena_roamer.yaml'
+        base_config = yaml.safe_load(FilePath(self.mission_params_path).read_text(encoding='utf-8')) or {}
+        params = dict(base_config.get('arena_roamer', {}).get('ros__parameters', {}))
+        params.update(
+            {
+                'use_sim_time': True,
+                'debug_frame_id': 'odom',
+                'start_enabled': False,
+                'enable_dynamic_missions': True,
+            }
+        )
+        override_config = {'/**': {'ros__parameters': params}}
+        params_path.write_text(yaml.safe_dump(override_config, sort_keys=False), encoding='utf-8')
+        return params_path
+
     def _spawn_process(self, robot_id, key, command):
         process = subprocess.Popen(
             command,
@@ -933,6 +957,7 @@ class WarehouseFleetManager(Node):
         try:
             params_path = self._write_robot_state_publisher_params(robot_id)
             ekf_params_path = self._write_ekf_override_params(robot_id)
+            roamer_params_path = self._write_roamer_override_params(robot_id)
             self._spawn_process(
                 robot_id,
                 'robot_state_publisher',
@@ -1022,7 +1047,7 @@ class WarehouseFleetManager(Node):
                     'ros2', 'run', 'audix', 'arena_roamer.py',
                     '--ros-args',
                     '-r', f'__ns:=/{robot_name}',
-                    '--params-file', self.mission_params_path,
+                    '--params-file', str(roamer_params_path),
                     '-r', '/odometry/filtered:=odometry/filtered',
                     '-r', '/cmd_vel:=cmd_vel',
                     '-r', '/scissor_lift/slider:=scissor_lift/slider',
@@ -1038,10 +1063,6 @@ class WarehouseFleetManager(Node):
                     '-r', '/debug/targets:=debug/targets',
                     '-r', '/debug/state:=debug/state',
                     '-r', '/robot_enable:=robot_enable',
-                    '-p', 'use_sim_time:=true',
-                    '-p', 'debug_frame_id:=odom',
-                    '-p', 'start_enabled:=false',
-                    '-p', 'enable_dynamic_missions:=true',
                 ],
             )
             self._spawn_process(
@@ -1206,6 +1227,84 @@ class WarehouseFleetManager(Node):
             path_msg.poses.append(pose)
         return path_msg
 
+    def _infer_custom_mission_mode(self, mission_name):
+        mission_name = (mission_name or '').strip().lower()
+        if '_lane_' in mission_name:
+            return 'lane_inspection'
+        if 'free_roam' in mission_name:
+            return 'free_roam'
+        return 'custom'
+
+    def _same_position(self, first_position, second_position, tol=1e-4):
+        return (
+            abs(float(first_position[0]) - float(second_position[0])) <= tol
+            and abs(float(first_position[1]) - float(second_position[1])) <= tol
+            and abs(float(first_position[2]) - float(second_position[2])) <= tol
+        )
+
+    def _normalize_descriptor(self, descriptor):
+        source_waypoints = descriptor.get('waypoints', [])
+        if not source_waypoints:
+            return descriptor
+
+        grouped_waypoints = []
+        for waypoint in source_waypoints:
+            position = waypoint.get('position', [0.0, 0.0, 0.0])
+            normalized_position = [
+                float(position[0]),
+                float(position[1]),
+                float(position[2]) if len(position) > 2 else 0.0,
+            ]
+            scan_yaw = waypoint.get('scan_yaw')
+            lift_height = float(waypoint.get('lift_height', 0.0))
+            dwell_time = float(waypoint.get('dwell_time', 0.0))
+
+            if scan_yaw is not None and lift_height > 1e-6:
+                if grouped_waypoints:
+                    previous = grouped_waypoints[-1]
+                    if (
+                        previous.get('scan_yaw') is not None
+                        and self._same_position(previous.get('position', normalized_position), normalized_position)
+                        and abs(float(previous.get('scan_yaw', 0.0)) - float(scan_yaw)) <= 1e-4
+                        and not previous.get('return_home', False)
+                    ):
+                        previous.setdefault('scan_heights', []).append(lift_height)
+                        continue
+
+                grouped_waypoints.append(
+                    {
+                        'position': normalized_position,
+                        'scan_yaw': float(scan_yaw),
+                        'scan_heights': [lift_height],
+                        'dwell_time': dwell_time,
+                        'position_tolerance': float(waypoint.get('position_tolerance', 0.05)),
+                    }
+                )
+                continue
+
+            grouped_waypoint = {
+                'position': normalized_position,
+                'dwell_time': dwell_time,
+                'position_tolerance': float(waypoint.get('position_tolerance', 0.05)),
+            }
+            if 'arrival_yaw' in waypoint:
+                grouped_waypoint['arrival_yaw'] = float(waypoint.get('arrival_yaw', 0.0))
+            grouped_waypoint['return_home'] = bool(waypoint.get('return_home', False))
+            grouped_waypoints.append(grouped_waypoint)
+
+        if descriptor.get('mission_mode') == 'lane_inspection':
+            scan_stop_count = 0
+            for index, waypoint in enumerate(grouped_waypoints):
+                if waypoint.get('scan_heights'):
+                    scan_stop_count += 1
+                    waypoint['stop_index'] = scan_stop_count
+                elif index == len(grouped_waypoints) - 1:
+                    waypoint['return_home'] = True
+            descriptor['stop_count'] = scan_stop_count
+
+        descriptor['waypoints'] = grouped_waypoints
+        return descriptor
+
     def _descriptor_from_saved_routine(self, routine_name):
         routine = self.missions_config.get('saved_routines', {}).get(routine_name)
         if routine is None:
@@ -1257,8 +1356,8 @@ class WarehouseFleetManager(Node):
         return lookup.get(direction, float((lane_cfg or {}).get('scan_yaw', 0.0)))
 
     def _lift_height_for_level(self, level):
-        mapping = {1: 0.34, 2: 0.67, 3: 1.0}
-        return mapping.get(int(level), 1.0)
+        mapping = {1: 0.30, 2: 0.60, 3: 0.90}
+        return mapping.get(int(level), 0.90)
 
     def _build_robot_status_msg(self, robot_id, state):
         msg = RobotStatus()

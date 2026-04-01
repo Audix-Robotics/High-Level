@@ -150,10 +150,13 @@ class WarehouseFleetSpawnPanel(Node):
     def _default_scan_heights(self):
         scan_levels = self.warehouse_config.get('scan_levels', {})
         return [
-            float(scan_levels.get('low', 0.05)),
-            float(scan_levels.get('mid', 0.17)),
-            float(scan_levels.get('high', 0.34)),
+            float(scan_levels.get('low', 0.30)),
+            float(scan_levels.get('mid', 0.60)),
+            float(scan_levels.get('high', 0.90)),
         ]
+
+    def _format_scan_heights(self, heights):
+        return ', '.join(f'{int(round(float(height) * 100.0))}%' for height in heights)
 
     def create_fleet_header_frame(self):
         header_frame = ttk.LabelFrame(self.root, text='Fleet Status', padding=10)
@@ -286,7 +289,7 @@ class WarehouseFleetSpawnPanel(Node):
         mission_label.pack(anchor='w')
         progress_bar = ttk.Progressbar(card, length=320, mode='determinate', value=0)
         progress_bar.pack(fill='x', pady=5)
-        wp_label = tk.Label(card, text='Waypoint: 0/0', font=('Arial', 8))
+        wp_label = tk.Label(card, text='Stops: 0/0', font=('Arial', 8))
         wp_label.pack(anchor='w')
 
         workflow_frame = ttk.LabelFrame(card, text='Mission', padding=8)
@@ -329,7 +332,7 @@ class WarehouseFleetSpawnPanel(Node):
         tk.Label(config_row, text='Levels:').pack(side='left')
         levels_spin = tk.Spinbox(config_row, from_=1, to=3, textvariable=program_vars['scan_levels'], width=4)
         levels_spin.pack(side='left', padx=4)
-        levels_hint = ', '.join(f'{height:.2f}m' for height in self._default_scan_heights())
+        levels_hint = self._format_scan_heights(self._default_scan_heights())
         tk.Label(config_row, text=f'Heights: {levels_hint}', font=('Arial', 9)).pack(side='left', padx=(10, 0))
 
         preview_label = tk.Label(
@@ -455,7 +458,7 @@ class WarehouseFleetSpawnPanel(Node):
             widgets['progress_bar']['value'] = robot_data.get('progress_pct', 0.0)
             widgets['wp_label'].configure(
                 text=(
-                    f'Waypoint: {robot_data.get("waypoints_done", 0)}/'
+                    f'Stops: {robot_data.get("waypoints_done", 0)}/'
                     f'{robot_data.get("total_waypoints", 0)}  '
                     f'State: {robot_data.get("robot_state", "IDLE")}'
                 )
@@ -508,6 +511,45 @@ class WarehouseFleetSpawnPanel(Node):
         count = max(1, min(3, int(program_vars['scan_levels'].get())))
         return self._default_scan_heights()[:count]
 
+    def _lane_shelf_center(self, lane_cfg):
+        shelf_key = lane_cfg.get('shelf', '')
+        shelf_cfg = self.warehouse_config.get('shelves', {}).get(shelf_key, {})
+        center = shelf_cfg.get(
+            'center',
+            [lane_cfg.get('center_x', 0.0), lane_cfg.get('center_y', 0.0), 0.0],
+        )
+        return float(center[0]), float(center[1])
+
+    def _scan_yaw_for_stop(self, lane_cfg, x_pos, y_pos):
+        side = str(lane_cfg.get('side', '')).strip().lower()
+        if side == 'lower':
+            return math.pi / 2.0
+        if side == 'upper':
+            return -math.pi / 2.0
+
+        shelf_x, shelf_y = self._lane_shelf_center(lane_cfg)
+        return math.atan2(shelf_y - float(y_pos), shelf_x - float(x_pos))
+
+    def _inspection_stop_positions(self, lane_cfg, stop_count):
+        x_min, x_max = lane_cfg.get('stop_range_x', [-2.0, 2.0])
+        start_x = float(x_min)
+        end_x = float(x_max)
+        home_x = float(lane_cfg.get('home_pad', {}).get('x', start_x))
+
+        if math.isclose(home_x, start_x, abs_tol=1e-6):
+            span = end_x - start_x
+            return [start_x + span * index / float(stop_count) for index in range(1, stop_count + 1)]
+
+        if math.isclose(home_x, end_x, abs_tol=1e-6):
+            span = start_x - end_x
+            return [end_x + span * index / float(stop_count) for index in range(1, stop_count + 1)]
+
+        if stop_count == 1:
+            return [0.5 * (start_x + end_x)]
+
+        span = end_x - start_x
+        return [start_x + span * index / float(stop_count - 1) for index in range(stop_count)]
+
     def _lane_descriptor(self, robot_id):
         widgets = self.robot_status_widgets[robot_id]
         program_vars = widgets['program_vars']
@@ -517,12 +559,8 @@ class WarehouseFleetSpawnPanel(Node):
         lane_cfg = self._lane_config(lane_id)
         stop_count = max(1, int(program_vars['stop_count'].get()))
         scan_heights = self._sanitize_heights(robot_id)
-        x_min, x_max = lane_cfg.get('stop_range_x', [-2.0, 2.0])
-        if stop_count == 1:
-            x_positions = [0.5 * (float(x_min) + float(x_max))]
-        else:
-            span = float(x_max) - float(x_min)
-            x_positions = [float(x_min) + span * index / float(stop_count - 1) for index in range(stop_count)]
+        x_positions = self._inspection_stop_positions(lane_cfg, stop_count)
+        lane_y = float(lane_cfg.get('center_y', 0.0))
 
         descriptor = {
             'mission_name': f'robot_{robot_id}_lane_{lane_id + 1}',
@@ -534,17 +572,17 @@ class WarehouseFleetSpawnPanel(Node):
             'waypoints': [],
         }
 
-        for x_pos in x_positions:
-            for height in scan_heights:
-                descriptor['waypoints'].append(
-                    {
-                        'position': [float(x_pos), float(lane_cfg.get('center_y', 0.0)), 0.0],
-                        'lift_height': float(height),
-                        'scan_yaw': float(lane_cfg.get('scan_yaw', 0.0)),
-                        'dwell_time': 0.0,
-                        'position_tolerance': 0.05,
-                    }
-                )
+        for stop_index, x_pos in enumerate(x_positions, start=1):
+            descriptor['waypoints'].append(
+                {
+                    'position': [float(x_pos), lane_y, 0.0],
+                    'scan_heights': [float(height) for height in scan_heights],
+                    'scan_yaw': self._scan_yaw_for_stop(lane_cfg, x_pos, lane_y),
+                    'dwell_time': 0.0,
+                    'position_tolerance': 0.02,
+                    'stop_index': stop_index,
+                }
+            )
 
         return_pad = lane_cfg.get('return_pad', {})
         home_pad = lane_cfg.get('home_pad', {})
@@ -555,8 +593,10 @@ class WarehouseFleetSpawnPanel(Node):
                     float(return_pad.get('y', home_pad.get('y', lane_cfg.get('center_y', 0.0)))),
                     0.0,
                 ],
+                'arrival_yaw': float(home_pad.get('yaw', 0.0)),
                 'dwell_time': 0.0,
-                'position_tolerance': 0.05,
+                'position_tolerance': 0.02,
+                'return_home': True,
             }
         )
         return descriptor
@@ -639,15 +679,29 @@ class WarehouseFleetSpawnPanel(Node):
     def _descriptor_to_poses(self, descriptor):
         poses = []
         for waypoint in descriptor.get('waypoints', []):
-            pose = Pose()
             position = waypoint.get('position', [0.0, 0.0, 0.0])
+            scan_heights = waypoint.get('scan_heights') or []
+            if scan_heights:
+                for height in scan_heights:
+                    pose = Pose()
+                    pose.position.x = float(position[0])
+                    pose.position.y = float(position[1])
+                    pose.position.z = float(position[2]) if len(position) > 2 else 0.0
+                    yaw = float(waypoint.get('scan_yaw', 0.0))
+                    pose.orientation.x = float(height)
+                    pose.orientation.y = float(waypoint.get('dwell_time', 0.0))
+                    pose.orientation.z = math.sin(0.5 * yaw)
+                    pose.orientation.w = math.cos(0.5 * yaw)
+                    poses.append(pose)
+                continue
+
+            pose = Pose()
             pose.position.x = float(position[0])
             pose.position.y = float(position[1])
             pose.position.z = float(position[2]) if len(position) > 2 else 0.0
-            if 'scan_yaw' in waypoint or 'lift_height' in waypoint:
-                yaw = float(waypoint.get('scan_yaw', 0.0))
-                pose.orientation.x = float(waypoint.get('lift_height', 0.0))
-                pose.orientation.y = float(waypoint.get('dwell_time', 0.0))
+            if 'arrival_yaw' in waypoint:
+                yaw = float(waypoint.get('arrival_yaw', 0.0))
+                pose.orientation.x = -1.0
                 pose.orientation.z = math.sin(0.5 * yaw)
                 pose.orientation.w = math.cos(0.5 * yaw)
             else:
@@ -687,7 +741,7 @@ class WarehouseFleetSpawnPanel(Node):
             widgets['preview_label'].configure(
                 text=(
                     f'Default / Original | scan shelves: {shelf_names} | '
-                    f'levels: {len(scan_heights)} | heights: {", ".join(f"{height:.2f}" for height in scan_heights)}\n'
+                    f'levels: {len(scan_heights)} | heights: {self._format_scan_heights(scan_heights)}\n'
                     f'Return pad: ({float(return_pad[0]):.2f}, {float(return_pad[1]):.2f})'
                 )
             )
@@ -696,14 +750,13 @@ class WarehouseFleetSpawnPanel(Node):
         descriptor = self._lane_descriptor(robot_id)
         lane_cfg = self._lane_config(descriptor['lane_id'])
         scan_heights = descriptor.get('scan_heights', [])
-        stride = max(1, len(scan_heights))
         stop_points = descriptor['waypoints'][:-1]
-        x_values = ', '.join(f'{stop_points[index]["position"][0]:.2f}' for index in range(0, len(stop_points), stride))
+        x_values = ', '.join(f'{waypoint["position"][0]:.2f}' for waypoint in stop_points)
         return_pad = lane_cfg.get('return_pad', {})
         widgets['preview_label'].configure(
             text=(
                 f'{lane_cfg.get("operator_name", "Lane")} | stops: {descriptor.get("stop_count", 0)} | '
-                f'levels: {len(scan_heights)} | heights: {", ".join(f"{height:.2f}" for height in scan_heights)}\n'
+                f'levels: {len(scan_heights)} | heights: {self._format_scan_heights(scan_heights)}\n'
                 f'Stops on X: {x_values} | idle pad: '
                 f'({float(return_pad.get("x", 0.0)):.2f}, {float(return_pad.get("y", 0.0)):.2f})'
             )

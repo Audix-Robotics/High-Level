@@ -148,9 +148,9 @@ scan_shelves:
     yaw: 1.5707963267948966
 
 scan_levels:
-  low: 0.05
-  mid: 0.17
-  high: 0.34
+  low: 0.30
+  mid: 0.60
+  high: 0.90
 
 default_fleet:
   num_robots: 3

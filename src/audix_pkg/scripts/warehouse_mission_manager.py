@@ -124,6 +124,9 @@ class WarehouseMissionManager(Node):
                 waypoint['position_tolerance'] = float(
                     source.get('position_tolerance', self.waypoint_tolerance)
                 )
+                waypoint['counts_as_stop'] = bool(source.get('scan_heights'))
+                waypoint['return_home'] = bool(source.get('return_home', False))
+                waypoint['stop_index'] = int(source.get('stop_index', 0))
                 if 'scan_yaw' in source:
                     waypoint['required_yaw'] = float(source.get('scan_yaw', 0.0))
                 elif 'arrival_yaw' in source:
@@ -142,7 +145,14 @@ class WarehouseMissionManager(Node):
             'paused': False,
             'warning': warning,
             'dwell_started_sec': None,
+            'total_scan_stops': int(
+                descriptor.get(
+                    'stop_count',
+                    sum(1 for waypoint in waypoints if waypoint.get('counts_as_stop', False)),
+                )
+            ),
         }
+        self.robot_missions[robot_id]['state'] = self._state_for_mission(self.robot_missions[robot_id])
         if warning:
             self.get_logger().warn(f'robot_{robot_id}: {warning}')
         self._publish_robot_status(robot_id)
@@ -218,7 +228,7 @@ class WarehouseMissionManager(Node):
             mission['state'] = 'WAITING'
         elif command == 'resume':
             mission['paused'] = False
-            mission['state'] = 'MOVING'
+            mission['state'] = self._state_for_mission(mission)
         elif command == 'cancel':
             mission['paused'] = False
             mission['state'] = 'IDLE'
@@ -252,7 +262,7 @@ class WarehouseMissionManager(Node):
 
             current_index = mission.get('waypoint_index', 0)
             if current_index >= len(waypoints):
-                mission['state'] = 'IDLE'
+                mission['state'] = self._state_for_mission(mission)
                 mission['progress_pct'] = 100.0
                 self._publish_robot_status(robot_id)
                 continue
@@ -284,14 +294,44 @@ class WarehouseMissionManager(Node):
                         mission['state'] = 'MOVING'
                 else:
                     mission['waypoint_index'] = current_index + 1
-                    mission['state'] = 'MOVING'
+                    mission['state'] = self._state_for_mission(mission)
 
-            total_waypoints = max(1, len(waypoints))
-            completed = min(mission.get('waypoint_index', 0), len(waypoints))
-            mission['progress_pct'] = 100.0 * float(completed) / float(total_waypoints)
+            total_scan_stops = max(1, int(mission.get('total_scan_stops', 0)))
+            completed_scan_stops = self._completed_scan_stops(mission)
+            mission['progress_pct'] = 100.0 * float(completed_scan_stops) / float(total_scan_stops)
+            if mission.get('dwell_started_sec') is None:
+                mission['state'] = self._state_for_mission(mission)
             self._publish_robot_status(robot_id)
 
         self.marker_pub.publish(self._build_mission_markers())
+
+    def _completed_scan_stops(self, mission):
+        waypoint_index = min(mission.get('waypoint_index', 0), len(mission.get('waypoints', [])))
+        return sum(
+            1 for waypoint in mission.get('waypoints', [])[:waypoint_index]
+            if waypoint.get('counts_as_stop', False)
+        )
+
+    def _state_for_mission(self, mission):
+        if mission.get('paused'):
+            return 'WAITING'
+
+        waypoints = mission.get('waypoints', [])
+        total_scan_stops = int(mission.get('total_scan_stops', 0))
+        completed_scan_stops = self._completed_scan_stops(mission)
+        current_index = mission.get('waypoint_index', 0)
+
+        if current_index >= len(waypoints):
+            if total_scan_stops > 0 and any(waypoint.get('return_home', False) for waypoint in waypoints):
+                return 'HOME'
+            return 'IDLE'
+
+        current_waypoint = waypoints[current_index]
+        if current_waypoint.get('return_home', False) and completed_scan_stops >= total_scan_stops:
+            return 'RETURNING_HOME'
+        if mission.get('dwell_started_sec') is not None:
+            return 'SCANNING'
+        return 'MOVING'
 
     def _publish_robot_status(self, robot_id):
         mission = self.robot_missions.get(robot_id, {})
@@ -303,10 +343,10 @@ class WarehouseMissionManager(Node):
         status.lane_name = lane_name
         status.position = Point(x=position[0], y=position[1], z=position[2])
         status.current_mission = mission.get('current_mission', '')
-        status.waypoints_completed = int(min(mission.get('waypoint_index', 0), len(mission.get('waypoints', []))))
-        status.total_waypoints = int(len(mission.get('waypoints', [])))
+        status.waypoints_completed = int(self._completed_scan_stops(mission))
+        status.total_waypoints = int(mission.get('total_scan_stops', 0))
         status.mission_progress_pct = float(mission.get('progress_pct', 0.0))
-        status.robot_state = mission.get('state', 'IDLE')
+        status.robot_state = self._state_for_mission(mission)
         self.status_update_pub.publish(status)
 
     def _lane_name_from_position(self, x_position, y_position):
