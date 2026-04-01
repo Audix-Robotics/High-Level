@@ -33,6 +33,7 @@ install(
 		scripts/arena_spawn_panel_multibot.py
 		scripts/cardinal_motion_debug.py
 		scripts/drive_test.py
+		scripts/ekf_input_adapter.py
 		scripts/fleet_robot_navigator.py
 		scripts/goal_sender_node.py
 		scripts/mecanum_kinematics.py

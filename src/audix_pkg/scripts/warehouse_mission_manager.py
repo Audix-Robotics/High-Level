@@ -85,7 +85,7 @@ class WarehouseMissionManager(Node):
             )
             self.create_subscription(
                 Odometry,
-                f'/robot_{robot_id}/mecanum_odom',
+                f'/robot_{robot_id}/odometry/filtered',
                 partial(self.on_robot_odom, robot_id=robot_id),
                 10,
             )

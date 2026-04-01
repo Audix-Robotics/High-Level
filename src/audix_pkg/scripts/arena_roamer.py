@@ -453,7 +453,6 @@ class ArenaRoamer(Node):
         self.dynamic_mission_name = str(descriptor.get('mission_name', '')).strip()
         parsed_waypoints, parsed_yaws, parsed_lift_heights = self._descriptor_to_route(descriptor)
         self.mission_paused = False
-        self.enabled = True
         self._load_acceptance_route(parsed_waypoints, parsed_yaws, parsed_lift_heights, 'Dynamic mission')
 
     def _mission_waypoints_cb(self, msg):
@@ -466,7 +465,6 @@ class ArenaRoamer(Node):
         parsed_yaws = [0.0] * len(parsed_waypoints)
         parsed_lift_heights = [0.0] * len(parsed_waypoints)
         self.mission_paused = False
-        self.enabled = True
         self._load_acceptance_route(parsed_waypoints, parsed_yaws, parsed_lift_heights, 'Path mission')
 
     def _mission_control_cb(self, msg):
@@ -477,7 +475,6 @@ class ArenaRoamer(Node):
             return
         if command == 'resume':
             self.mission_paused = False
-            self.enabled = True
             return
         if command == 'cancel':
             self.mission_paused = False

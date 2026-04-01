@@ -38,7 +38,6 @@ class OdomTfBroadcaster(Node):
             self._handle_odom,
             20,
         )
-        self._timer = self.create_timer(1.0 / 30.0, self._publish_latest_transform)
 
     def _handle_odom(self, msg: Odometry) -> None:
         if not self._received_odom:
@@ -60,8 +59,9 @@ class OdomTfBroadcaster(Node):
             math.sin(yaw * 0.5),
             math.cos(yaw * 0.5),
         )
+        self._publish_transform(msg.header.stamp)
 
-    def _publish_latest_transform(self) -> None:
+    def _publish_transform(self, stamp=None) -> None:
         if self._latest_translation is None or self._latest_rotation is None:
             return
 
@@ -70,7 +70,7 @@ class OdomTfBroadcaster(Node):
             self._published_tf = True
 
         transform = TransformStamped()
-        transform.header.stamp = self.get_clock().now().to_msg()
+        transform.header.stamp = stamp if stamp is not None else self.get_clock().now().to_msg()
         transform.header.frame_id = self._odom_frame
         transform.child_frame_id = self._base_frame
 

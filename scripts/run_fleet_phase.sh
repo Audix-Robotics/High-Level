@@ -51,6 +51,7 @@ patterns=(
   '/home/ahmed/audix_ws/install/audix/lib/audix/warehouse_waypoint_editor.py'
   '/home/ahmed/audix_ws/install/audix/lib/audix/arena_roamer.py'
   '/home/ahmed/audix_ws/install/audix/lib/audix/fleet_robot_navigator.py'
+  '/home/ahmed/audix_ws/install/audix/lib/audix/ekf_input_adapter.py'
   '/home/ahmed/audix_ws/install/audix/lib/audix/mecanum_kinematics.py'
   '/home/ahmed/audix_ws/install/audix/lib/audix/scissor_lift_mapper.py'
   '/home/ahmed/audix_ws/install/audix/lib/audix/odom_tf_broadcaster.py'

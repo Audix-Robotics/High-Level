@@ -638,6 +638,7 @@ class WarehouseFleetManager(Node):
         required_keys = (
             'robot_state_publisher',
             'bridge',
+            'ekf_adapter',
             'ekf',
             'navigator',
             'mecanum',
@@ -762,7 +763,7 @@ class WarehouseFleetManager(Node):
         if robot_id not in self.robot_odom_subs:
             self.robot_odom_subs[robot_id] = self.create_subscription(
                 Odometry,
-                f'/robot_{robot_id}/mecanum_odom',
+                f'/robot_{robot_id}/odometry/filtered',
                 partial(self.on_robot_odom, robot_id=robot_id),
                 10,
             )
@@ -879,6 +880,25 @@ class WarehouseFleetManager(Node):
         params_path.write_text(yaml.safe_dump(namespaced_config, sort_keys=False), encoding='utf-8')
         return params_path
 
+    def _write_ekf_override_params(self, robot_id):
+        robot_name = f'robot_{robot_id}'
+        params_path = self.generated_model_dir / f'{robot_name}_ekf.yaml'
+        base_config = yaml.safe_load(FilePath(self.ekf_config_path).read_text(encoding='utf-8')) or {}
+        params = dict(base_config.get('ekf_filter_node', {}).get('ros__parameters', {}))
+        params.update(
+            {
+                'use_sim_time': True,
+                'publish_tf': False,
+                'odom_frame': 'odom',
+                'base_link_frame': f'{robot_name}/base_footprint',
+                'odom0': 'ekf/odom',
+                'imu0': 'ekf/imu',
+            }
+        )
+        override_config = {'/**': {'ros__parameters': params}}
+        params_path.write_text(yaml.safe_dump(override_config, sort_keys=False), encoding='utf-8')
+        return params_path
+
     def _spawn_process(self, robot_id, key, command):
         process = subprocess.Popen(
             command,
@@ -912,6 +932,7 @@ class WarehouseFleetManager(Node):
         self._stop_robot_runtime(robot_id)
         try:
             params_path = self._write_robot_state_publisher_params(robot_id)
+            ekf_params_path = self._write_ekf_override_params(robot_id)
             self._spawn_process(
                 robot_id,
                 'robot_state_publisher',
@@ -956,17 +977,42 @@ class WarehouseFleetManager(Node):
 
             self._spawn_process(
                 robot_id,
+                'ekf_adapter',
+                [
+                    'ros2', 'run', 'audix', 'ekf_input_adapter.py',
+                    '--ros-args',
+                    '-r', f'__ns:=/{robot_name}',
+                    '-p', 'use_sim_time:=true',
+                    '-p', 'raw_odom_topic:=odom',
+                    '-p', 'adapted_odom_topic:=ekf/odom',
+                    '-p', 'raw_imu_topic:=imu',
+                    '-p', 'adapted_imu_topic:=ekf/imu',
+                    '-p', 'odom_frame:=odom',
+                    '-p', f'base_frame:={robot_name}/base_footprint',
+                    '-p', f'imu_frame:={robot_name}/imu_link',
+                ],
+            )
+            self._spawn_process(
+                robot_id,
                 'ekf',
                 [
                     'ros2', 'run', 'robot_localization', 'ekf_node',
                     '--ros-args',
                     '-r', f'__ns:=/{robot_name}',
-                    '--params-file', self.ekf_config_path,
-                    '-r', '/odom:=mecanum_odom',
-                    '-r', '/imu:=imu',
+                    '--params-file', str(ekf_params_path),
                     '-r', '/odometry/filtered:=odometry/filtered',
+                ],
+            )
+            self._spawn_process(
+                robot_id,
+                'odom_tf',
+                [
+                    'ros2', 'run', 'audix', 'odom_tf_broadcaster.py',
+                    '--ros-args',
                     '-p', 'use_sim_time:=true',
-                    '-p', 'publish_tf:=false',
+                    '-p', f'odom_topic:=/{robot_name}/odometry/filtered',
+                    '-p', 'odom_frame:=odom',
+                    '-p', f'base_frame:={robot_name}/base_footprint',
                 ],
             )
             self._spawn_process(
@@ -977,7 +1023,7 @@ class WarehouseFleetManager(Node):
                     '--ros-args',
                     '-r', f'__ns:=/{robot_name}',
                     '--params-file', self.mission_params_path,
-                    '-r', '/odometry/filtered:=mecanum_odom',
+                    '-r', '/odometry/filtered:=odometry/filtered',
                     '-r', '/cmd_vel:=cmd_vel',
                     '-r', '/scissor_lift/slider:=scissor_lift/slider',
                     '-r', '/ir_front/scan:=ir_front/scan',
@@ -993,6 +1039,7 @@ class WarehouseFleetManager(Node):
                     '-r', '/debug/state:=debug/state',
                     '-r', '/robot_enable:=robot_enable',
                     '-p', 'use_sim_time:=true',
+                    '-p', 'debug_frame_id:=odom',
                     '-p', 'start_enabled:=false',
                     '-p', 'enable_dynamic_missions:=true',
                 ],
@@ -1021,19 +1068,6 @@ class WarehouseFleetManager(Node):
                     '-r', f'__ns:=/{robot_name}',
                     '-r', 'joint_states:=joint_state_broadcaster/joint_states',
                     '-p', 'use_sim_time:=true',
-                ],
-            )
-            self._spawn_process(
-                robot_id,
-                'odom_tf',
-                [
-                    'ros2', 'run', 'audix', 'odom_tf_broadcaster.py',
-                    '--ros-args',
-                    '-p', 'use_sim_time:=true',
-                    '-p', f'odom_topic:=/{robot_name}/mecanum_odom',
-                    '-p', 'odom_frame:=odom',
-                    '-p', f'base_frame:={robot_name}/base_footprint',
-                    '-p', 'robot_body_frame_flip_180:=false',
                 ],
             )
         except (OSError, subprocess.SubprocessError) as exc:
@@ -1066,12 +1100,13 @@ class WarehouseFleetManager(Node):
 
         fallback_patterns = [
             f'robot_state_publisher.*__ns:=/{robot_name}',
+            f'ekf_input_adapter.py.*__ns:=/{robot_name}',
             f'ekf_node.*__ns:=/{robot_name}',
             f'arena_roamer.py.*__ns:=/{robot_name}',
             f'fleet_robot_navigator.py.*__ns:=/{robot_name}',
             f'mecanum_kinematics.py.*__ns:=/{robot_name}',
             f'scissor_lift_mapper.py.*__ns:=/{robot_name}',
-            f'odom_tf_broadcaster.py.*odom_topic:=/{robot_name}/mecanum_odom',
+            f'odom_tf_broadcaster.py.*odom_topic:=/{robot_name}/odometry/filtered',
             f'parameter_bridge.*/{robot_name}/cmd_vel@',
         ]
         for pattern in fallback_patterns:

@@ -11,7 +11,8 @@ import yaml
 from ament_index_python.packages import get_package_share_directory
 from geometry_msgs.msg import PointStamped, Pose
 from rclpy.node import Node
-from std_msgs.msg import String
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
+from std_msgs.msg import Bool, String
 
 from audix.msg import FleetStatus
 from audix.srv import AssignMission, DespawnRobot, GetRobotStatus, SpawnRobot
@@ -61,6 +62,7 @@ class WarehouseFleetSpawnPanel(Node):
         self.obstacle_click_pub = self.create_publisher(PointStamped, '/arena_clicked_point', 10)
         self.rviz_command_pub = self.create_publisher(String, '/fleet/rviz_command', 10)
         self.mission_control_pubs = {}
+        self.robot_enable_pubs = {}
 
         self.root = tk.Tk()
         self.root.title('Audix Warehouse Fleet Manager')
@@ -734,6 +736,7 @@ class WarehouseFleetSpawnPanel(Node):
             descriptor.get('mission_name', f'robot_{robot_id}_mission'),
             self._descriptor_to_poses(descriptor),
         )
+        self._set_robot_enabled(robot_id, True)
         self.set_rviz_mode('idle')
         self._sync_preview_waypoints(robot_id, [])
 
@@ -744,6 +747,7 @@ class WarehouseFleetSpawnPanel(Node):
     def resume_mission(self, robot_id):
         pub = self._mission_control_pub(robot_id)
         pub.publish(String(data='resume'))
+        self._set_robot_enabled(robot_id, True)
 
     def cancel_mission(self, robot_id):
         pub = self._mission_control_pub(robot_id)
@@ -1003,6 +1007,21 @@ class WarehouseFleetSpawnPanel(Node):
                 10,
             )
         return self.mission_control_pubs[robot_id]
+
+    def _robot_enable_pub(self, robot_id):
+        if robot_id not in self.robot_enable_pubs:
+            qos = QoSProfile(depth=1)
+            qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
+            qos.reliability = ReliabilityPolicy.RELIABLE
+            self.robot_enable_pubs[robot_id] = self.create_publisher(
+                Bool,
+                f'/robot_{robot_id}/robot_enable',
+                qos,
+            )
+        return self.robot_enable_pubs[robot_id]
+
+    def _set_robot_enabled(self, robot_id, enabled):
+        self._robot_enable_pub(robot_id).publish(Bool(data=bool(enabled)))
 
     def _handle_spawn_response(self, future, robot_id):
         try:
