@@ -4,16 +4,19 @@ missions:
     source: template
     mission_mode: default_original
     waypoints:
-      - position: [0.70, -2.40, 0.0]
-        arrival_yaw: 1.5707963267948966
+      - position: [0.0, -2.40, 0.0]
+        scan_yaw: 0.0
+        lift_height: 0.30
         position_tolerance: 0.05
         dwell_time: 0.0
-      - position: [-0.70, 0.00, 0.0]
-        arrival_yaw: 1.5707963267948966
+      - position: [0.0, 0.00, 0.0]
+        scan_yaw: 3.141592653589793
+        lift_height: 0.60
         position_tolerance: 0.05
         dwell_time: 0.0
-      - position: [0.70, 2.40, 0.0]
-        arrival_yaw: 1.5707963267948966
+      - position: [0.0, 2.40, 0.0]
+        scan_yaw: 0.0
+        lift_height: 0.90
         position_tolerance: 0.05
         dwell_time: 0.0
 

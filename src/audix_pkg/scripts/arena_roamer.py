@@ -593,8 +593,15 @@ class ArenaRoamer(Node):
             return {}
         return self.route_profiles[waypoint_index]
 
+    def _active_dynamic_mission_mode(self):
+        if not isinstance(self.dynamic_mission_descriptor, dict):
+            return ''
+        return str(self.dynamic_mission_descriptor.get('mission_mode', '')).strip().lower()
+
     def _structured_acceptance_navigation(self):
-        return False
+        if self.control_mode != 'acceptance_path':
+            return False
+        return self._active_dynamic_mission_mode() != 'default_original'
 
     def _trigger_lift_for_waypoint(self, waypoint_index, height):
         msg = Float64()

@@ -114,6 +114,7 @@ class WarehouseFleetManager(Node):
         self.rviz_mode = 'idle'
         self.selected_robot_id = None
         self.pending_waypoints = {}
+        self.pending_spawn_request = None
         self.generated_model_dir = FilePath(tempfile.gettempdir()) / 'audix_fleet_models'
         self.generated_model_dir.mkdir(parents=True, exist_ok=True)
         self.robot_description_xml = FilePath(self.robot_model_path).read_text(encoding='utf-8')
@@ -260,7 +261,7 @@ class WarehouseFleetManager(Node):
         self.publish_fleet_status()
         response.success = True
         response.message = (
-            f'Spawned robot_{robot_id} in {lane_config.get("operator_name", f"Lane {lane_id + 1}")} '
+            f'Spawned robot_{robot_id} in {self._lane_label(lane_id, lane_config)} '
             f'at ({spawn_x:.2f}, {spawn_y:.2f})'
         )
         return response
@@ -386,18 +387,35 @@ class WarehouseFleetManager(Node):
             return
 
         position = msg.pose.pose.position
-        lane_id, lane_name = self._lane_from_position(position.x, position.y)
         state = self.robot_states[robot_id]
         orientation = msg.pose.pose.orientation
+        if int(state.get('lane_id', 0)) < 0:
+            lane_id = int(state.get('lane_id', -1))
+            lane_name = state.get('lane_name', self._lane_label(lane_id))
+        else:
+            lane_id, lane_name = self._lane_from_position(position.x, position.y)
         state['position'] = (position.x, position.y, position.z)
         state['yaw'] = quat_to_yaw(orientation.x, orientation.y, orientation.z, orientation.w)
         state['lane_id'] = lane_id
         state['lane_name'] = lane_name
         trail = state.setdefault('trail', [])
+        expected_spawn = state.get('spawn_position')
+        if not state.get('trail_initialized', False):
+            if expected_spawn is not None:
+                spawn_dx = position.x - float(expected_spawn[0])
+                spawn_dy = position.y - float(expected_spawn[1])
+                if math.hypot(spawn_dx, spawn_dy) > 0.75:
+                    return
+            trail[:] = [(position.x, position.y, position.z)]
+            state['trail_initialized'] = True
+            return
         if not trail:
             trail.append((position.x, position.y, position.z))
             return
         last_x, last_y, last_z = trail[-1]
+        if math.hypot(position.x - last_x, position.y - last_y) > 1.0:
+            trail[:] = [(position.x, position.y, position.z)]
+            return
         if math.hypot(position.x - last_x, position.y - last_y) >= self.path_point_spacing:
             trail.append((position.x, position.y, position.z))
             if len(trail) > 800:
@@ -443,16 +461,22 @@ class WarehouseFleetManager(Node):
         y_pos = float(msg.point.y)
 
         if self.rviz_mode == 'spawn':
-            robot_id = self._next_available_robot_id()
+            pending = self.pending_spawn_request or {}
+            robot_id = pending.get('robot_id', self._next_available_robot_id())
             if robot_id is None:
                 self.get_logger().warn('No free robot slots available for RViz spawn')
                 return
-            lane_id, _ = self._lane_from_position(x_pos, y_pos)
-            success, message = self._spawn_robot_at_pose(robot_id, lane_id, x_pos, y_pos, math.pi)
+            lane_id = pending.get('lane_id')
+            if lane_id is None:
+                lane_id, _ = self._lane_from_position(x_pos, y_pos)
+            lane_config = self._lane_config(lane_id)
+            spawn_yaw = float(pending.get('spawn_yaw', lane_config.get('home_pad', {}).get('yaw', math.pi)))
+            success, message = self._spawn_robot_at_pose(robot_id, lane_id, x_pos, y_pos, spawn_yaw)
             if success:
                 self.selected_robot_id = robot_id
                 self.pending_waypoints.pop(robot_id, None)
-                self.rviz_mode = 'waypoint'
+                self.pending_spawn_request = None
+                self.rviz_mode = 'idle'
                 self.publish_fleet_status()
             self.get_logger().info(message)
             return
@@ -506,6 +530,21 @@ class WarehouseFleetManager(Node):
                     self.pending_waypoints.pop(robot_id, None)
                 self.fleet_viz_pub.publish(self._build_visualization_markers())
                 return
+            if keyword == 'prepare_spawn_capture':
+                robot_id = int(payload.get('robot_id', -1))
+                if robot_id < 0 or robot_id >= self.max_robot_slots:
+                    self.get_logger().warn(f'Invalid robot id for RViz spawn capture: {robot_id}')
+                    return
+                if robot_id in self.spawned_robot_ids:
+                    self.get_logger().warn(f'robot_{robot_id} already exists')
+                    return
+                self.pending_spawn_request = {
+                    'robot_id': robot_id,
+                }
+                self.selected_robot_id = robot_id
+                self.rviz_mode = 'spawn'
+                self.get_logger().info(f'RViz spawn capture armed for robot_{robot_id}')
+                return
             self.get_logger().warn(f'Unknown JSON RViz command: {keyword}')
             return
 
@@ -516,6 +555,8 @@ class WarehouseFleetManager(Node):
             mode = parts[1].strip().lower()
             if mode in {'idle', 'spawn', 'select', 'waypoint'}:
                 self.rviz_mode = mode
+                if mode != 'spawn':
+                    self.pending_spawn_request = None
                 self.get_logger().info(f'RViz mode set to {mode}')
             else:
                 self.get_logger().warn(f'Unknown RViz mode: {mode}')
@@ -589,8 +630,50 @@ class WarehouseFleetManager(Node):
         self.fleet_status_pub.publish(fleet_msg)
         self.fleet_viz_pub.publish(self._build_visualization_markers())
 
+    def _ordered_lane_items(self):
+        return sorted(
+            self.warehouse_config.get('lanes', {}).items(),
+            key=lambda item: (
+                int(item[1].get('display_order', 999)),
+                int(item[0].split('_')[-1]),
+            ),
+        )
+
     def _lane_config(self, lane_id):
+        if int(lane_id) < 0:
+            return self.warehouse_config.get('default_lane', {})
         return self.warehouse_config.get('lanes', {}).get(f'lane_{lane_id}', {})
+
+    def _lane_label(self, lane_id, lane_config=None):
+        lane_cfg = lane_config or self._lane_config(lane_id)
+        if lane_cfg:
+            return lane_cfg.get('operator_name', f'Lane {lane_id + 1}')
+        return 'Default' if int(lane_id) < 0 else f'Lane {lane_id + 1}'
+
+    def _robot_body_rgba(self, robot_id):
+        palette = [
+            (0.89, 0.10, 0.11, 1.0),
+            (1.0, 0.50, 0.0, 1.0),
+            (0.98, 0.84, 0.12, 1.0),
+            (0.20, 0.78, 0.35, 1.0),
+            (0.18, 0.42, 0.96, 1.0),
+            (0.29, 0.0, 0.51, 1.0),
+            (0.56, 0.27, 0.68, 1.0),
+            (0.00, 0.74, 0.73, 1.0),
+            (0.85, 0.37, 0.01, 1.0),
+            (0.58, 0.40, 0.74, 1.0),
+        ]
+        return palette[int(robot_id) % len(palette)]
+
+    def _apply_base_link_color(self, robot_xml, robot_id):
+        red, green, blue, alpha = self._robot_body_rgba(robot_id)
+        color_text = f'rgba="{red} {green} {blue} {alpha}"'
+        pattern = (
+            r'(<link\s+name="base_link">.*?<visual>.*?<material\s+name="">\s*<color\s+)'
+            r'rgba="[^"]+"'
+            r'(\s*/>.*?</material>)'
+        )
+        return re.sub(pattern, r'\1' + color_text + r'\2', robot_xml, count=1, flags=re.DOTALL)
 
     def _spawn_pose_for_robot(self, robot_id, lane_id, lane_config, use_default_fleet_pose=False):
         if use_default_fleet_pose:
@@ -693,9 +776,11 @@ class WarehouseFleetManager(Node):
 
         return self._spawn_robot_at_pose(robot_id, lane_id, spawn_x, spawn_y, spawn_yaw)
 
-    def _build_namespaced_model_xml(self, robot_name, controller_params_path):
+    def _build_namespaced_model_xml(self, robot_name, controller_params_path, robot_id):
         with open(self.robot_model_path, 'r', encoding='utf-8') as model_file:
             robot_xml = model_file.read()
+
+        robot_xml = self._apply_base_link_color(robot_xml, robot_id)
 
         robot_xml = robot_xml.replace(
             '<ros>\n        <remapping>~/robot_description:=robot_description</remapping>\n      </ros>',
@@ -757,13 +842,15 @@ class WarehouseFleetManager(Node):
             'position': (spawn_x, spawn_y, self.spawn_z),
             'yaw': float(lane_config.get('home_pad', {}).get('yaw', math.pi)),
             'lane_id': lane_id,
-            'lane_name': lane_config.get('operator_name', f'Lane {lane_id + 1}'),
+            'lane_name': self._lane_label(lane_id, lane_config),
             'current_mission': '',
             'waypoints_completed': 0,
             'total_waypoints': 0,
             'mission_progress_pct': 0.0,
             'robot_state': 'IDLE',
-            'trail': [(spawn_x, spawn_y, self.spawn_z)],
+            'trail': [],
+            'trail_initialized': False,
+            'spawn_position': (spawn_x, spawn_y, self.spawn_z),
             'sensor_ranges': {sensor_name: float('inf') for sensor_name in self.sensor_order},
             'sensor_max_ranges': {sensor_name: self.ir_display_range_max for sensor_name in self.sensor_order},
         }
@@ -836,8 +923,9 @@ class WarehouseFleetManager(Node):
     def _write_robot_state_publisher_params(self, robot_id):
         robot_name = f'robot_{robot_id}'
         params_path = self.generated_model_dir / f'{robot_name}_rsp.yaml'
+        robot_description = self._apply_base_link_color(self.robot_description_xml, robot_id)
         indented_description = '\n'.join(
-            f'      {line}' for line in self.robot_description_xml.splitlines()
+            f'      {line}' for line in robot_description.splitlines()
         )
         params_path.write_text(
             '\n'.join(
@@ -887,7 +975,7 @@ class WarehouseFleetManager(Node):
         params_path.write_text(yaml.safe_dump(namespaced_config, sort_keys=False), encoding='utf-8')
         return params_path
 
-    def _write_ekf_override_params(self, robot_id):
+    def _write_ekf_override_params(self, robot_id, spawn_x, spawn_y, spawn_yaw):
         robot_name = f'robot_{robot_id}'
         params_path = self.generated_model_dir / f'{robot_name}_ekf.yaml'
         base_config = yaml.safe_load(FilePath(self.ekf_config_path).read_text(encoding='utf-8')) or {}
@@ -900,6 +988,23 @@ class WarehouseFleetManager(Node):
                 'base_link_frame': f'{robot_name}/base_footprint',
                 'odom0': 'ekf/odom',
                 'imu0': 'ekf/imu',
+                'initial_state': [
+                    float(spawn_x),
+                    float(spawn_y),
+                    0.0,
+                    0.0,
+                    0.0,
+                    float(spawn_yaw),
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                ],
             }
         )
         override_config = {'/**': {'ros__parameters': params}}
@@ -956,7 +1061,7 @@ class WarehouseFleetManager(Node):
         self._stop_robot_runtime(robot_id)
         try:
             params_path = self._write_robot_state_publisher_params(robot_id)
-            ekf_params_path = self._write_ekf_override_params(robot_id)
+            ekf_params_path = self._write_ekf_override_params(robot_id, spawn_x, spawn_y, spawn_yaw)
             roamer_params_path = self._write_roamer_override_params(robot_id)
             self._spawn_process(
                 robot_id,
@@ -1134,7 +1239,8 @@ class WarehouseFleetManager(Node):
             subprocess.run(['pkill', '-f', pattern], check=False)
 
     def _spawn_robot_gz(self, robot_name, spawn_x, spawn_y, spawn_yaw, controller_params_path):
-        robot_xml = self._build_namespaced_model_xml(robot_name, controller_params_path)
+        robot_id = int(robot_name.split('_')[-1])
+        robot_xml = self._build_namespaced_model_xml(robot_name, controller_params_path, robot_id)
         physical_spawn_yaw = self._physical_spawn_yaw(spawn_yaw)
         try:
             temp_path = self.generated_model_dir / f'{robot_name}.urdf'
@@ -1199,7 +1305,7 @@ class WarehouseFleetManager(Node):
                 and float(lane_config.get('min_y', -999.0)) <= y_position <= float(lane_config.get('max_y', 999.0))
             ):
                 lane_id = int(lane_key.split('_')[-1])
-                return lane_id, lane_config.get('operator_name', f'Lane {lane_id + 1}')
+                return lane_id, self._lane_label(lane_id, lane_config)
 
         nearest_lane = min(
             lanes.items(),
@@ -1209,7 +1315,7 @@ class WarehouseFleetManager(Node):
             ),
         )
         lane_id = int(nearest_lane[0].split('_')[-1])
-        return lane_id, nearest_lane[1].get('operator_name', f'Lane {lane_id + 1}')
+        return lane_id, self._lane_label(lane_id, nearest_lane[1])
 
     def _build_path_message(self, descriptor):
         path_msg = Path()
@@ -1393,6 +1499,10 @@ class WarehouseFleetManager(Node):
         markers.markers.append(clear)
         marker_id = 1
 
+        world_markers = self._build_world_space_markers(timestamp, marker_id)
+        markers.markers.extend(world_markers)
+        marker_id = len(markers.markers)
+
         lane_markers = self._build_lane_guide_markers(timestamp, marker_id)
         markers.markers.extend(lane_markers)
         marker_id = len(markers.markers)
@@ -1492,11 +1602,167 @@ class WarehouseFleetManager(Node):
 
         return markers
 
+    def _build_world_space_markers(self, timestamp, start_id):
+        markers = []
+        marker_id = start_id
+        grey = (0.55, 0.55, 0.55, 0.32)
+        line_grey = (0.62, 0.62, 0.62, 0.55)
+
+        def add_box(name, x_pos, y_pos, z_pos, size_x, size_y, size_z, yaw=0.0):
+            nonlocal marker_id
+            marker = Marker()
+            marker.header.frame_id = 'odom'
+            marker.header.stamp = timestamp
+            marker.ns = 'gazebo_static_space'
+            marker.id = marker_id
+            marker.type = Marker.CUBE
+            marker.action = Marker.ADD
+            marker.pose.position.x = float(x_pos)
+            marker.pose.position.y = float(y_pos)
+            marker.pose.position.z = float(z_pos)
+            marker.pose.orientation.z = math.sin(0.5 * yaw)
+            marker.pose.orientation.w = math.cos(0.5 * yaw)
+            marker.scale.x = float(size_x)
+            marker.scale.y = float(size_y)
+            marker.scale.z = float(size_z)
+            marker.color.r = grey[0]
+            marker.color.g = grey[1]
+            marker.color.b = grey[2]
+            marker.color.a = grey[3]
+            markers.append(marker)
+            marker_id += 1
+
+            label = Marker()
+            label.header.frame_id = 'odom'
+            label.header.stamp = timestamp
+            label.ns = 'gazebo_static_labels'
+            label.id = marker_id
+            label.type = Marker.TEXT_VIEW_FACING
+            label.action = Marker.ADD
+            label.pose.position.x = float(x_pos)
+            label.pose.position.y = float(y_pos)
+            label.pose.position.z = float(z_pos) + float(size_z) * 0.6
+            label.pose.orientation.w = 1.0
+            label.scale.z = 0.10
+            label.color.r = 0.88
+            label.color.g = 0.88
+            label.color.b = 0.88
+            label.color.a = 0.70
+            label.text = name
+            markers.append(label)
+            marker_id += 1
+
+        def add_cylinder(name, x_pos, y_pos, z_pos, radius, length):
+            nonlocal marker_id
+            marker = Marker()
+            marker.header.frame_id = 'odom'
+            marker.header.stamp = timestamp
+            marker.ns = 'gazebo_static_space'
+            marker.id = marker_id
+            marker.type = Marker.CYLINDER
+            marker.action = Marker.ADD
+            marker.pose.position.x = float(x_pos)
+            marker.pose.position.y = float(y_pos)
+            marker.pose.position.z = float(z_pos)
+            marker.pose.orientation.w = 1.0
+            marker.scale.x = float(radius) * 2.0
+            marker.scale.y = float(radius) * 2.0
+            marker.scale.z = float(length)
+            marker.color.r = grey[0]
+            marker.color.g = grey[1]
+            marker.color.b = grey[2]
+            marker.color.a = grey[3]
+            markers.append(marker)
+            marker_id += 1
+
+            label = Marker()
+            label.header.frame_id = 'odom'
+            label.header.stamp = timestamp
+            label.ns = 'gazebo_static_labels'
+            label.id = marker_id
+            label.type = Marker.TEXT_VIEW_FACING
+            label.action = Marker.ADD
+            label.pose.position.x = float(x_pos)
+            label.pose.position.y = float(y_pos)
+            label.pose.position.z = float(z_pos) + float(length) * 0.8
+            label.pose.orientation.w = 1.0
+            label.scale.z = 0.10
+            label.color.r = 0.88
+            label.color.g = 0.88
+            label.color.b = 0.88
+            label.color.a = 0.70
+            label.text = name
+            markers.append(label)
+            marker_id += 1
+
+        bounds = self.warehouse_config.get('warehouse', {}).get('bounds', {})
+        min_x = float(bounds.get('min_x', -2.9))
+        max_x = float(bounds.get('max_x', 5.9))
+        min_y = float(bounds.get('min_y', -4.8))
+        max_y = float(bounds.get('max_y', 4.8))
+        outline = Marker()
+        outline.header.frame_id = 'odom'
+        outline.header.stamp = timestamp
+        outline.ns = 'gazebo_static_outline'
+        outline.id = marker_id
+        outline.type = Marker.LINE_STRIP
+        outline.action = Marker.ADD
+        outline.pose.orientation.w = 1.0
+        outline.scale.x = 0.04
+        outline.color.r = line_grey[0]
+        outline.color.g = line_grey[1]
+        outline.color.b = line_grey[2]
+        outline.color.a = line_grey[3]
+        for point_x, point_y in [
+            (min_x, min_y),
+            (max_x, min_y),
+            (max_x, max_y),
+            (min_x, max_y),
+            (min_x, min_y),
+        ]:
+            outline.points.append(self._make_marker_point(point_x, point_y, 0.05))
+        markers.append(outline)
+        marker_id += 1
+
+        add_box('north wall', 1.50, 4.80, 0.75, 8.80, 0.12, 1.5)
+        add_box('south wall', 1.50, -4.80, 0.75, 8.80, 0.12, 1.5)
+        add_box('west wall', -2.90, 0.0, 0.75, 0.12, 9.60, 1.5)
+        add_box('east wall', 5.90, 0.0, 0.75, 0.12, 9.60, 1.5)
+
+        shelf_dims = self.warehouse_config.get('shelves', {}).get('shelf_a', {}).get('dimensions', [0.44, 1.31])
+        shelf_height = float(self.warehouse_config.get('shelves', {}).get('shelf_a', {}).get('height_m', 1.96))
+        for name, x_pos, y_pos, yaw in [
+            ('Shelf C', 2.20, -2.50, 1.5707963267948966),
+            ('Shelf B', 2.20, 0.0, 1.5707963267948966),
+            ('Shelf A', 2.20, 2.50, 1.5707963267948966),
+            ('Left Shelf', -2.20, -0.50, 0.0),
+        ]:
+            add_box(
+                name,
+                x_pos,
+                y_pos,
+                shelf_height * 0.5,
+                float(shelf_dims[0]),
+                float(shelf_dims[1]),
+                shelf_height,
+                yaw=yaw,
+            )
+
+        for name, x_pos, y_pos in [
+            ('Scan Rack C', 0.70, -2.40),
+            ('Scan Rack B', -0.70, 0.0),
+            ('Scan Rack A', 0.70, 2.40),
+        ]:
+            add_box(name, x_pos, y_pos, 0.16915, 0.82, 0.40, 0.3383, yaw=1.570796)
+
+        add_box('Pallet Jack', 2.20, -4.10, 0.10, 0.85, 0.48, 0.20)
+        add_cylinder('Bucket', 2.30, 3.90, 0.18, 0.14, 0.36)
+        return markers
+
     def _build_lane_guide_markers(self, timestamp, start_id):
         markers = []
         marker_id = start_id
-        lanes = self.warehouse_config.get('lanes', {})
-        for lane_key, lane_cfg in sorted(lanes.items(), key=lambda item: int(item[0].split('_')[-1])):
+        for lane_key, lane_cfg in self._ordered_lane_items():
             lane_id = int(lane_key.split('_')[-1])
             bounds = lane_cfg.get(
                 'stop_range_x',
@@ -1562,9 +1828,74 @@ class WarehouseFleetManager(Node):
             label.color.g = 1.0
             label.color.b = 1.0
             label.color.a = 0.95
-            label.text = lane_cfg.get('operator_name', f'Lane {lane_id + 1}')
+            label.text = self._lane_label(lane_id, lane_cfg)
             markers.append(label)
             marker_id += 1
+
+        default_cfg = self._lane_config(-1)
+        if default_cfg:
+            color = default_cfg.get('color', [0.56, 0.27, 0.68])
+            guide_points = default_cfg.get('guide_points', [])
+            if len(guide_points) >= 2:
+                line = Marker()
+                line.header.frame_id = 'odom'
+                line.header.stamp = timestamp
+                line.ns = 'fleet_lane_guides'
+                line.id = marker_id
+                line.type = Marker.LINE_STRIP
+                line.action = Marker.ADD
+                line.pose.orientation.w = 1.0
+                line.scale.x = 0.03
+                line.color.r = float(color[0])
+                line.color.g = float(color[1])
+                line.color.b = float(color[2])
+                line.color.a = 0.65
+                for point in guide_points:
+                    z_pos = float(point[2]) if len(point) > 2 else 0.03
+                    line.points.append(self._make_marker_point(float(point[0]), float(point[1]), z_pos))
+                markers.append(line)
+                marker_id += 1
+
+            home_pad = default_cfg.get('home_pad', {})
+            pad = Marker()
+            pad.header.frame_id = 'odom'
+            pad.header.stamp = timestamp
+            pad.ns = 'fleet_home_pads'
+            pad.id = marker_id
+            pad.type = Marker.CYLINDER
+            pad.action = Marker.ADD
+            pad.pose.position.x = float(home_pad.get('x', 0.0))
+            pad.pose.position.y = float(home_pad.get('y', 0.0))
+            pad.pose.position.z = 0.015
+            pad.pose.orientation.w = 1.0
+            pad.scale.x = 0.40
+            pad.scale.y = 0.40
+            pad.scale.z = 0.03
+            pad.color.r = float(color[0])
+            pad.color.g = float(color[1])
+            pad.color.b = float(color[2])
+            pad.color.a = 0.38
+            markers.append(pad)
+            marker_id += 1
+
+            label = Marker()
+            label.header.frame_id = 'odom'
+            label.header.stamp = timestamp
+            label.ns = 'fleet_lane_labels'
+            label.id = marker_id
+            label.type = Marker.TEXT_VIEW_FACING
+            label.action = Marker.ADD
+            label.pose.position.x = float(home_pad.get('x', 0.0)) + 0.55
+            label.pose.position.y = float(home_pad.get('y', 0.0))
+            label.pose.position.z = 0.18
+            label.pose.orientation.w = 1.0
+            label.scale.z = 0.14
+            label.color.r = 1.0
+            label.color.g = 1.0
+            label.color.b = 1.0
+            label.color.a = 0.95
+            label.text = self._lane_label(-1, default_cfg)
+            markers.append(label)
         return markers
 
     def _build_pending_waypoint_markers(self, timestamp, start_id):

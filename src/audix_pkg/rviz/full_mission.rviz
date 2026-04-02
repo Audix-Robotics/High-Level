@@ -10,6 +10,9 @@ Panels:
         - /Robot_0 Model1
         - /Robot_1 Model1
         - /Robot_2 Model1
+        - /Robot_5 Model1
+        - /Robot_6 Model1
+        - /Robot_7 Model1
         - /TF1
         - /TF1/Status1
         - /PlannedPath1
@@ -160,6 +163,72 @@ Visualization Manager:
         Mass: false
       Name: Robot_4 Model
       TF Prefix: robot_4
+      Update Interval: 0
+      Value: true
+      Visual Enabled: true
+    - Alpha: 0.6000000238418579
+      Class: rviz_default_plugins/RobotModel
+      Collision Enabled: false
+      Description File: ""
+      Description Source: Topic
+      Description Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /robot_5/robot_description
+      Enabled: true
+      Links:
+        All Links Enabled: true
+      Mass Properties:
+        Inertia: false
+        Mass: false
+      Name: Robot_5 Model
+      TF Prefix: robot_5
+      Update Interval: 0
+      Value: true
+      Visual Enabled: true
+    - Alpha: 0.6000000238418579
+      Class: rviz_default_plugins/RobotModel
+      Collision Enabled: false
+      Description File: ""
+      Description Source: Topic
+      Description Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /robot_6/robot_description
+      Enabled: true
+      Links:
+        All Links Enabled: true
+      Mass Properties:
+        Inertia: false
+        Mass: false
+      Name: Robot_6 Model
+      TF Prefix: robot_6
+      Update Interval: 0
+      Value: true
+      Visual Enabled: true
+    - Alpha: 0.6000000238418579
+      Class: rviz_default_plugins/RobotModel
+      Collision Enabled: false
+      Description File: ""
+      Description Source: Topic
+      Description Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /robot_7/robot_description
+      Enabled: true
+      Links:
+        All Links Enabled: true
+      Mass Properties:
+        Inertia: false
+        Mass: false
+      Name: Robot_7 Model
+      TF Prefix: robot_7
       Update Interval: 0
       Value: true
       Visual Enabled: true

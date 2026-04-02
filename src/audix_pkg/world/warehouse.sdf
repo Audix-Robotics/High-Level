@@ -152,7 +152,7 @@
     <!-- ============================================================ -->
     <model name='deco_shelfE_right_001'>
       <static>true</static>
-      <pose>2.20 -2.20 0 0 0 0</pose>
+      <pose>2.20 -2.50 0 0 0 0</pose>
       <link name='link'>
         <visual name='visual'>
           <visibility_flags>0x02</visibility_flags>
@@ -166,7 +166,7 @@
 
     <model name='deco_shelfE_right_002'>
       <static>true</static>
-      <pose>2.20 2.20 0 0 0 0</pose>
+      <pose>2.20 2.50 0 0 0 0</pose>
       <link name='link'>
         <visual name='visual'>
           <visibility_flags>0x02</visibility_flags>

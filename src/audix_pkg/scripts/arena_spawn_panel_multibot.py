@@ -19,6 +19,9 @@ from audix.srv import AssignMission, DespawnRobot, GetRobotStatus, SpawnRobot
 
 
 class WarehouseFleetSpawnPanel(Node):
+    DEFAULT_LANE_ID = -1
+    CAPTURE_RVIZ_ID = -2
+
     MODE_LABELS = {
         'lane_inspection': 'Lane Inspection',
         'free_roam': 'Free Roam',
@@ -43,8 +46,13 @@ class WarehouseFleetSpawnPanel(Node):
         self.robot_status_widgets = {}
         self.previous_active_robot_ids = set()
         self.rviz_waypoint_drafts = {}
-        self.spawn_lane_choices = self._build_lane_choices(include_default=False)
-        self.mission_lane_choices = self._build_lane_choices(include_default=True)
+        self.spawn_lane_choices = self._build_spawn_lane_choices()
+        self.spawn_lane_cycle_choices = [
+            (label, lane_id)
+            for label, lane_id in self.spawn_lane_choices
+            if lane_id >= 0
+        ]
+        self.mission_lane_choices = self._build_mission_lane_choices()
         self.spawn_lane_display_to_id = {label: lane_id for label, lane_id in self.spawn_lane_choices}
         self.lane_display_to_id = {label: lane_id for label, lane_id in self.mission_lane_choices}
         self.lane_id_to_display = {lane_id: label for label, lane_id in self.mission_lane_choices}
@@ -79,9 +87,7 @@ class WarehouseFleetSpawnPanel(Node):
 
         self.selected_robot_var = tk.IntVar(value=0)
         self.rviz_mode_var = tk.StringVar(value='idle')
-        default_lane_choice = self.lane_id_to_display.get(2)
-        if default_lane_choice is None and self.spawn_lane_choices:
-            default_lane_choice = self.spawn_lane_choices[0][0]
+        default_lane_choice = self.spawn_lane_choices[0][0] if self.spawn_lane_choices else ''
         self.spawn_lane_var = tk.StringVar(value=default_lane_choice or '')
 
         self.create_fleet_header_frame()
@@ -112,14 +118,32 @@ class WarehouseFleetSpawnPanel(Node):
     def _missions_config_path(self):
         return str(self.get_parameter('missions_config_path').value)
 
-    def _build_lane_choices(self, include_default=False):
-        choices = []
-        if include_default:
-            choices.append(('Default', -1))
-        for lane_key, lane_cfg in sorted(
+    def _ordered_lane_items(self):
+        return sorted(
             self.warehouse_config.get('lanes', {}).items(),
-            key=lambda item: int(item[0].split('_')[-1]),
-        ):
+            key=lambda item: (
+                int(item[1].get('display_order', 999)),
+                int(item[0].split('_')[-1]),
+            ),
+        )
+
+    def _default_lane_label(self):
+        default_cfg = self.warehouse_config.get('default_lane', {})
+        return default_cfg.get('operator_name', 'Default')
+
+    def _build_spawn_lane_choices(self):
+        choices = []
+        for lane_key, lane_cfg in self._ordered_lane_items():
+            lane_id = int(lane_key.split('_')[-1])
+            operator_name = lane_cfg.get('operator_name', f'Lane {lane_id + 1}')
+            choices.append((operator_name, lane_id))
+        choices.append((self._default_lane_label(), self.DEFAULT_LANE_ID))
+        choices.append(('Capture RViz', self.CAPTURE_RVIZ_ID))
+        return choices
+
+    def _build_mission_lane_choices(self):
+        choices = [(self._default_lane_label(), self.DEFAULT_LANE_ID)]
+        for lane_key, lane_cfg in self._ordered_lane_items():
             lane_id = int(lane_key.split('_')[-1])
             operator_name = lane_cfg.get('operator_name', f'Lane {lane_id + 1}')
             choices.append((operator_name, lane_id))
@@ -137,14 +161,16 @@ class WarehouseFleetSpawnPanel(Node):
     def _lane_choice_from_name(self, lane_name):
         lane_name = (lane_name or '').strip().lower()
         for label, lane_id in self.mission_lane_choices:
-            if lane_id < 0:
-                continue
-            lane_cfg = self.warehouse_config.get('lanes', {}).get(f'lane_{lane_id}', {})
+            if lane_id == self.DEFAULT_LANE_ID and lane_name == self._default_lane_label().lower():
+                return label
+            lane_cfg = self._lane_config(lane_id)
             if lane_cfg.get('operator_name', '').strip().lower() == lane_name:
                 return label
         return self.mission_lane_choices[1][0] if len(self.mission_lane_choices) > 1 else 'Lane 1'
 
     def _lane_config(self, lane_id):
+        if int(lane_id) == self.DEFAULT_LANE_ID:
+            return self.warehouse_config.get('default_lane', {})
         return self.warehouse_config.get('lanes', {}).get(f'lane_{lane_id}', {})
 
     def _default_scan_heights(self):
@@ -183,7 +209,7 @@ class WarehouseFleetSpawnPanel(Node):
 
         tk.Label(frame, text='Number of Robots:').pack(side='left')
         self.num_robots_var = tk.IntVar(value=1)
-        tk.Spinbox(frame, from_=1, to=6, textvariable=self.num_robots_var, width=5).pack(side='left', padx=5)
+        tk.Spinbox(frame, from_=1, to=8, textvariable=self.num_robots_var, width=5).pack(side='left', padx=5)
         tk.Button(frame, text='Spawn Fleet', command=self.spawn_fleet).pack(side='left', padx=5)
         tk.Button(frame, text='Clear All Robots', command=self.clear_all_robots).pack(side='left', padx=5)
 
@@ -469,11 +495,11 @@ class WarehouseFleetSpawnPanel(Node):
     def spawn_fleet(self):
         if not self._wait_for_service(self.spawn_robot_client, 'Spawn Robot'):
             return
-        lane_count = max(1, len(self.spawn_lane_choices))
+        lane_count = max(1, len(self.spawn_lane_cycle_choices))
         for robot_id in range(self.num_robots_var.get()):
             request = SpawnRobot.Request()
             request.robot_id = robot_id
-            request.lane_id = robot_id % lane_count
+            request.lane_id = self.spawn_lane_cycle_choices[robot_id % lane_count][1]
             future = self.spawn_robot_client.call_async(request)
             future.add_done_callback(lambda fut, rid=robot_id: self._handle_spawn_response(fut, rid))
 
@@ -487,12 +513,30 @@ class WarehouseFleetSpawnPanel(Node):
             future.add_done_callback(lambda fut, rid=robot_id: self._handle_despawn_response(fut, rid))
 
     def spawn_single_robot(self):
+        lane_id = self.spawn_lane_display_to_id.get(self.spawn_lane_var.get(), 0)
+        robot_id = self.single_robot_id_var.get()
+        self.selected_robot_var.set(robot_id)
+        if lane_id == self.CAPTURE_RVIZ_ID:
+            payload = json.dumps(
+                {
+                    'command': 'prepare_spawn_capture',
+                    'robot_id': int(robot_id),
+                }
+            )
+            self.rviz_command_pub.publish(String(data=payload))
+            self.rviz_mode_var.set('spawn')
+            self._update_rviz_status_label()
+            messagebox.showinfo(
+                'Capture RViz Spawn',
+                f'Publish one point in RViz to spawn robot_{robot_id} at that location.',
+            )
+            return
+
         if not self._wait_for_service(self.spawn_robot_client, 'Spawn Robot'):
             return
         request = SpawnRobot.Request()
-        request.robot_id = self.single_robot_id_var.get()
-        request.lane_id = self.spawn_lane_display_to_id.get(self.spawn_lane_var.get(), 2)
-        self.selected_robot_var.set(request.robot_id)
+        request.robot_id = robot_id
+        request.lane_id = lane_id
         self._update_rviz_status_label()
         future = self.spawn_robot_client.call_async(request)
         future.add_done_callback(lambda fut: self._handle_spawn_response(fut, request.robot_id))
@@ -604,8 +648,6 @@ class WarehouseFleetSpawnPanel(Node):
     def _active_lane_id_for_robot(self, robot_id):
         lane_name = self.latest_status.get(robot_id, {}).get('lane_name', '').strip().lower()
         for label, lane_id in self.mission_lane_choices:
-            if lane_id < 0:
-                continue
             lane_cfg = self._lane_config(lane_id)
             operator_name = lane_cfg.get('operator_name', '').strip().lower()
             if lane_name and lane_name == operator_name:
@@ -616,41 +658,34 @@ class WarehouseFleetSpawnPanel(Node):
         return 0
 
     def _default_original_descriptor(self, robot_id):
-        scan_heights = self._sanitize_heights(robot_id)
         descriptor = {
             'mission_name': f'robot_{robot_id}_default_original',
             'source': 'default_original',
             'mission_mode': 'default_original',
-            'waypoints': [],
+            'waypoints': [
+                {
+                    'position': [0.0, -2.40, 0.0],
+                    'lift_height': 0.30,
+                    'scan_yaw': 0.0,
+                    'dwell_time': 0.0,
+                    'position_tolerance': 0.05,
+                },
+                {
+                    'position': [0.0, 0.0, 0.0],
+                    'lift_height': 0.60,
+                    'scan_yaw': math.pi,
+                    'dwell_time': 0.0,
+                    'position_tolerance': 0.05,
+                },
+                {
+                    'position': [0.0, 2.40, 0.0],
+                    'lift_height': 0.90,
+                    'scan_yaw': 0.0,
+                    'dwell_time': 0.0,
+                    'position_tolerance': 0.05,
+                },
+            ],
         }
-        for shelf_key, shelf_cfg in sorted(self.warehouse_config.get('scan_shelves', {}).items()):
-            position = shelf_cfg.get('position', [0.0, 0.0, 0.0])
-            shelf_yaw = float(shelf_cfg.get('yaw', math.pi / 2.0))
-            for height in scan_heights:
-                descriptor['waypoints'].append(
-                    {
-                        'position': [float(position[0]), float(position[1]), float(position[2]) if len(position) > 2 else 0.0],
-                        'lift_height': float(height),
-                        'scan_yaw': shelf_yaw,
-                        'dwell_time': 0.0,
-                        'position_tolerance': 0.05,
-                    }
-                )
-
-        lane_cfg = self._lane_config(self._active_lane_id_for_robot(robot_id))
-        return_pad = lane_cfg.get('return_pad', {})
-        home_pad = lane_cfg.get('home_pad', {})
-        descriptor['waypoints'].append(
-            {
-                'position': [
-                    float(return_pad.get('x', home_pad.get('x', lane_cfg.get('center_x', 0.0)))),
-                    float(return_pad.get('y', home_pad.get('y', lane_cfg.get('center_y', 0.0)))),
-                    0.0,
-                ],
-                'dwell_time': 0.0,
-                'position_tolerance': 0.05,
-            }
-        )
         return descriptor
 
     def _free_roam_descriptor(self, robot_id):
@@ -732,17 +767,12 @@ class WarehouseFleetSpawnPanel(Node):
         lane_id = self.lane_display_to_id.get(program_vars['lane_choice'].get(), 0)
         if lane_id < 0:
             descriptor = self._default_original_descriptor(robot_id)
-            scan_heights = self._sanitize_heights(robot_id)
-            shelf_names = ', '.join(
-                shelf_cfg.get('name', shelf_key)
-                for shelf_key, shelf_cfg in sorted(self.warehouse_config.get('scan_shelves', {}).items())
-            )
-            return_pad = descriptor['waypoints'][-1]['position'] if descriptor.get('waypoints') else [0.0, 0.0, 0.0]
+            heights = [waypoint.get('lift_height', 0.0) for waypoint in descriptor.get('waypoints', [])]
             widgets['preview_label'].configure(
                 text=(
-                    f'Default / Original | scan shelves: {shelf_names} | '
-                    f'levels: {len(scan_heights)} | heights: {self._format_scan_heights(scan_heights)}\n'
-                    f'Return pad: ({float(return_pad[0]):.2f}, {float(return_pad[1]):.2f})'
+                    'Default / Original | exact commit route\n'
+                    f'Waypoints: (0.00, -2.40) -> (0.00, 0.00) -> (0.00, 2.40) | '
+                    f'heights: {self._format_scan_heights(heights)}'
                 )
             )
             return
@@ -835,7 +865,7 @@ class WarehouseFleetSpawnPanel(Node):
         self._update_rviz_status_label()
 
     def set_rviz_mode(self, mode):
-        if mode not in {'idle', 'waypoint'}:
+        if mode not in {'idle', 'spawn', 'waypoint'}:
             mode = 'idle'
         self.rviz_mode_var.set(mode)
         self.rviz_command_pub.publish(String(data=f'mode {mode}'))
