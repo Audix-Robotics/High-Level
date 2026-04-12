@@ -1,22 +1,20 @@
 #pragma once
 
+#include <array>
+
 #include "config.hpp"
 
 namespace app {
 
-struct BodyCommand {
-    float linear_x = 0.0f;
-    float linear_y = 0.0f;
-    float angular_z = 0.0f;
+struct ChassisMotion {
+    float vx = 0.0f;
+    float vy = 0.0f;
+    float wz = 0.0f;
 };
 
-struct WheelTargets {
-    float front_left = 0.0f;
-    float front_right = 0.0f;
-    float back_left = 0.0f;
-    float back_right = 0.0f;
-};
+using WheelVector = std::array<float, WHEEL_COUNT>;
 
-WheelTargets inverseKinematics(const BodyCommand& command, const RobotGeometry& geometry);
+WheelVector inverseKinematics(const ChassisMotion& motion, const RobotGeometry& geometry);
+ChassisMotion forwardKinematics(const WheelVector& wheel_rad_s, const RobotGeometry& geometry);
 
 }  // namespace app

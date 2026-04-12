@@ -1,7 +1,7 @@
 <package format="3">
   <name>audix</name>
   <version>1.0.0</version>
-  <description>URDF description package for the Audix robot.</description>
+  <description>ROS 2 package for the Audix robot covering Pi hardware, mock validation, and Gazebo simulation paths.</description>
 
   <maintainer email="ahmed@example.com">Ahmed</maintainer>
   <license>BSD-3-Clause</license>

@@ -1,3 +1,11 @@
+"""Main Raspberry Pi launch path for the real Audix hardware stack.
+
+This launch keeps the high-level contract explicit:
+- Pi runs the protected arena_roamer behavior
+- Pi runs robot_localization EKF and publishes /odometry/filtered
+- ESP32 stays low-level and communicates through micro-ROS
+"""
+
 import os
 
 from launch import LaunchDescription

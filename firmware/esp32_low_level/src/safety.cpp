@@ -2,15 +2,17 @@
 
 namespace app {
 
-MotionSafety::MotionSafety(SafetyConfig config) : config_(config) {}
-
 bool MotionSafety::motionAllowed(const CommandState& command, std::uint32_t now_ms) const {
-    // Safety layer from the low-level flowchart: disable immediately on false
-    // enable state or stale command timing.
-    if (!command.enabled) {
+    if (!command.robot_enabled) {
         return false;
     }
-    return (now_ms - command.last_command_ms) <= config_.command_timeout_ms;
+    return (now_ms - command.last_cmd_time_ms) < CMD_TIMEOUT_MS;
+}
+
+void MotionSafety::enforce(const CommandState& command, std::uint32_t now_ms, std::array<float, WHEEL_COUNT>& targets) const {
+    if (!motionAllowed(command, now_ms)) {
+        targets.fill(0.0f);
+    }
 }
 
 }  // namespace app

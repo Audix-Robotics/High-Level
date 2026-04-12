@@ -1,10 +1,11 @@
 #pragma once
 
+#include "shared_state.hpp"
+
 namespace app {
 
-// TODO: Replace these placeholders with the selected IMU driver interface once
-// the production sensor and transport details are finalized.
-void initializeImu();
-void readImu();
+bool initializeImu();
+bool readImu(IMUState& state, float dt_seconds);
+bool imuHealthy();
 
 }  // namespace app

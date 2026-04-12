@@ -1,10 +1,13 @@
 #pragma once
 
+#include <cstdint>
+
 namespace app {
 
-// TODO: Bind these to the actual micro-ROS transport, executor, publishers,
-// and subscriptions once the final ESP firmware stack is selected.
-void initializeMicroRosTransport();
-void spinMicroRosOnce();
+bool initializeMicroRosTransport();
+void shutdownMicroRosTransport();
+void microrosSpinSome(std::uint32_t timeout_ms);
+bool publishTelemetry();
+bool microrosConnected();
 
 }  // namespace app

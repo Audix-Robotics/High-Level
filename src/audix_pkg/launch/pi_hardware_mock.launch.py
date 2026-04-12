@@ -1,3 +1,9 @@
+"""Mock Raspberry Pi launch path for validating arena_roamer without hardware.
+
+This launch reuses the real Pi-side stack from pi_hardware.launch.py and swaps
+only the low-level inputs with deterministic mock publishers.
+"""
+
 import os
 
 from launch import LaunchDescription

@@ -1,3 +1,10 @@
+"""Gazebo simulation path for validating the Pi-side mission stack.
+
+This launch is separate from the real and mock hardware paths. It keeps the
+same high-level contract by running EKF on the Pi side and optionally
+publishing /robot_enable for arena_roamer.
+"""
+
 import os
 
 from launch import LaunchDescription
@@ -26,7 +33,9 @@ def generate_launch_description():
     use_slider_gui = LaunchConfiguration('use_slider_gui')
     use_spawn_panel = LaunchConfiguration('use_spawn_panel')
     world_name = LaunchConfiguration('world_name')
+    use_start_stop = LaunchConfiguration('use_start_stop')
     auto_start = LaunchConfiguration('auto_start')
+    start_delay = LaunchConfiguration('start_delay')
 
     # Environment so Gazebo can find meshes
     gz_resource = SetEnvironmentVariable(
@@ -110,7 +119,24 @@ def generate_launch_description():
         parameters=[mission_config, {'use_sim_time': True}],
     )
 
-    # start_stop and goal_sender removed: ArenaRoamer does not use /robot_enable or /send_mission
+    start_stop = TimerAction(
+        period=ParameterValue(start_delay, value_type=float),
+        actions=[
+            Node(
+                package='audix',
+                executable='start_stop_node.py',
+                name='start_stop_node',
+                output='screen',
+                parameters=[
+                    {
+                        'use_sim_time': True,
+                        'auto_start': auto_start,
+                    }
+                ],
+            )
+        ],
+        condition=IfCondition(use_start_stop),
+    )
 
     # TF alias
     arena_alias_tf = Node(
@@ -141,7 +167,9 @@ def generate_launch_description():
         DeclareLaunchArgument('use_slider_gui', default_value='false', description='Launch scissor slider GUI'),
         DeclareLaunchArgument('use_spawn_panel', default_value='true', description='Launch the obstacle spawn preset panel'),
         DeclareLaunchArgument('world_name', default_value='warehouse', description='Gazebo world name for the arena sandbox'),
+        DeclareLaunchArgument('use_start_stop', default_value='true', description='Publish /robot_enable for arena_roamer'),
         DeclareLaunchArgument('auto_start', default_value='true', description='Publish /robot_enable automatically'),
+        DeclareLaunchArgument('start_delay', default_value='2.0', description='Delay before publishing /robot_enable in simulation'),
         gz_resource,
         ign_resource,
         base_sim,
@@ -150,6 +178,7 @@ def generate_launch_description():
         obstacle_manager,
         start_spawn_panel,
         roamer,
+        start_stop,
         arena_alias_tf,
         rviz_node,
     ])

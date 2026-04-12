@@ -4,10 +4,12 @@ namespace app {
 
 class PidController {
 public:
-    // Configure one wheel-speed PID controller. The final firmware should
-    // instantiate four of these, one per drive wheel.
+    PidController() = default;
+
     void configure(float kp, float ki, float kd, float output_min, float output_max);
+    void setGains(float kp, float ki, float kd);
     void setIntegralClamp(float integral_min, float integral_max);
+    void setOutputClamp(float output_min, float output_max);
     void reset();
     float update(float target, float measured, float dt_seconds, bool enable_integral = true);
 

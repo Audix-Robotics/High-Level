@@ -1,12 +1,19 @@
 #pragma once
 
+#include <array>
+#include <cstdint>
+
+#include "config.hpp"
+
 namespace app {
 
-// Minimal ISR entry points. Keep encoder interrupt handlers extremely small and
-// defer all heavy work to the sensor update task.
-void onFrontLeftEncoderEdge();
-void onFrontRightEncoderEdge();
-void onBackLeftEncoderEdge();
-void onBackRightEncoderEdge();
+void initializeEncoders();
+std::array<std::int32_t, WHEEL_COUNT> readEncoderCounts();
+void resetEncoderCounts();
+
+void IRAM_ATTR onFrontLeftEncoderEdge();
+void IRAM_ATTR onFrontRightEncoderEdge();
+void IRAM_ATTR onRearLeftEncoderEdge();
+void IRAM_ATTR onRearRightEncoderEdge();
 
 }  // namespace app

@@ -1,3 +1,10 @@
+"""Legacy transitional hardware launch.
+
+This file is kept for reference while the supported real-hardware entry point is
+pi_hardware.launch.py. It reflects an older architecture that mixed Pi-side
+high-level behavior with local kinematics/helper nodes.
+"""
+
 import os
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, TimerAction

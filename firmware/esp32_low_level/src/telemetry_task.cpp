@@ -1,10 +1,16 @@
 #include "shared_state.hpp"
 
+#include "config.hpp"
+#include "microros_transport.hpp"
+
 namespace app {
 
-void runTelemetryTask(void*) {
-    // TODO: Publish /odom, /imu, digital IR topics, /limit_switch, and any
-    // optional wheel speed or motor status telemetry.
+void telemetryTask(void*) {
+    TickType_t last_wake = xTaskGetTickCount();
+    for (;;) {
+        vTaskDelayUntil(&last_wake, pdMS_TO_TICKS(TELEMETRY_PERIOD_MS));
+        publishTelemetry();
+    }
 }
 
 }  // namespace app
