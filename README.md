@@ -20,12 +20,15 @@ cd High-Level
 ```bash
 sudo apt update
 sudo apt install -y python3-pip python3-venv python3.12-venv
+rm -rf .venv
 python3 -m venv .venv
 source .venv/bin/activate
 python3 -m ensurepip --upgrade
 python3 -m pip install --upgrade pip
 python3 -m pip install -r requirements.txt
 ```
+
+If you renamed or moved the repo folder, recreate `.venv` with the commands above before running the project.
 
 ## Run
 
