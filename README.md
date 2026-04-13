@@ -18,9 +18,13 @@ cd High-Level
 ## Setup on the Pi
 
 ```bash
+sudo apt update
+sudo apt install -y python3-pip python3-venv python3.12-venv
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+python3 -m ensurepip --upgrade
+python3 -m pip install --upgrade pip
+python3 -m pip install -r requirements.txt
 ```
 
 ## Run
@@ -33,6 +37,12 @@ Or:
 
 ```bash
 python3 vision.py --shelf shelf2 --camera-index 0
+```
+
+If camera `0` does not work, try:
+
+```bash
+python3 vision.py --shelf shelf1 --camera-index 1
 ```
 
 The terminal prints the detections and confidence.
