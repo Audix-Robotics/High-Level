@@ -2,6 +2,13 @@
 
 This branch only contains the files needed to run the shelf vision model on the Raspberry Pi.
 
+## Clone
+
+```bash
+git clone --branch vision --single-branch git@github.com:Audix-Robotics/High-Level.git
+cd High-Level
+```
+
 ## Files
 
 - `vision.py` runs live camera detection
