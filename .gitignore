@@ -1,10 +1,2 @@
-build/
-install/
-log/
 __pycache__/
 *.pyc
-command.txt
-.vscode/
-log_backup_1774107919/
-build_backup_1774107919/
-install_backup_1774107919/

@@ -1,6 +1,0 @@
-static_obstacles:
-  - {x: 2.2, "y": 0.0, z: 0.15, sx: 0.25, sy: 0.25, sz: 0.30}
-
-dynamic_obstacles:
-  - {x: 3.8, "y": -1.0, z: 0.15, sx: 0.25, sy: 0.25, sz: 0.30,
-     path_axis: "y", path_range: 2.0, speed: 0.2}
