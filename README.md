@@ -5,8 +5,8 @@ This branch only contains the files needed to run the shelf vision model on the 
 ## Clone
 
 ```bash
-git clone --branch vision --single-branch git@github.com:Audix-Robotics/High-Level.git
-cd High-Level
+git clone --branch vision --single-branch git@github.com:Audix-Robotics/High-Level.git High-Level-vision
+cd High-Level-vision
 ```
 
 ## Files
@@ -18,6 +18,8 @@ cd High-Level
 ## Setup on the Pi
 
 ```bash
+git clone --branch vision --single-branch git@github.com:Audix-Robotics/High-Level.git High-Level-vision
+cd High-Level-vision
 sudo apt update
 sudo apt install -y python3-pip python3-venv python3.12-venv
 rm -rf .venv
