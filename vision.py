@@ -1,8 +1,11 @@
 import argparse
+from pathlib import Path
+
 import cv2
 from ultralytics import YOLO
 
-MODEL = "models/best.pt"
+BASE_DIR = Path(__file__).resolve().parent
+MODEL = str(BASE_DIR / "models" / "best.pt")
 CONF = 0.9
 IOU = 0.6
 TARGET = 2

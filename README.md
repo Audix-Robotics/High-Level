@@ -2,11 +2,10 @@
 
 This branch only contains the files needed to run the shelf vision model on the Raspberry Pi.
 
-## Clone
+## Download As ZIP
 
 ```bash
-git clone --branch vision --single-branch git@github.com:Audix-Robotics/High-Level.git High-Level-vision
-cd High-Level-vision
+Download the `vision` branch as a ZIP file from GitHub, extract it, then open a terminal inside the extracted folder.
 ```
 
 ## Files
@@ -18,8 +17,6 @@ cd High-Level-vision
 ## Setup on the Pi
 
 ```bash
-git clone --branch vision --single-branch git@github.com:Audix-Robotics/High-Level.git High-Level-vision
-cd High-Level-vision
 sudo apt update
 sudo apt install -y python3-pip python3-venv python3.12-venv
 rm -rf .venv
@@ -31,6 +28,7 @@ python3 -m pip install -r requirements.txt
 ```
 
 If you renamed or moved the repo folder, recreate `.venv` with the commands above before running the project.
+`vision.py` loads the model relative to its own folder, so it still works after extracting a ZIP to a different directory name.
 
 ## Run
 
