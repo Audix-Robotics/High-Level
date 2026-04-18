@@ -67,6 +67,7 @@ If you prefer GitHub Desktop on another computer, GitHub's docs describe `Code` 
 ## Clone option 2: SSH
 
 Full Raspberry Pi SSH setup steps are also in `SSH_SETUP.md`.
+Laptop-to-Pi remote control steps are in `REMOTE_PI_SETUP.md`.
 
 Make sure your Raspberry Pi SSH key is already added to GitHub.
 
@@ -203,3 +204,5 @@ It intentionally does not include training datasets, experiment runs, or local v
   https://docs.github.com/en/get-started/git-basics/about-remote-repositories
 - GitHub docs: `Code` -> `Open with GitHub Desktop`
   https://docs.github.com/en/enterprise-server%403.14/desktop/adding-and-cloning-repositories/cloning-a-repository-from-github-to-github-desktop
+- Raspberry Pi remote access docs
+  https://www.raspberrypi.com/documentation/configuration/computers/remote-access.html
