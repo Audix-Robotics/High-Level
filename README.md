@@ -34,6 +34,20 @@ Important:
 - Plain headless SSH without GUI forwarding will not show the live camera windows.
 - Cloning with SSH is fine, but you should run the app from the Pi desktop terminal or a GUI-capable remote session if you want the preview window.
 
+## Repository and branch
+
+Repository:
+
+```text
+https://github.com/Audix-Robotics/High-Level.git
+```
+
+Branch for this app:
+
+```text
+final-vision
+```
+
 ## Clone option 1: GitHub interface / HTTPS
 
 On the repository page:
@@ -44,28 +58,60 @@ On the repository page:
 On the Raspberry Pi:
 
 ```bash
-git clone https://github.com/YOUR-USERNAME/YOUR-REPO.git
-cd YOUR-REPO/supermarket_trigger_app
+git clone --branch final-vision https://github.com/Audix-Robotics/High-Level.git
+cd High-Level
 ```
 
 If you prefer GitHub Desktop on another computer, GitHub's docs describe `Code` -> `Open with GitHub Desktop`.
 
 ## Clone option 2: SSH
 
+Full Raspberry Pi SSH setup steps are also in `SSH_SETUP.md`.
+
 Make sure your Raspberry Pi SSH key is already added to GitHub.
 
 Then run:
 
 ```bash
-git clone git@github.com:YOUR-USERNAME/YOUR-REPO.git
-cd YOUR-REPO/supermarket_trigger_app
+git clone --branch final-vision git@github.com:Audix-Robotics/High-Level.git
+cd High-Level
 ```
 
 GitHub says SSH clone URLs require adding your public SSH key to your account first.
 
+## Raspberry Pi SSH setup for this branch
+
+Run these on the Raspberry Pi:
+
+```bash
+ssh-keygen -t ed25519 -C "your_email@example.com"
+cat ~/.ssh/id_ed25519.pub
+```
+
+Then:
+
+1. Copy the printed public key.
+2. Open GitHub.
+3. Go to `Settings` -> `SSH and GPG keys`.
+4. Click `New SSH key`.
+5. Paste the key and save it.
+
+Test SSH from the Pi:
+
+```bash
+ssh -T git@github.com
+```
+
+Then clone this branch:
+
+```bash
+git clone --branch final-vision git@github.com:Audix-Robotics/High-Level.git
+cd High-Level
+```
+
 ## Raspberry Pi setup
 
-From inside `supermarket_trigger_app`:
+From inside `High-Level`:
 
 ```bash
 sudo apt update
