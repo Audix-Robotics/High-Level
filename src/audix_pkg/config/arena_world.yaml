@@ -1,0 +1,23 @@
+arena_obstacle_manager:
+  ros__parameters:
+    world_name: warehouse
+    click_topic: /clicked_point
+    preset_topic: /arena_spawn_preset
+    command_topic: /arena_spawn_command
+    arena_min_x: -4.55
+    arena_max_x: 4.55
+    arena_min_y: -4.55
+    arena_max_y: 4.55
+    obstacle_z_margin: 0.01
+    dynamic_update_period: 0.12
+    dynamic_speed_min: 0.05
+    dynamic_speed_max: 0.16
+    small_box_size: [0.25, 0.25, 0.35]
+    medium_box_size: [0.45, 0.45, 0.60]
+    large_box_size: [0.80, 0.55, 0.95]
+    random_min_size: [0.20, 0.20, 0.25]
+    random_max_size: [1.10, 0.90, 1.10]
+
+arena_spawn_panel:
+  ros__parameters:
+    default_preset: dynamic_medium

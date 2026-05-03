@@ -4,6 +4,7 @@ import math
 import random
 
 import rclpy
+from arena_route_library import build_route_waypoints
 from geometry_msgs.msg import PoseStamped, Twist
 from nav_msgs.msg import Odometry, Path
 from rclpy.node import Node
@@ -365,7 +366,7 @@ class ArenaRoamer(Node):
             self.control_mode = 'acceptance_path'
             self.route_loop = False
         else:
-            self.route_waypoints = self._build_route_waypoints(self.route_name) if self.control_mode == 'acceptance_path' else []
+            self.route_waypoints = build_route_waypoints(self.route_name) if self.control_mode == 'acceptance_path' else []
             self.route_yaws = [0.0] * len(self.route_waypoints)
             self.route_lift_heights = [0.0] * len(self.route_waypoints)
 
@@ -411,22 +412,6 @@ class ArenaRoamer(Node):
             self.enabled = bool(msg.data)
         except Exception:
             self.enabled = False
-
-    def _build_route_waypoints(self, route_name):
-        routes = {
-            'double_pinch_figure8': [
-                (-3.60, 0.00),
-                (-2.20, 1.80),
-                (1.35, 1.45),
-                (3.20, 2.20),
-                (2.90, 0.00),
-                (1.35, -1.45),
-                (3.20, -2.20),
-                (-2.20, -1.80),
-                (-3.60, 0.00),
-            ],
-        }
-        return routes.get(route_name, routes['double_pinch_figure8'])
 
     def _representative_scan_range(self, valid_samples):
         if not valid_samples:

@@ -15,6 +15,7 @@ install(
 
 install(
 	PROGRAMS
+		scripts/arena_route_library.py
 		scripts/arena_obstacle_manager.py
 		scripts/arena_roamer.py
 		scripts/arena_spawn_panel.py
