@@ -1,0 +1,20 @@
+arena_ir_state_adapter:
+  ros__parameters:
+    publish_period_sec: 0.1
+    source_timeout_sec: 0.5
+    ir_low_sample_count: 3
+    ir_trip_distance_front: 0.08
+    ir_trip_distance_front_left: 0.085
+    ir_trip_distance_front_right: 0.11
+    ir_trip_distance_left: 0.085
+    ir_trip_distance_right: 0.095
+    ir_trip_distance_back: 0.08
+
+arena_roamer:
+  ros__parameters:
+    ir_display_distance_front: 0.08
+    ir_display_distance_front_left: 0.085
+    ir_display_distance_front_right: 0.11
+    ir_display_distance_left: 0.085
+    ir_display_distance_right: 0.095
+    ir_display_distance_back: 0.08

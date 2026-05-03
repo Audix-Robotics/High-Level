@@ -13,6 +13,7 @@ def generate_launch_description():
     pkg_parent = os.path.dirname(pkg_share)
 
     ekf_config = os.path.join(pkg_share, 'config', 'ekf.yaml')
+    ir_adapter_config = os.path.join(pkg_share, 'config', 'arena_ir_state_adapter.yaml')
     mission_config = os.path.join(pkg_share, 'config', 'mission_params.yaml')
     roamer_mission_config = os.path.join(pkg_share, 'config', 'arena_roamer_mission.yaml')
     world_config = os.path.join(pkg_share, 'config', 'arena_world.yaml')
@@ -28,7 +29,7 @@ def generate_launch_description():
         executable='arena_roamer.py',
         name='arena_roamer',
         output='screen',
-        parameters=[mission_config, roamer_mission_config, {'use_sim_time': True}],
+        parameters=[mission_config, roamer_mission_config, ir_adapter_config, {'use_sim_time': True}],
     )
 
     world_stack = IncludeLaunchDescription(

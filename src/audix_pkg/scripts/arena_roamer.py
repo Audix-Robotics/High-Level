@@ -8,7 +8,6 @@ from arena_route_library import build_route_waypoints
 from geometry_msgs.msg import PoseStamped, Twist
 from nav_msgs.msg import Odometry, Path
 from rclpy.node import Node
-from sensor_msgs.msg import LaserScan
 from std_msgs.msg import String, Float64, Bool
 from visualization_msgs.msg import Marker, MarkerArray
 from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy
@@ -65,16 +64,6 @@ class ArenaRoamer(Node):
         self.declare_parameter('reroute_diag_lateral_speed', 0.07)
         self.declare_parameter('reroute_front_retry_limit', 3)
         self.declare_parameter('reroute_front_backoff_scale', 1.45)
-        # Binary IR trip distance for the short-range 3.3V hardware profile.
-        self.declare_parameter('obstacle_detect_distance', 0.08)
-        self.declare_parameter('obstacle_detect_distance_front', 0.085)
-        self.declare_parameter('obstacle_detect_distance_front_center', 0.08)
-        self.declare_parameter('ir_trip_distance_front', 0.08)
-        self.declare_parameter('ir_trip_distance_front_left', 0.11)
-        self.declare_parameter('ir_trip_distance_front_right', 0.085)
-        self.declare_parameter('ir_trip_distance_left', 0.085)
-        self.declare_parameter('ir_trip_distance_right', 0.095)
-        self.declare_parameter('ir_trip_distance_back', 0.08)
         self.declare_parameter('obstacle_danger_distance', 0.07)
         self.declare_parameter('obstacle_clear_distance', 0.07)
         self.declare_parameter('startup_clearance_distance', 0.07)
@@ -87,8 +76,6 @@ class ArenaRoamer(Node):
         self.declare_parameter('robot_center_offset_y', -0.15)
         self.declare_parameter('robot_body_frame_flip_180', True)
         self.declare_parameter('debug_frame_id', 'arena10')
-        self.declare_parameter('ir_filter_alpha_rise', 0.16)
-        self.declare_parameter('ir_filter_alpha_fall', 0.72)
         self.declare_parameter('path_point_spacing', 0.05)
         self.declare_parameter('random_seed', 7)
         self.declare_parameter('startup_escape_delay_sec', 2.0)
@@ -123,7 +110,6 @@ class ArenaRoamer(Node):
         self.declare_parameter('motion_hold_sec', 0.30)
         self.declare_parameter('motion_switch_score_margin', 0.22)
         self.declare_parameter('motion_clearance_hysteresis', 0.03)
-        self.declare_parameter('ir_emergency_raw_ratio', 0.82)
         self.declare_parameter('blocked_side_release_cycles', 6)
         self.declare_parameter('blocked_side_release_clearance', 0.24)
         self.declare_parameter('blocked_side_forward_bias', 0.35)
@@ -135,6 +121,12 @@ class ArenaRoamer(Node):
         # avoidance override parameters
         self.declare_parameter('avoid_override_enable', True)
         self.declare_parameter('avoid_override_timeout_sec', 0.8)
+        self.declare_parameter('ir_display_distance_front', 0.08)
+        self.declare_parameter('ir_display_distance_front_left', 0.085)
+        self.declare_parameter('ir_display_distance_front_right', 0.11)
+        self.declare_parameter('ir_display_distance_left', 0.085)
+        self.declare_parameter('ir_display_distance_right', 0.095)
+        self.declare_parameter('ir_display_distance_back', 0.08)
         self.declare_parameter('waypoints', [0.0])
         self.declare_parameter('lift_dwell_time', 2.0)
         self.declare_parameter('scan_turn_degrees', 90.0)
@@ -174,17 +166,6 @@ class ArenaRoamer(Node):
         self.reroute_diag_lateral_speed = float(self.get_parameter('reroute_diag_lateral_speed').value)
         self.reroute_front_retry_limit = max(1, int(self.get_parameter('reroute_front_retry_limit').value))
         self.reroute_front_backoff_scale = max(1.0, float(self.get_parameter('reroute_front_backoff_scale').value))
-        self.obstacle_detect_distance = float(self.get_parameter('obstacle_detect_distance').value)
-        self.obstacle_detect_distance_front = float(self.get_parameter('obstacle_detect_distance_front').value)
-        self.obstacle_detect_distance_front_center = float(self.get_parameter('obstacle_detect_distance_front_center').value)
-        self.ir_trip_distance = {
-            'front': float(self.get_parameter('ir_trip_distance_front').value),
-            'front_left': float(self.get_parameter('ir_trip_distance_front_left').value),
-            'front_right': float(self.get_parameter('ir_trip_distance_front_right').value),
-            'left': float(self.get_parameter('ir_trip_distance_left').value),
-            'right': float(self.get_parameter('ir_trip_distance_right').value),
-            'back': float(self.get_parameter('ir_trip_distance_back').value),
-        }
         self.obstacle_danger_distance = float(self.get_parameter('obstacle_danger_distance').value)
         self.obstacle_clear_distance = float(self.get_parameter('obstacle_clear_distance').value)
         self.startup_clearance_distance = float(self.get_parameter('startup_clearance_distance').value)
@@ -197,8 +178,6 @@ class ArenaRoamer(Node):
         self.robot_center_offset_y = float(self.get_parameter('robot_center_offset_y').value)
         self.robot_body_frame_flip_180 = bool(self.get_parameter('robot_body_frame_flip_180').value)
         self.debug_frame_id = str(self.get_parameter('debug_frame_id').value)
-        self.ir_filter_alpha_rise = float(self.get_parameter('ir_filter_alpha_rise').value)
-        self.ir_filter_alpha_fall = float(self.get_parameter('ir_filter_alpha_fall').value)
         self.path_point_spacing = float(self.get_parameter('path_point_spacing').value)
         self.random_seed = int(self.get_parameter('random_seed').value)
         self.startup_escape_delay_sec = float(self.get_parameter('startup_escape_delay_sec').value)
@@ -241,7 +220,6 @@ class ArenaRoamer(Node):
         self.motion_hold_sec = float(self.get_parameter('motion_hold_sec').value)
         self.motion_switch_score_margin = float(self.get_parameter('motion_switch_score_margin').value)
         self.motion_clearance_hysteresis = float(self.get_parameter('motion_clearance_hysteresis').value)
-        self.ir_emergency_raw_ratio = float(self.get_parameter('ir_emergency_raw_ratio').value)
         self.blocked_side_release_cycles = max(1, int(self.get_parameter('blocked_side_release_cycles').value))
         self.blocked_side_release_clearance = float(self.get_parameter('blocked_side_release_clearance').value)
         self.blocked_side_forward_bias = float(self.get_parameter('blocked_side_forward_bias').value)
@@ -252,6 +230,14 @@ class ArenaRoamer(Node):
         self.blocked_clearance_margin = float(self.get_parameter('blocked_clearance_margin').value)
         self.avoid_override_enable = bool(self.get_parameter('avoid_override_enable').value)
         self.avoid_override_timeout = float(self.get_parameter('avoid_override_timeout_sec').value)
+        self.ir_display_distance = {
+            'front': float(self.get_parameter('ir_display_distance_front').value),
+            'front_left': float(self.get_parameter('ir_display_distance_front_left').value),
+            'front_right': float(self.get_parameter('ir_display_distance_front_right').value),
+            'left': float(self.get_parameter('ir_display_distance_left').value),
+            'right': float(self.get_parameter('ir_display_distance_right').value),
+            'back': float(self.get_parameter('ir_display_distance_back').value),
+        }
 
         self.cmd_pub = self.create_publisher(Twist, '/cmd_vel', 10)
         self.path_pub = self.create_publisher(Path, '/debug/planned_path', 10)
@@ -260,16 +246,15 @@ class ArenaRoamer(Node):
         self.state_pub = self.create_publisher(String, '/debug/state', 10)
 
         self.create_subscription(Odometry, '/odometry/filtered', self._odom_cb, 10)
-        # SWAPPED mapping to correct URDF labeling (physical left/right reversed)
         for key, topic in {
-            'front': '/ir_front/scan',
-            'front_left': '/ir_front_right/scan',
-            'front_right': '/ir_front_left/scan',
-            'left': '/ir_right/scan',
-            'right': '/ir_left/scan',
-            'back': '/ir_back/scan',
+            'front': '/ir/front/blocked',
+            'front_left': '/ir/front_left/blocked',
+            'front_right': '/ir/front_right/blocked',
+            'left': '/ir/left/blocked',
+            'right': '/ir/right/blocked',
+            'back': '/ir/back/blocked',
         }.items():
-            self.create_subscription(LaserScan, topic, lambda msg, k=key: self._ir_cb(k, msg), 10)
+            self.create_subscription(Bool, topic, lambda msg, k=key: self._ir_state_cb(k, msg), 10)
 
         # Optional avoidance override topic: short-lived reflexive commands
         self.last_avoid_cmd = None
@@ -288,13 +273,9 @@ class ArenaRoamer(Node):
         self.create_timer(0.2, self._publish_debug)
 
         self.ir = {name: float('inf') for name in self.sensor_names}
-        self.ir_raw = dict(self.ir)
+        self.ir_raw = {name: False for name in self.sensor_names}
         self.ir_hit = {name: False for name in self.sensor_names}
-        # Track the requested per-sensor hardware reach in the controller frame.
-        self.ir_range_max = dict(self.ir_trip_distance)
         self.sensor_last_update_sec = {key: None for key in self.ir}
-        self.ir_default_range_min = 0.01
-        self.ir_default_range_max = max(self.ir_trip_distance.values())
         # For time-sequenced binary trigger handling (per-sensor timestamps)
         self._last_ir_trigger = {k: 0.0 for k in self.ir}
         self.ir_half_fov = 0.30543
@@ -391,9 +372,9 @@ class ArenaRoamer(Node):
         self.blocked_clearance_target = 0.0
         # Keepout zones to remember obstacle locations (x, y, radius)
         self.goal_keepouts = []
-        # Last obstacle world position and timestamp (x,y), and flag when
-        # a new waypoint was just activated so we can bias the first rotation.
-        self.last_obstacle_world = None
+        # Binary-safe obstacle memory: remember only the last triggered sensor
+        # sector and when it was seen, not a fake obstacle coordinate.
+        self.last_obstacle_sensor = None
         self.last_obstacle_time = 0.0
         self.just_activated_waypoint = False
         # Reroute tracking: cooldown
@@ -412,15 +393,6 @@ class ArenaRoamer(Node):
             self.enabled = bool(msg.data)
         except Exception:
             self.enabled = False
-
-    def _representative_scan_range(self, valid_samples):
-        if not valid_samples:
-            return float('inf')
-        samples = sorted(valid_samples)
-        if len(samples) < self.ir_low_sample_count:
-            return samples[0]
-        lowest = samples[:self.ir_low_sample_count]
-        return sum(lowest) / len(lowest)
 
     def _sensor_control_value(self, sensor_name):
         if self.ir_hit.get(sensor_name, False):
@@ -697,9 +669,6 @@ class ArenaRoamer(Node):
     def _sensor_min_control(self, *sensor_names):
         return 0.0 if any(self.ir_hit.get(sensor_name, False) for sensor_name in sensor_names) else float('inf')
 
-    def _sensor_trip_distance(self, sensor_name):
-        return self.ir_trip_distance.get(sensor_name, self.obstacle_detect_distance)
-
     def _reroute_side_blocked(self, side_name):
         if side_name == 'left':
             return self._sensors_blocked_any('left', 'front_left')
@@ -843,6 +812,8 @@ class ArenaRoamer(Node):
         return True
 
     def _reroute_attempt_invalidated(self, state):
+        if state.get('phase') == 'backoff' and self._sensor_blocked('back'):
+            return True
         escape_side = state.get('escape_side')
         return escape_side in ('left', 'right') and self._reroute_side_blocked(escape_side)
 
@@ -1020,31 +991,15 @@ class ArenaRoamer(Node):
         self.goal_y = None
         self.get_logger().info('Acceptance route complete.')
 
-    def _ir_cb(self, key, msg):
-        rmin = msg.range_min if msg.range_min > 0.0 else 0.01
-        rmax = msg.range_max if msg.range_max > 0.0 else float('inf')
-        valid = [
-            sample for sample in msg.ranges
-            if not math.isnan(sample) and sample >= rmin and sample < rmax
-        ]
-        raw_value = self._representative_scan_range(valid)
-        self.ir_raw[key] = raw_value
-        self.ir_range_max[key] = rmax
+    def _ir_state_cb(self, key, msg):
+        blocked = bool(msg.data)
+        self.ir_raw[key] = blocked
         self.sensor_last_update_sec[key] = self._now_sec()
-
-        trigger_distance = self._sensor_trip_distance(key)
-        self.ir_hit[key] = math.isfinite(raw_value) and raw_value <= trigger_distance
-
-        prev = self.ir[key]
-        if not math.isfinite(prev):
-            self.ir[key] = raw_value
-            return
-
-        raw_proxy = rmax if not math.isfinite(raw_value) else raw_value
-        prev_proxy = rmax if not math.isfinite(prev) else prev
-        alpha = self.ir_filter_alpha_fall if raw_proxy < prev_proxy else self.ir_filter_alpha_rise
-        filtered = alpha * raw_proxy + (1.0 - alpha) * prev_proxy
-        self.ir[key] = float('inf') if filtered >= rmax * 0.98 else filtered
+        self.ir_hit[key] = blocked
+        self.ir[key] = 0.0 if blocked else float('inf')
+        if blocked:
+            self.last_obstacle_sensor = key
+            self.last_obstacle_time = self.sensor_last_update_sec[key]
 
     def _odom_cb(self, msg):
         self.x = msg.pose.pose.position.x
@@ -1120,13 +1075,7 @@ class ArenaRoamer(Node):
         return point
 
     def _sensor_display_range(self, sensor_name):
-        range_max = self.ir_range_max.get(sensor_name, self.ir_default_range_max)
-        if not math.isfinite(range_max):
-            range_max = self.ir_default_range_max
-        raw_range = self.ir_raw.get(sensor_name, float('inf'))
-        if math.isfinite(raw_range):
-            return max(self.ir_default_range_min, min(raw_range, range_max))
-        return range_max
+        return self.ir_display_distance.get(sensor_name, 0.08)
 
     def _sensor_hit_visible(self, sensor_name):
         return self.ir_hit.get(sensor_name, False)
@@ -1134,6 +1083,34 @@ class ArenaRoamer(Node):
     def _sensor_blocked(self, sensor_name):
         # Binary interpretation of IR: blocked if sensor reports a hit
         return self._sensor_hit_visible(sensor_name)
+
+    def _recent_waypoint_obstacle_bias(self, lateral_mag):
+        sensor_name = self.last_obstacle_sensor
+        if not self.just_activated_waypoint or sensor_name is None:
+            return None
+        if (self._now_sec() - self.last_obstacle_time) >= 8.0:
+            return None
+
+        flip = -1.0 if self.robot_body_frame_flip_180 else 1.0
+        vy = 0.0
+
+        if sensor_name in ('front_left', 'left'):
+            rotate_sign = -1.0 * flip
+            vy = lateral_mag
+        elif sensor_name in ('front_right', 'right'):
+            rotate_sign = 1.0 * flip
+            vy = -lateral_mag
+        elif sensor_name == 'front':
+            if getattr(self, 'waypoint_activation_heading_error', None) is not None:
+                rotate_sign = math.copysign(1.0, self.waypoint_activation_heading_error) * flip
+            else:
+                left_clear = self._sensor_min('left', 'front_left')
+                right_clear = self._sensor_min('right', 'front_right')
+                rotate_sign = 1.0 if left_clear > right_clear else -1.0
+        else:
+            return None
+
+        return vy, rotate_sign
 
     def _sensors_blocked_any(self, *sensor_names):
         for n in sensor_names:
@@ -1216,45 +1193,6 @@ class ArenaRoamer(Node):
             outline.points.extend(arc_points)
             outline.points.append(self._make_point(origin_x, origin_y, 0.09))
             markers.append(outline)
-
-            # Draw a threshold arc at the configured detect distance so RViz
-            # clearly indicates the IR trigger radius (e.g., 0.15 m)
-            range_max = self.ir_range_max.get(sensor_name, self.ir_default_range_max)
-            if not math.isfinite(range_max):
-                range_max = self.ir_default_range_max
-            active_detect_dist = self._sensor_trip_distance(sensor_name)
-
-            raw_display_range = self._sensor_display_range(sensor_name)
-            display_range = min(raw_display_range, active_detect_dist)
-            detect_range = min(active_detect_dist, range_max)
-            threshold_arc = []
-            for step in range(arc_segments + 1):
-                ratio = step / arc_segments
-                ray_angle = sensor_yaw - self.ir_half_fov + (2.0 * self.ir_half_fov * ratio)
-                threshold_arc.append(
-                    self._make_point(
-                        origin_x + detect_range * math.cos(ray_angle),
-                        origin_y + detect_range * math.sin(ray_angle),
-                        0.092,
-                    )
-                )
-            thr = Marker()
-            thr.header.frame_id = self.debug_frame_id
-            thr.header.stamp = now
-            thr.ns = 'arena_ir_threshold'
-            thr.id = 1300 + index
-            thr.type = Marker.LINE_STRIP
-            thr.action = Marker.ADD
-            thr.pose.orientation.w = 1.0
-            thr.scale.x = 0.02
-            thr.color.r = 1.0
-            thr.color.g = 1.0
-            thr.color.b = 0.2
-            thr.color.a = 0.7
-            thr.points.append(self._make_point(origin_x, origin_y, 0.092))
-            thr.points.extend(threshold_arc)
-            thr.points.append(self._make_point(origin_x, origin_y, 0.092))
-            markers.append(thr)
 
             origin = Marker()
             origin.header.frame_id = self.debug_frame_id
@@ -1993,17 +1931,6 @@ class ArenaRoamer(Node):
         goal_heading_error = self._normalize(goal_heading - self._geometry_body_yaw())
 
         repulse_x, repulse_y, hottest_sensor, hottest_range = self._sensor_repulsion_body_vector()
-        # record recent obstacle world position when a forward-facing sensor sees one
-        if hottest_sensor is not None:
-            sensor_range = self._sensor_control_value(hottest_sensor)
-            if math.isfinite(sensor_range):
-                origin_bx, origin_by = self._sensor_origin_body(hottest_sensor)
-                dir_bx, dir_by = self._sensor_direction_body(hottest_sensor)
-                obs_body_x = origin_bx + dir_bx * sensor_range
-                obs_body_y = origin_by + dir_by * sensor_range
-                obs_world_x, obs_world_y = self._body_point_to_world(obs_body_x, obs_body_y)
-                self.last_obstacle_world = (obs_world_x, obs_world_y)
-                self.last_obstacle_time = self._now_sec()
         if self.reroute_state is None:
             self._update_avoidance_memory(hottest_sensor)
         wall_world_x, wall_world_y = self._wall_repulsion_world_vector()
@@ -2427,26 +2354,9 @@ class ArenaRoamer(Node):
             # If we just activated a waypoint and recently saw an obstacle,
             # perform a one-time rotate-away + lateral/back-off maneuver to
             # move away from that obstacle before committing the heading.
-            if self.just_activated_waypoint and self.last_obstacle_world is not None and (self._now_sec() - self.last_obstacle_time) < 8.0:
-                lx, ly = self.last_obstacle_world
-                # obstacle in body frame
-                rel_bx, rel_by = self._world_to_body_vector(lx - self.center_x, ly - self.center_y)
-                bearing = math.atan2(rel_by, rel_bx)
-                # move laterally away and rotate away (stronger than normal)
-                lateral_mag = 0.28
-                vy = -math.copysign(lateral_mag, bearing) if abs(bearing) > 1e-3 else 0.0
-                # rotate away from obstacle: rotate sign opposite obstacle bearing
-                # Prefer shortest-path heading bias latched at waypoint activation
-                flip = -1.0 if self.robot_body_frame_flip_180 else 1.0
-                if getattr(self, 'waypoint_activation_heading_error', None) is not None:
-                    rotate_sign = math.copysign(1.0, self.waypoint_activation_heading_error) * flip
-                elif abs(bearing) > 1e-3:
-                    rotate_sign = -math.copysign(1.0, bearing) * flip
-                else:
-                    # fallback: pick the side with more clearance
-                    left_clear = self._sensor_min('left', 'front_left')
-                    right_clear = self._sensor_min('right', 'front_right')
-                    rotate_sign = 1.0 if left_clear > right_clear else -1.0
+            recent_bias = self._recent_waypoint_obstacle_bias(0.28)
+            if recent_bias is not None:
+                vy, rotate_sign = recent_bias
                 wz = clamp(rotate_sign * max(self.reroute_rotate_speed, 0.6), -self.max_angular_speed, self.max_angular_speed)
                 # a small forward to keep momentum into the waypoint direction
                 vx = min(self.rotate_forward_speed * 1.1, self.max_linear_speed)
@@ -2464,21 +2374,9 @@ class ArenaRoamer(Node):
             self.motion_name = 'ROTATE'
             self._reset_motion_selection()
             # If we just activated a waypoint, bias away from last obstacle first
-            if self.just_activated_waypoint and self.last_obstacle_world is not None and (self._now_sec() - self.last_obstacle_time) < 8.0:
-                lx, ly = self.last_obstacle_world
-                rel_bx, rel_by = self._world_to_body_vector(lx - self.center_x, ly - self.center_y)
-                bearing = math.atan2(rel_by, rel_bx)
-                lateral_mag = 0.22
-                vy = -math.copysign(lateral_mag, bearing) if abs(bearing) > 1e-3 else 0.0
-                flip = -1.0 if self.robot_body_frame_flip_180 else 1.0
-                if getattr(self, 'waypoint_activation_heading_error', None) is not None:
-                    rotate_sign = math.copysign(1.0, self.waypoint_activation_heading_error) * flip
-                elif abs(bearing) > 1e-3:
-                    rotate_sign = -math.copysign(1.0, bearing) * flip
-                else:
-                    left_clear = self._sensor_min('left', 'front_left')
-                    right_clear = self._sensor_min('right', 'front_right')
-                    rotate_sign = 1.0 if left_clear > right_clear else -1.0
+            recent_bias = self._recent_waypoint_obstacle_bias(0.22)
+            if recent_bias is not None:
+                vy, rotate_sign = recent_bias
                 wz = clamp(rotate_sign * max(self.reroute_rotate_speed * 0.85, 0.5), -self.max_angular_speed, self.max_angular_speed)
                 vx = min(self.rotate_forward_speed, self.max_linear_speed)
                 self._publish_cmd(vx, vy, wz)
@@ -2508,21 +2406,9 @@ class ArenaRoamer(Node):
             self.motion_name = 'ROTATE'
             self._reset_motion_selection()
             # If just activated waypoint, bias away from last obstacle
-            if self.just_activated_waypoint and self.last_obstacle_world is not None and (self._now_sec() - self.last_obstacle_time) < 8.0:
-                lx, ly = self.last_obstacle_world
-                rel_bx, rel_by = self._world_to_body_vector(lx - self.center_x, ly - self.center_y)
-                bearing = math.atan2(rel_by, rel_bx)
-                lateral_mag = 0.20
-                vy = -math.copysign(lateral_mag, bearing) if abs(bearing) > 1e-3 else 0.0
-                flip = -1.0 if self.robot_body_frame_flip_180 else 1.0
-                if getattr(self, 'waypoint_activation_heading_error', None) is not None:
-                    rotate_sign = math.copysign(1.0, self.waypoint_activation_heading_error) * flip
-                elif abs(bearing) > 1e-3:
-                    rotate_sign = -math.copysign(1.0, bearing) * flip
-                else:
-                    left_clear = self._sensor_min('left', 'front_left')
-                    right_clear = self._sensor_min('right', 'front_right')
-                    rotate_sign = 1.0 if left_clear > right_clear else -1.0
+            recent_bias = self._recent_waypoint_obstacle_bias(0.20)
+            if recent_bias is not None:
+                vy, rotate_sign = recent_bias
                 wz = clamp(rotate_sign * max(self.reroute_rotate_speed * 0.7, 0.45), -self.max_angular_speed, self.max_angular_speed)
                 vx = min(self.rotate_forward_speed, self.max_linear_speed)
                 self._publish_cmd(vx, vy, wz)
@@ -2760,7 +2646,7 @@ class ArenaRoamer(Node):
                 self.route_failed,
             )
         state.data = (
-            'state=%s motion=%s goal=%s%s blocked_side=%s pos=(%.2f, %.2f) ir[f=%.2f fl=%.2f fr=%.2f l=%.2f r=%.2f b=%.2f]' % (
+            'state=%s motion=%s goal=%s%s blocked_side=%s pos=(%.2f, %.2f) ir[f=%s fl=%s fr=%s l=%s r=%s b=%s]' % (
                 self.state_name,
                 self.motion_name,
                 goal_text,
@@ -2768,12 +2654,12 @@ class ArenaRoamer(Node):
                 self.blocked_side,
                 self.center_x,
                 self.center_y,
-                self.ir_raw['front'],
-                self.ir_raw['front_left'],
-                self.ir_raw['front_right'],
-                self.ir_raw['left'],
-                self.ir_raw['right'],
-                self.ir_raw['back'],
+                'hit' if self.ir_raw['front'] else 'clear',
+                'hit' if self.ir_raw['front_left'] else 'clear',
+                'hit' if self.ir_raw['front_right'] else 'clear',
+                'hit' if self.ir_raw['left'] else 'clear',
+                'hit' if self.ir_raw['right'] else 'clear',
+                'hit' if self.ir_raw['back'] else 'clear',
             )
         )
         self.state_pub.publish(state)

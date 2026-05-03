@@ -103,15 +103,6 @@ arena_roamer:
     goal_timeout_sec: 60.0
     route_waypoint_tolerance: 0.05
     route_waypoint_dwell_sec: 0.5
-    obstacle_detect_distance: 0.08
-    obstacle_detect_distance_front: 0.085
-    obstacle_detect_distance_front_center: 0.08
-    ir_trip_distance_front: 0.08
-    ir_trip_distance_front_left: 0.085
-    ir_trip_distance_front_right: 0.11
-    ir_trip_distance_left: 0.085
-    ir_trip_distance_right: 0.095
-    ir_trip_distance_back: 0.08
     obstacle_danger_distance: 0.07
     obstacle_clear_distance: 0.07
     max_linear_speed: 0.08

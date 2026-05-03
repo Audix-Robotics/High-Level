@@ -10,6 +10,7 @@ from ament_index_python.packages import get_package_share_directory
 def generate_launch_description():
     pkg_share    = get_package_share_directory('audix')
     ekf_config   = os.path.join(pkg_share, 'config', 'ekf.yaml')
+    ir_adapter_config = os.path.join(pkg_share, 'config', 'arena_ir_state_adapter.yaml')
     mission_config = os.path.join(pkg_share, 'config', 'mission_params.yaml')
     experiment_config = os.path.join(pkg_share, 'config', 'full_mission_params.yaml')
     rviz_config  = os.path.join(pkg_share, 'rviz', 'full_mission.rviz')
@@ -26,13 +27,13 @@ def generate_launch_description():
         output='screen',
     )
 
-    # IR digital -> LaserScan bridge
+    # Normalized binary IR state adapter
     ir_bridge = Node(
         package='audix',
-        executable='ir_digital_bridge.py',
-        name='ir_digital_bridge',
+        executable='arena_ir_state_adapter.py',
+        name='arena_ir_state_adapter',
         output='screen',
-        parameters=[{'use_sim_time': False}],
+        parameters=[ir_adapter_config, {'source_type': 'digital', 'use_sim_time': False}],
     )
 
     # Mecanum kinematics (reads /cmd_vel, publishes wheel commands)

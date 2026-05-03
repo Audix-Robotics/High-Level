@@ -16,6 +16,7 @@ def generate_launch_description():
     models_path = os.path.join(pkg_share, 'models')
     world_path = os.path.join(pkg_share, 'world', 'warehouse.sdf')
     ekf_config = os.path.join(pkg_share, 'config', 'ekf.yaml')
+    ir_adapter_config = os.path.join(pkg_share, 'config', 'arena_ir_state_adapter.yaml')
     world_config = os.path.join(pkg_share, 'config', 'arena_world.yaml')
     rviz_config = os.path.join(pkg_share, 'rviz', 'full_mission.rviz')
 
@@ -77,6 +78,14 @@ def generate_launch_description():
         parameters=[ekf_config, {'use_sim_time': True}],
     )
 
+    ir_state_adapter = Node(
+        package='audix',
+        executable='arena_ir_state_adapter.py',
+        name='arena_ir_state_adapter',
+        output='screen',
+        parameters=[ir_adapter_config, {'source_type': 'scan', 'use_sim_time': True}],
+    )
+
     obstacle_manager = Node(
         package='audix',
         executable='arena_obstacle_manager.py',
@@ -131,6 +140,7 @@ def generate_launch_description():
         ign_resource,
         base_sim,
         bridge,
+        ir_state_adapter,
         ekf,
         obstacle_manager,
         start_spawn_panel,
