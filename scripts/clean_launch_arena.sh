@@ -6,16 +6,38 @@ set -euo pipefail
 
 BASE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$BASE_DIR"
+
 # Provide safe defaults for environment variables that install/setup.bash expects
-# to avoid "unbound variable" errors when running with `set -u`.
-export COLCON_TRACE=${COLCON_TRACE:-0}
+# to avoid unbound variable errors when running with `set -u`.
+export COLCON_TRACE=${COLCON_TRACE:-}
 export AMENT_TRACE=${AMENT_TRACE:-}
 export AMENT_TRACE_SETUP_FILES=${AMENT_TRACE_SETUP_FILES:-}
 export AMENT_PYTHON_EXECUTABLE=${AMENT_PYTHON_EXECUTABLE:-python3}
 export COLCON_PYTHON_EXECUTABLE=${COLCON_PYTHON_EXECUTABLE:-/usr/bin/python3}
 export COLCON_PREFIX_PATH=${COLCON_PREFIX_PATH:-}
 export _CATKIN_SETUP_DIR=${_CATKIN_SETUP_DIR:-}
+
+# shellcheck disable=SC1091
+source /opt/ros/jazzy/setup.bash
+# shellcheck disable=SC1091
 source install/setup.bash
+
+wait_for_process_exit() {
+  local pattern="$1"
+  local attempts="${2:-20}"
+  local delay="${3:-0.5}"
+  local index
+
+  for ((index=0; index<attempts; index++)); do
+    if ! pgrep -f "$pattern" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep "$delay"
+  done
+
+  pkill -9 -f "$pattern" || true
+  sleep 1
+}
 
 echo "Killing lingering simulator/ROS processes..."
 pkill -f gz || true
@@ -32,6 +54,8 @@ pkill -f arena_roamer || true
 pkill -f mecanum_kinematics || true
 pkill -f odom_tf_broadcaster || true
 pkill -f world_to_odom_publisher || true
+pkill -f warehouse_overlay_markers || true
+pkill -f warehouse_overlay_markers.py || true
 pkill -f ros2 || true
 pkill -f start_stop_gui || true
 pkill -f start_stop_gui.py || true
@@ -40,11 +64,24 @@ pkill -f start_stop_node.py || true
 pkill -9 -f start_stop || true
 pkill -9 -f start_stop_gui || true
 pkill -9 -f start_stop_node || true
+pkill -f warehouse_environment_viz.py || true
+pkill -f warehouse_environment_viz || true
 
-sleep 1
+wait_for_process_exit "gz sim -r -s"
+wait_for_process_exit "gz sim -g"
+wait_for_process_exit "gzserver"
+wait_for_process_exit "gzclient"
+wait_for_process_exit "rviz2"
+wait_for_process_exit "ros2 launch"
+wait_for_process_exit "parameter_bridge"
+wait_for_process_exit "robot_state_publisher"
+wait_for_process_exit "odom_tf_broadcaster"
+wait_for_process_exit "warehouse_overlay_markers"
+wait_for_process_exit "start_stop_gui"
+wait_for_process_exit "/install/audix/lib/audix"
 
-# Start the ROS2 launch (Gazebo + nodes)
-echo "Starting arena_experiment.launch.py (Gazebo + nodes)..."
+# Start the ROS2 launch (Gazebo + nodes + RViz + overlay)
+echo "Starting full_mission.launch.py (Gazebo + RViz + obstacle spawner + overlay)..."
 # Ensure Gazebo can resolve local `model://` URIs by adding the workspace models
 # directory to the resource paths used by gz/ign. This helps when models live in
 # the source tree (src/audix_pkg/models) but aren't installed to the package
@@ -52,15 +89,17 @@ echo "Starting arena_experiment.launch.py (Gazebo + nodes)..."
 export GZ_SIM_RESOURCE_PATH="${BASE_DIR}/src/audix_pkg/models:${BASE_DIR}/src/audix_pkg:${GZ_SIM_RESOURCE_PATH:-}"
 export IGN_GAZEBO_RESOURCE_PATH="${BASE_DIR}/src/audix_pkg/models:${BASE_DIR}/src/audix_pkg:${IGN_GAZEBO_RESOURCE_PATH:-}"
 
-ros2 launch src/audix_pkg/launch/full_mission.launch.py &
+ros2 launch audix full_mission.launch.py use_rviz:=true use_spawn_panel:=true use_gazebo_gui:=true &
 LAUNCH_PID=$!
 
 # Ensure we clean up child processes on exit or interrupt
 cleanup() {
-  echo "Cleaning up launcher and rviz..."
-  if [ -n "${RVIZ_PID:-}" ]; then
-    kill "${RVIZ_PID}" 2>/dev/null || true
+  if [ "${CLEAN_LAUNCH_CLEANED_UP:-0}" = "1" ]; then
+    return 0
   fi
+  CLEAN_LAUNCH_CLEANED_UP=1
+
+  echo "Cleaning up launcher..."
   if [ -n "${GUI_PID:-}" ]; then
     kill "${GUI_PID}" 2>/dev/null || true
   fi
@@ -74,6 +113,10 @@ cleanup() {
   pkill -f gzserver || true
   pkill -f gzclient || true
   pkill -f rviz2 || true
+  pkill -f warehouse_environment_viz.py || true
+  pkill -f warehouse_environment_viz || true
+  pkill -f warehouse_overlay_markers || true
+  pkill -f warehouse_overlay_markers.py || true
   pkill -f start_stop_gui || true
   pkill -f start_stop_gui.py || true
   pkill -f start_stop_node || true
@@ -84,25 +127,14 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-# Give simulator and bridges time to initialize before RViz
+# Give the ROS graph a moment to settle before starting the manual GUI.
 sleep 8
 
-# Start the Start/Stop GUI so the robot remains in STOP until user presses START
 echo "Starting start_stop_gui..."
 python3 src/audix_pkg/scripts/start_stop_gui.py &
 GUI_PID=$!
 
-# Start a single RViz instance using the project's config
-RVIZ_CONFIG=src/audix_pkg/rviz/full_mission.rviz
-if [ ! -f "$RVIZ_CONFIG" ]; then
-  echo "RViz config not found: $RVIZ_CONFIG"
-else
-  echo "Starting rviz2 with $RVIZ_CONFIG"
-  rviz2 -d "$RVIZ_CONFIG" &
-  RVIZ_PID=$!
-fi
-
-echo "Started: launch_pid=${LAUNCH_PID:-none} rviz_pid=${RVIZ_PID:-none}"
+echo "Started: launch_pid=${LAUNCH_PID:-none} gui_pid=${GUI_PID:-none}"
 
 echo "Wrapper is running. To stop, Ctrl-C this script or kill the PIDs above." 
 wait

@@ -12,22 +12,30 @@ arena_roamer:
     sensor_timeout_sec: 0.35
     odom_timeout_sec: 0.35
     control_period_sec: 0.05
-    max_linear_speed: 0.32
-    max_lateral_speed: 0.28
-    max_angular_speed: 1.60
+    max_linear_speed: 0.08
+    max_lateral_speed: 0.10
+    max_angular_speed: 0.8
     goal_gain: 0.95
     wall_gain: 1.15
     repulsion_gain: 1.75
     escape_gain: 1.25
-    obstacle_detect_distance: 0.25
-    obstacle_danger_distance: 0.25
-    obstacle_clear_distance: 0.25
-    startup_clearance_distance: 0.24
-    hard_escape_distance: 0.12
-    hard_escape_speed: 0.08
-    caution_speed: 0.14
+    obstacle_detect_distance: 0.08
+    obstacle_detect_distance_front: 0.085
+    obstacle_detect_distance_front_center: 0.08
+    ir_trip_distance_front: 0.08
+    ir_trip_distance_front_left: 0.085
+    ir_trip_distance_front_right: 0.11
+    ir_trip_distance_left: 0.085
+    ir_trip_distance_right: 0.095
+    ir_trip_distance_back: 0.08
+    obstacle_danger_distance: 0.07
+    obstacle_clear_distance: 0.07
+    startup_clearance_distance: 0.07
+    hard_escape_distance: 0.07
+    hard_escape_speed: 0.05
+    caution_speed: 0.05
     wall_influence_distance: 0.90
-    obstacle_side_min: 0.20
+    obstacle_side_min: 0.07
     robot_center_offset_x: 0.0
     robot_center_offset_y: 0.0
     debug_frame_id: odom
@@ -38,7 +46,7 @@ arena_roamer:
     reorient_heading_threshold_deg: 115.0
     forward_heading_allowance_deg: 70.0
     rotate_clearance_bias: 0.50
-    rotate_forward_speed: 0.12
+    rotate_forward_speed: 0.02
     angular_kp: 2.4
     reroute_back_time: 0.75
     reroute_stop_time: 0.14
@@ -95,8 +103,8 @@ arena_obstacle_manager:
     arena_max_y: 4.55
     obstacle_z_margin: 0.01
     dynamic_update_period: 0.12
-    dynamic_speed_min: 0.16
-    dynamic_speed_max: 0.45
+    dynamic_speed_min: 0.05
+    dynamic_speed_max: 0.16
     small_box_size: [0.25, 0.25, 0.35]
     medium_box_size: [0.45, 0.45, 0.60]
     large_box_size: [0.80, 0.55, 0.95]

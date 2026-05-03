@@ -41,15 +41,15 @@ class ArenaRoamer(Node):
         self.declare_parameter('sensor_timeout_sec', 0.35)
         self.declare_parameter('odom_timeout_sec', 0.35)
         self.declare_parameter('control_period_sec', 0.05)
-        self.declare_parameter('max_linear_speed', 0.42)
-        self.declare_parameter('max_lateral_speed', 0.42)
-        self.declare_parameter('max_angular_speed', 1.0)
+        self.declare_parameter('max_linear_speed', 0.08)
+        self.declare_parameter('max_lateral_speed', 0.10)
+        self.declare_parameter('max_angular_speed', 0.8)
         self.declare_parameter('goal_gain', 0.95)
         self.declare_parameter('wall_gain', 1.15)
         self.declare_parameter('repulsion_gain', 1.75)
         self.declare_parameter('escape_gain', 1.25)
         self.declare_parameter('angular_kp', 1.6)
-        self.declare_parameter('rotate_forward_speed', 0.08)
+        self.declare_parameter('rotate_forward_speed', 0.02)
         # Reroute (3-point turn) parameters
         self.declare_parameter('reroute_back_time', 0.45)
         self.declare_parameter('reroute_stop_time', 0.12)
@@ -57,18 +57,24 @@ class ArenaRoamer(Node):
         self.declare_parameter('reroute_rotate_speed', 0.85)
         self.declare_parameter('reroute_post_clear_pause', 0.40)
         self.declare_parameter('reroute_correct_heading_tol_deg', 8.0)
-        # Use single 15 cm detection/clear distance across the project
-        self.declare_parameter('obstacle_detect_distance', 0.15)
-        self.declare_parameter('obstacle_detect_distance_front', 0.17)
-        self.declare_parameter('obstacle_detect_distance_front_center', 0.15)
-        self.declare_parameter('obstacle_danger_distance', 0.15)
-        self.declare_parameter('obstacle_clear_distance', 0.15)
-        self.declare_parameter('startup_clearance_distance', 0.24)
-        self.declare_parameter('hard_escape_distance', 0.12)
-        self.declare_parameter('hard_escape_speed', 0.10)
-        self.declare_parameter('caution_speed', 0.18)
+        # Binary IR trip distance for the short-range 3.3V hardware profile.
+        self.declare_parameter('obstacle_detect_distance', 0.08)
+        self.declare_parameter('obstacle_detect_distance_front', 0.085)
+        self.declare_parameter('obstacle_detect_distance_front_center', 0.08)
+        self.declare_parameter('ir_trip_distance_front', 0.08)
+        self.declare_parameter('ir_trip_distance_front_left', 0.11)
+        self.declare_parameter('ir_trip_distance_front_right', 0.085)
+        self.declare_parameter('ir_trip_distance_left', 0.085)
+        self.declare_parameter('ir_trip_distance_right', 0.095)
+        self.declare_parameter('ir_trip_distance_back', 0.08)
+        self.declare_parameter('obstacle_danger_distance', 0.07)
+        self.declare_parameter('obstacle_clear_distance', 0.07)
+        self.declare_parameter('startup_clearance_distance', 0.07)
+        self.declare_parameter('hard_escape_distance', 0.07)
+        self.declare_parameter('hard_escape_speed', 0.05)
+        self.declare_parameter('caution_speed', 0.05)
         self.declare_parameter('wall_influence_distance', 0.90)
-        self.declare_parameter('obstacle_side_min', 0.14)
+        self.declare_parameter('obstacle_side_min', 0.07)
         self.declare_parameter('robot_center_offset_x', -0.16)
         self.declare_parameter('robot_center_offset_y', -0.15)
         self.declare_parameter('robot_body_frame_flip_180', True)
@@ -156,6 +162,14 @@ class ArenaRoamer(Node):
         self.obstacle_detect_distance = float(self.get_parameter('obstacle_detect_distance').value)
         self.obstacle_detect_distance_front = float(self.get_parameter('obstacle_detect_distance_front').value)
         self.obstacle_detect_distance_front_center = float(self.get_parameter('obstacle_detect_distance_front_center').value)
+        self.ir_trip_distance = {
+            'front': float(self.get_parameter('ir_trip_distance_front').value),
+            'front_left': float(self.get_parameter('ir_trip_distance_front_left').value),
+            'front_right': float(self.get_parameter('ir_trip_distance_front_right').value),
+            'left': float(self.get_parameter('ir_trip_distance_left').value),
+            'right': float(self.get_parameter('ir_trip_distance_right').value),
+            'back': float(self.get_parameter('ir_trip_distance_back').value),
+        }
         self.obstacle_danger_distance = float(self.get_parameter('obstacle_danger_distance').value)
         self.obstacle_clear_distance = float(self.get_parameter('obstacle_clear_distance').value)
         self.startup_clearance_distance = float(self.get_parameter('startup_clearance_distance').value)
@@ -260,11 +274,12 @@ class ArenaRoamer(Node):
 
         self.ir = {name: float('inf') for name in self.sensor_names}
         self.ir_raw = dict(self.ir)
-        # IR detection range set to 25cm
-        self.ir_range_max = {key: 0.25 for key in self.ir}
+        self.ir_hit = {name: False for name in self.sensor_names}
+        # Track the requested per-sensor hardware reach in the controller frame.
+        self.ir_range_max = dict(self.ir_trip_distance)
         self.sensor_last_update_sec = {key: None for key in self.ir}
-        self.ir_default_range_min = 0.05
-        self.ir_default_range_max = 0.25
+        self.ir_default_range_min = 0.01
+        self.ir_default_range_max = max(self.ir_trip_distance.values())
         # For time-sequenced binary trigger handling (per-sensor timestamps)
         self._last_ir_trigger = {k: 0.0 for k in self.ir}
         self.ir_half_fov = 0.30543
@@ -409,20 +424,9 @@ class ArenaRoamer(Node):
         return sum(lowest) / len(lowest)
 
     def _sensor_control_value(self, sensor_name):
-        filtered_range = self.ir[sensor_name]
-        raw_range = self.ir_raw[sensor_name]
-        emergency_threshold = max(0.0, self.hard_escape_distance * self.ir_emergency_raw_ratio)
-        if math.isfinite(raw_range) and raw_range <= emergency_threshold:
-            return raw_range
-        if math.isfinite(filtered_range):
-            return filtered_range
-        if math.isfinite(raw_range):
-            return raw_range
-        if math.isfinite(filtered_range) and math.isfinite(raw_range):
-            return min(filtered_range, raw_range)
-        if math.isfinite(filtered_range):
-            return filtered_range
-        return raw_range
+        if self.ir_hit.get(sensor_name, False):
+            return 0.0
+        return float('inf')
 
     def _reset_motion_selection(self):
         self.active_motion_selection = None
@@ -692,14 +696,10 @@ class ArenaRoamer(Node):
         return active_entry
 
     def _sensor_min_control(self, *sensor_names):
-        values = []
-        for sensor_name in sensor_names:
-            sensor_range = self._sensor_control_value(sensor_name)
-            if math.isfinite(sensor_range):
-                values.append(sensor_range)
-        if not values:
-            return float('inf')
-        return min(values)
+        return 0.0 if any(self.ir_hit.get(sensor_name, False) for sensor_name in sensor_names) else float('inf')
+
+    def _sensor_trip_distance(self, sensor_name):
+        return self.ir_trip_distance.get(sensor_name, self.obstacle_detect_distance)
 
     def _sensors_fresh(self):
         now_sec = self._now_sec()
@@ -774,6 +774,9 @@ class ArenaRoamer(Node):
         self.ir_raw[key] = raw_value
         self.ir_range_max[key] = rmax
         self.sensor_last_update_sec[key] = self._now_sec()
+
+        trigger_distance = self._sensor_trip_distance(key)
+        self.ir_hit[key] = math.isfinite(raw_value) and raw_value <= trigger_distance
 
         prev = self.ir[key]
         if not math.isfinite(prev):
@@ -869,14 +872,7 @@ class ArenaRoamer(Node):
         return range_max
 
     def _sensor_hit_visible(self, sensor_name):
-        raw_range = self.ir_raw.get(sensor_name, float('inf'))
-        if sensor_name == 'front':
-            active_detect_dist = self.obstacle_detect_distance_front_center
-        elif sensor_name in ('front_left', 'front_right'):
-            active_detect_dist = self.obstacle_detect_distance_front
-        else:
-            active_detect_dist = self.obstacle_detect_distance
-        return math.isfinite(raw_range) and raw_range <= active_detect_dist
+        return self.ir_hit.get(sensor_name, False)
 
     def _sensor_blocked(self, sensor_name):
         # Binary interpretation of IR: blocked if sensor reports a hit
@@ -969,12 +965,7 @@ class ArenaRoamer(Node):
             range_max = self.ir_range_max.get(sensor_name, self.ir_default_range_max)
             if not math.isfinite(range_max):
                 range_max = self.ir_default_range_max
-            if sensor_name == 'front':
-                active_detect_dist = self.obstacle_detect_distance_front_center
-            elif sensor_name in ('front_left', 'front_right'):
-                active_detect_dist = self.obstacle_detect_distance_front
-            else:
-                active_detect_dist = self.obstacle_detect_distance
+            active_detect_dist = self._sensor_trip_distance(sensor_name)
 
             raw_display_range = self._sensor_display_range(sensor_name)
             display_range = min(raw_display_range, active_detect_dist)
@@ -1131,18 +1122,10 @@ class ArenaRoamer(Node):
         # Track triggers and active threats from forward-facing sensors
         active_threats = []
         time_since_trigger = float('inf')
-        current_front_blocked = False
-        for name in ('front', 'front_left', 'front_right'):
-            raw = self.ir_raw.get(name, float('inf'))
-            active_dist = self.obstacle_detect_distance_front_center if name == 'front' else self.obstacle_detect_distance_front
-            if math.isfinite(raw) and raw <= active_dist:
-                current_front_blocked = True
-                break
+        current_front_blocked = self._sensors_blocked_any('front', 'front_left', 'front_right')
 
         for name in ('front', 'front_left', 'front_right'):
-            dist = self._sensor_control_value(name)
-            active_dist = self.obstacle_detect_distance_front_center if name == 'front' else self.obstacle_detect_distance_front
-            if math.isfinite(dist) and dist <= active_dist:
+            if self._sensor_blocked(name):
                 self._last_ir_trigger[name] = now
                 active_threats.append(name)
                 time_since_trigger = 0.0
@@ -1380,8 +1363,7 @@ class ArenaRoamer(Node):
                 elif self.avoid_memory['phase'] == 'forward_until_clear' and motion_name == 'forward':
                     score += 0.85
             # motion_clearance: +inf when clear (for later scaling), 0.0 when blocked (but blocked already filtered)
-            motion_clearance = float('inf')
-            scored_candidates.append((score, motion_name, candidate, motion_clearance))
+            scored_candidates.append((score, motion_name, candidate, float('inf')))
 
         selected = self._select_committed_motion(scored_candidates, danger_mode)
         if selected is not None:
@@ -1757,7 +1739,7 @@ class ArenaRoamer(Node):
         # record recent obstacle world position when a forward-facing sensor sees one
         if hottest_sensor is not None:
             sensor_range = self._sensor_control_value(hottest_sensor)
-            if math.isfinite(sensor_range) and sensor_range <= self.obstacle_detect_distance:
+            if math.isfinite(sensor_range):
                 origin_bx, origin_by = self._sensor_origin_body(hottest_sensor)
                 dir_bx, dir_by = self._sensor_direction_body(hottest_sensor)
                 obs_body_x = origin_bx + dir_bx * sensor_range
@@ -1770,13 +1752,10 @@ class ArenaRoamer(Node):
         wall_body_x, wall_body_y = self._world_to_body_vector(wall_world_x, wall_world_y)
         desired_body_x = self.goal_gain * goal_body_x + self.wall_gain * wall_body_x - self.repulsion_gain * repulse_x
         desired_body_y = self.goal_gain * goal_body_y + self.wall_gain * wall_body_y - self.repulsion_gain * repulse_y
-        if hottest_sensor is not None and hottest_range <= self.obstacle_danger_distance:
+        if hottest_sensor is not None:
             escape_x, escape_y = self._focused_escape_body_vector(hottest_sensor)
             desired_body_x += self.escape_gain * escape_x
             desired_body_y += self.escape_gain * escape_y
-
-        closest_front = self._sensor_min('front', 'front_left', 'front_right')
-        closest_any = min(self._sensor_control_value(name) for name in self.sensor_names)
 
         # WAYPOINT_SETTLE state machine: handle precise scan/rotate/lift sequence
         if self.state_name == 'WAYPOINT_SETTLE':
@@ -2052,10 +2031,7 @@ class ArenaRoamer(Node):
                 if elapsed < forward_total:
                     # drive forward only (no lateral). Use stronger forward burst
                     fwd = self.rotate_forward_speed
-                    # require front clearance greater than obstacle_clear_distance + margin
-                    fc = self._sensor_min('front', 'front_left', 'front_right')
-                    required_clear = self.obstacle_clear_distance + 0.06
-                    if not math.isfinite(fc) or fc < required_clear or self._sensors_blocked_any('front', 'front_left', 'front_right'):
+                    if self._sensors_blocked_any('front', 'front_left', 'front_right'):
                         fwd = 0.0
                     # Apply a small counter-rotation for the initial recovery window to bias back
                     # No path recovery rotation during forward phase: drive straight
@@ -2176,7 +2152,7 @@ class ArenaRoamer(Node):
 
         if motion_name is None:
             rotate_sensor = hottest_sensor
-            if rotate_sensor is None and math.isfinite(closest_front) and closest_front <= self.obstacle_detect_distance:
+            if rotate_sensor is None and self._sensors_blocked_any('front', 'front_left', 'front_right'):
                 rotate_sensor = 'front'
             self.state_name = 'HOLD_ROTATE'
             self.motion_name = 'ROTATE'
@@ -2240,18 +2216,6 @@ class ArenaRoamer(Node):
             self._start_avoidance_memory('right', 'left')
 
         speed_cap = min(self.max_linear_speed, self.max_lateral_speed) * candidate['speed_scale']
-        if math.isfinite(closest_any):
-            if closest_any <= self.hard_escape_distance:
-                speed_cap = min(speed_cap, self.hard_escape_speed)
-            elif closest_any <= self.obstacle_danger_distance:
-                speed_cap *= 0.28
-            elif closest_any <= self.obstacle_detect_distance:
-                ratio = (closest_any - self.obstacle_danger_distance) / max(
-                    self.obstacle_detect_distance - self.obstacle_danger_distance,
-                    1e-6,
-                )
-                speed_cap *= 0.28 + 0.52 * clamp(ratio, 0.0, 1.0)
-
         if hottest_sensor is not None:
             speed_cap = min(speed_cap, self.caution_speed)
 
@@ -2268,7 +2232,7 @@ class ArenaRoamer(Node):
             # Prevent stalling due to static friction when approaching very close
             speed_cap = max(speed_cap, 0.15)
 
-        if hottest_sensor is not None and hottest_range <= self.hard_escape_distance:
+        if hottest_sensor is not None:
             speed_cap = min(speed_cap, self.hard_escape_speed)
 
         cmd_vx = candidate['vx'] * speed_cap

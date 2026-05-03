@@ -33,6 +33,7 @@ install(
 		scripts/waypoints_control.py
 		scripts/waypoints_final.py
 		scripts/ir_digital_bridge.py
+		scripts/warehouse_overlay_markers.py
 	DESTINATION lib/${PROJECT_NAME}
 )
 

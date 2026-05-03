@@ -15,31 +15,6 @@
     </plugin>
 
     <!-- ============================================================ -->
-    <!--  LIGHTING                                                     -->
-    <!-- ============================================================ -->
-    <light name='sun' type='directional'>
-      <cast_shadows>true</cast_shadows>
-      <pose>0 0 10 0 0 0</pose>
-      <diffuse>0.9 0.9 0.9 1</diffuse>
-      <specular>0.2 0.2 0.2 1</specular>
-      <direction>-0.5 0.2 -0.9</direction>
-    </light>
-
-    <light name='Warehouse_CeilingLight_003' type='point'>
-      <pose>0 0 4.5 0 0 0</pose>
-      <diffuse>0.5 0.5 0.5 1</diffuse>
-      <specular>0.2 0.2 0.2 1</specular>
-      <attenuation>
-        <range>40</range>
-        <constant>0.3</constant>
-        <linear>0.01</linear>
-        <quadratic>0.001</quadratic>
-      </attenuation>
-      <cast_shadows>true</cast_shadows>
-      <direction>0.1 0.1 -1</direction>
-    </light>
-
-    <!-- ============================================================ -->
     <!--  GROUND COLLISION (invisible plane for robot wheels)          -->
     <!-- ============================================================ -->
     <model name='ground_collision'>
@@ -53,49 +28,6 @@
             </plane>
           </geometry>
         </collision>
-      </link>
-    </model>
-
-    <!-- ============================================================ -->
-    <!--  AWS WAREHOUSE SHELL — scaled 0.5 to fit the robot area      -->
-    <!--  All visual-only, visibility_flags 0x02 = invisible to lidar -->
-    <!-- ============================================================ -->
-    <model name='aws_visual_shell'>
-      <static>true</static>
-      <link name='link'>
-        <!-- Ground (floor with painted markings) -->
-        <visual name='aws_ground_visual'>
-          <pose>0 0 -0.045 0 0 0</pose>
-          <visibility_flags>0x02</visibility_flags>
-          <geometry>
-            <mesh>
-              <uri>model://aws_robomaker_warehouse_GroundB_01/meshes/aws_robomaker_warehouse_GroundB_01_visual.DAE</uri>
-              <scale>0.5 0.5 0.5</scale>
-            </mesh>
-          </geometry>
-        </visual>
-        <!-- Walls -->
-        <visual name='aws_wall_visual'>
-          <pose>0 0 0 0 0 0</pose>
-          <visibility_flags>0x02</visibility_flags>
-          <geometry>
-            <mesh>
-              <uri>model://aws_robomaker_warehouse_WallB_01/meshes/aws_robomaker_warehouse_WallB_01_visual.DAE</uri>
-              <scale>0.5 0.5 0.5</scale>
-            </mesh>
-          </geometry>
-        </visual>
-        <!-- Roof -->
-        <visual name='aws_roof_visual'>
-          <pose>0 0 0 0 0 0</pose>
-          <visibility_flags>0x02</visibility_flags>
-          <geometry>
-            <mesh>
-              <uri>model://aws_robomaker_warehouse_RoofB_01/meshes/aws_robomaker_warehouse_RoofB_01_visual.DAE</uri>
-              <scale>0.5 0.5 0.5</scale>
-            </mesh>
-          </geometry>
-        </visual>
       </link>
     </model>
 
@@ -122,122 +54,6 @@
           <pose>2.90 0.0 0.75 0 0 0</pose>
           <geometry><box><size>0.12 9.60 1.5</size></box></geometry>
         </collision>
-      </link>
-    </model>
-
-    <!-- ============================================================ -->
-    <!--  CEILING LAMP — scaled 0.5, visual-only                      -->
-    <!-- ============================================================ -->
-    <model name='aws_lamp_visual'>
-      <static>true</static>
-      <pose>0 0 -2 0 0 0</pose>
-      <link name='link'>
-        <visual name='visual'>
-          <visibility_flags>0x02</visibility_flags>
-          <geometry>
-            <mesh>
-              <uri>model://aws_robomaker_warehouse_Lamp_01/meshes/aws_robomaker_warehouse_Lamp_01_visual.DAE</uri>
-              <scale>0.5 0.5 0.5</scale>
-            </mesh>
-          </geometry>
-        </visual>
-      </link>
-    </model>
-
-    <!-- ============================================================ -->
-    <!--  DECORATIVE SHELVING — right aisle (x ≈ 2.0–2.4)            -->
-    <!--  All visual-only, visibility_flags 0x02, scaled 0.5          -->
-    <!-- ============================================================ -->
-    <model name='deco_shelfE_right_001'>
-      <static>true</static>
-      <pose>2.20 -2.20 0 0 0 0</pose>
-      <link name='link'>
-        <visual name='visual'>
-          <visibility_flags>0x02</visibility_flags>
-          <geometry><mesh>
-            <uri>model://aws_robomaker_warehouse_ShelfE_01/meshes/aws_robomaker_warehouse_ShelfE_01_visual.DAE</uri>
-            <scale>0.5 0.5 0.5</scale>
-          </mesh></geometry>
-        </visual>
-      </link>
-    </model>
-
-    <model name='deco_shelfE_right_002'>
-      <static>true</static>
-      <pose>2.20 2.20 0 0 0 0</pose>
-      <link name='link'>
-        <visual name='visual'>
-          <visibility_flags>0x02</visibility_flags>
-          <geometry><mesh>
-            <uri>model://aws_robomaker_warehouse_ShelfE_01/meshes/aws_robomaker_warehouse_ShelfE_01_visual.DAE</uri>
-            <scale>0.5 0.5 0.5</scale>
-          </mesh></geometry>
-        </visual>
-      </link>
-    </model>
-
-    <model name='deco_shelfD_right_001'>
-      <static>true</static>
-      <pose>2.20 0.0 0 0 0 0</pose>
-      <link name='link'>
-        <visual name='visual'>
-          <visibility_flags>0x02</visibility_flags>
-          <geometry><mesh>
-            <uri>model://aws_robomaker_warehouse_ShelfD_01/meshes/aws_robomaker_warehouse_ShelfD_01_visual.DAE</uri>
-            <scale>0.5 0.5 0.5</scale>
-          </mesh></geometry>
-        </visual>
-      </link>
-    </model>
-
-    <!-- ============================================================ -->
-    <!--  DECORATIVE SHELVING — left aisle (x ≈ -2.0 to -2.4)        -->
-    <!-- ============================================================ -->
-    <model name='deco_shelfF_left_001'>
-      <static>true</static>
-      <pose>-2.20 -0.5 0 0 0 0</pose>
-      <link name='link'>
-        <visual name='visual'>
-          <visibility_flags>0x02</visibility_flags>
-          <geometry><mesh>
-            <uri>model://aws_robomaker_warehouse_ShelfF_01/meshes/aws_robomaker_warehouse_ShelfF_01_visual.DAE</uri>
-            <scale>0.5 0.5 0.5</scale>
-          </mesh></geometry>
-        </visual>
-      </link>
-    </model>
-
-    <!-- ============================================================ -->
-    <!--  DECORATIVE LOOSE OBJECTS — corners and far ends              -->
-    <!-- ============================================================ -->
-
-    <!-- Pallet jack — south-east corner, parked -->
-    <model name='deco_palletjack_001'>
-      <static>true</static>
-      <pose>2.20 -4.10 0.012 0 0 0</pose>
-      <link name='link'>
-        <visual name='visual'>
-          <visibility_flags>0x02</visibility_flags>
-          <geometry><mesh>
-            <uri>model://aws_robomaker_warehouse_PalletJackB_01/meshes/aws_robomaker_warehouse_PalletJackB_01_visual.DAE</uri>
-            <scale>0.5 0.5 0.5</scale>
-          </mesh></geometry>
-        </visual>
-      </link>
-    </model>
-
-    <!-- Buckets — scattered in corners -->
-    <model name='deco_bucket_001'>
-      <static>true</static>
-      <pose>2.30 3.90 0 0 0 -1.56</pose>
-      <link name='link'>
-        <visual name='visual'>
-          <visibility_flags>0x02</visibility_flags>
-          <geometry><mesh>
-            <uri>model://aws_robomaker_warehouse_Bucket_01/meshes/aws_robomaker_warehouse_Bucket_01_visual.DAE</uri>
-            <scale>0.5 0.5 0.5</scale>
-          </mesh></geometry>
-        </visual>
       </link>
     </model>
 

@@ -1,7 +1,7 @@
 import os
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, SetEnvironmentVariable, TimerAction
+from launch.actions import DeclareLaunchArgument, GroupAction, IncludeLaunchDescription, SetEnvironmentVariable, TimerAction
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
@@ -39,21 +39,26 @@ def generate_launch_description():
     )
 
     # Include base scissor gazebo stack
-    base_sim = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource([
-            os.path.join(pkg_share, 'launch', 'scissor_gazebo.launch.py')
-        ]),
-        launch_arguments={
-            'use_rviz': 'false',
-            'use_gazebo_gui': 'true',
-            'use_slider_gui': 'false',
-            'world_file': world_path,
-            'world_name': world_name,
-            'spawn_x': '0.0',
-            'spawn_y': '-3.9',
-            'spawn_z': '0.06',
-            'spawn_yaw': '-1.570796',
-        }.items(),
+    base_sim = GroupAction(
+        scoped=True,
+        actions=[
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource([
+                    os.path.join(pkg_share, 'launch', 'scissor_gazebo.launch.py')
+                ]),
+                launch_arguments={
+                    'use_rviz': 'false',
+                    'use_gazebo_gui': 'true',
+                    'use_slider_gui': 'false',
+                    'world_file': world_path,
+                    'world_name': world_name,
+                    'spawn_x': '0.0',
+                    'spawn_y': '-3.9',
+                    'spawn_z': '0.06',
+                    'spawn_yaw': '-1.570796',
+                }.items(),
+            )
+        ],
     )
 
     # Bridges
@@ -110,6 +115,14 @@ def generate_launch_description():
         parameters=[mission_config, {'use_sim_time': True}],
     )
 
+    warehouse_overlay = Node(
+        package='audix',
+        executable='warehouse_overlay_markers.py',
+        name='warehouse_overlay_markers',
+        output='screen',
+        parameters=[{'use_sim_time': True, 'frame_id': 'odom'}],
+    )
+
     # start_stop and goal_sender removed: ArenaRoamer does not use /robot_enable or /send_mission
 
     # TF alias
@@ -150,6 +163,7 @@ def generate_launch_description():
         obstacle_manager,
         start_spawn_panel,
         roamer,
+        warehouse_overlay,
         arena_alias_tf,
         rviz_node,
     ])
