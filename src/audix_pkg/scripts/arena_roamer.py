@@ -806,34 +806,97 @@ class ArenaRoamer(Node):
     def _reroute_front_blocked(self):
         return self._sensors_blocked_any('front', 'front_left', 'front_right')
 
-    def _reroute_can_resume_navigation(self):
-        return not self._reroute_front_blocked()
+    def _reroute_goal_side_preference(self, goal_body_x, goal_body_y):
+        if goal_body_y >= self.blocked_goal_lateral_min:
+            return 'left'
+        if goal_body_y <= -self.blocked_goal_lateral_min:
+            return 'right'
+        if goal_body_x > 0.0:
+            return self._reroute_preferred_probe_side()
+        return None
+
+    def _reroute_side_score(self, side_name, goal_body_x, goal_body_y, preferred_side=None):
+        if side_name not in ('left', 'right'):
+            return float('-inf')
+        if self._reroute_side_blocked(side_name):
+            return float('-inf')
+
+        score = 0.0
+        goal_side = self._reroute_goal_side_preference(goal_body_x, goal_body_y)
+        if goal_side == side_name:
+            score += 1.5
+        elif goal_side is not None:
+            score -= 0.35
+
+        if preferred_side == side_name:
+            score += 0.45
+
+        if self._reroute_preferred_probe_side() == side_name:
+            score += 0.20
+
+        if goal_body_x > 0.0:
+            score += 0.15
+
+        return score
+
+    def _reroute_can_resume_navigation(self, goal_body_x, goal_body_y, goal_heading_error):
+        if self._reroute_front_blocked():
+            return False
+
+        if goal_body_x > 0.0 and abs(goal_heading_error) > self.reorient_heading_threshold * 0.95:
+            return False
+
+        if goal_body_x >= -0.05 and goal_body_y >= self.blocked_goal_lateral_min:
+            return not self._sensors_blocked_any('left', 'front_left')
+
+        if goal_body_x >= -0.05 and goal_body_y <= -self.blocked_goal_lateral_min:
+            return not self._sensors_blocked_any('right', 'front_right')
+
+        if goal_body_x > 0.12:
+            return not self._reroute_front_blocked()
+
+        return True
 
     def _reroute_attempt_invalidated(self, state):
         escape_side = state.get('escape_side')
         return escape_side in ('left', 'right') and self._reroute_side_blocked(escape_side)
 
-    def _reroute_choose_escape_side(self, preferred_side=None):
+    def _reroute_choose_escape_side(self, goal_body_x, goal_body_y, preferred_side=None):
         sensor_bias = self._reroute_forward_sensor_bias()
         escape_side = self._reroute_escape_side_for_sensor(sensor_bias)
         if escape_side in ('left', 'right') and not self._reroute_side_blocked(escape_side):
             return escape_side, sensor_bias
 
-        candidate_sides = []
+        ranked_sides = []
+        seen = set()
+        seed_sides = []
         if preferred_side in ('left', 'right'):
-            candidate_sides.append(preferred_side)
-            candidate_sides.append(self._reroute_other_side(preferred_side))
+            seed_sides.extend([preferred_side, self._reroute_other_side(preferred_side)])
+
+        goal_side = self._reroute_goal_side_preference(goal_body_x, goal_body_y)
+        if goal_side in ('left', 'right'):
+            seed_sides.extend([goal_side, self._reroute_other_side(goal_side)])
 
         fallback_side = self._reroute_preferred_probe_side()
-        candidate_sides.extend([fallback_side, self._reroute_other_side(fallback_side)])
+        seed_sides.extend([fallback_side, self._reroute_other_side(fallback_side)])
 
-        for side_name in candidate_sides:
-            if side_name in ('left', 'right') and not self._reroute_side_blocked(side_name):
+        for side_name in seed_sides:
+            if side_name in seen:
+                continue
+            seen.add(side_name)
+            ranked_sides.append((
+                self._reroute_side_score(side_name, goal_body_x, goal_body_y, preferred_side),
+                side_name,
+            ))
+
+        ranked_sides.sort(key=lambda item: item[0], reverse=True)
+        for score, side_name in ranked_sides:
+            if score != float('-inf'):
                 return side_name, sensor_bias
 
         return None, sensor_bias
 
-    def _reroute_escalate(self, state, now_sec, sensor_name=None, preferred_side=None):
+    def _reroute_escalate(self, state, now_sec, goal_distance, goal_heading_error, sensor_name=None, preferred_side=None):
         retry_count = state.get('retry_count', 0) + 1
         if retry_count > self.reroute_front_retry_limit:
             self._begin_escape_hold()
@@ -862,15 +925,50 @@ class ArenaRoamer(Node):
             state.get('back_scale', 1.0),
             self.reroute_front_backoff_scale ** retry_count,
         )
+        state['attempt_start_goal_distance'] = goal_distance
+        state['attempt_start_heading_error'] = abs(goal_heading_error)
         return True
 
-    def _reroute_fail_attempt(self, state, now_sec, sensor_name=None, side_invalidated=False):
+    def _reroute_attempt_made_progress(self, state, goal_distance, goal_heading_error):
+        start_distance = state.get('attempt_start_goal_distance')
+        start_heading_error = state.get('attempt_start_heading_error')
+        distance_progress = 0.0 if start_distance is None else start_distance - goal_distance
+        heading_progress = 0.0 if start_heading_error is None else start_heading_error - abs(goal_heading_error)
+        return distance_progress >= 0.12 or heading_progress >= 0.18
+
+    def _reroute_fail_attempt(
+        self,
+        state,
+        now_sec,
+        goal_body_x,
+        goal_body_y,
+        goal_distance,
+        goal_heading_error,
+        sensor_name=None,
+        side_invalidated=False,
+    ):
         preferred_side = state.get('escape_side')
+        if sensor_name is None:
+            sensor_name = self._reroute_forward_sensor_bias()
+
         if side_invalidated and preferred_side in ('left', 'right'):
             preferred_side = self._reroute_other_side(preferred_side)
+
+        same_side_retry_used = state.get('same_side_retry_used', False)
+        made_progress = self._reroute_attempt_made_progress(state, goal_distance, goal_heading_error)
+        if not side_invalidated and preferred_side in ('left', 'right'):
+            if not same_side_retry_used:
+                state['same_side_retry_used'] = True
+            elif not made_progress:
+                route_side, _ = self._reroute_choose_escape_side(goal_body_x, goal_body_y, self._reroute_other_side(preferred_side))
+                if route_side in ('left', 'right'):
+                    preferred_side = route_side
+
         return self._reroute_escalate(
             state,
             now_sec,
+            goal_distance,
+            goal_heading_error,
             sensor_name=sensor_name,
             preferred_side=preferred_side,
         )
@@ -1921,7 +2019,8 @@ class ArenaRoamer(Node):
                 obs_world_x, obs_world_y = self._body_point_to_world(obs_body_x, obs_body_y)
                 self.last_obstacle_world = (obs_world_x, obs_world_y)
                 self.last_obstacle_time = self._now_sec()
-        self._update_avoidance_memory(hottest_sensor)
+        if self.reroute_state is None:
+            self._update_avoidance_memory(hottest_sensor)
         wall_world_x, wall_world_y = self._wall_repulsion_world_vector()
         wall_body_x, wall_body_y = self._world_to_body_vector(wall_world_x, wall_world_y)
         desired_body_x = self.goal_gain * goal_body_x + self.wall_gain * wall_body_x - self.repulsion_gain * repulse_x
@@ -2089,12 +2188,21 @@ class ArenaRoamer(Node):
                         'probe_side': None,
                         'alternate_probe_side': None,
                         'retry_count': 1,
+                        'same_side_retry_used': False,
+                        'attempt_start_goal_distance': goal_distance,
+                        'attempt_start_heading_error': abs(goal_heading_error),
                         'back_scale': self.reroute_front_backoff_scale,
                     }
                     if hasattr(self, 'reroute_history'):
                         self.reroute_history.clear()
                 elif only_front:
-                    preferred_side = self._reroute_preferred_probe_side()
+                    preferred_side, _ = self._reroute_choose_escape_side(
+                        goal_body_x,
+                        goal_body_y,
+                        self._reroute_preferred_probe_side(),
+                    )
+                    if preferred_side not in ('left', 'right'):
+                        preferred_side = self._reroute_preferred_probe_side()
                     alternate_side = self._reroute_other_side(preferred_side)
                     self.get_logger().info('Front-only obstacle detected. Running bounded side choice.')
                     self.reroute_state = {
@@ -2105,6 +2213,9 @@ class ArenaRoamer(Node):
                         'probe_side': preferred_side,
                         'alternate_probe_side': alternate_side,
                         'retry_count': 0,
+                        'same_side_retry_used': False,
+                        'attempt_start_goal_distance': goal_distance,
+                        'attempt_start_heading_error': abs(goal_heading_error),
                         'back_scale': 1.0,
                     }
                     self.front_only_count = 0
@@ -2117,6 +2228,9 @@ class ArenaRoamer(Node):
                         'probe_side': None,
                         'alternate_probe_side': None,
                         'retry_count': 0,
+                        'same_side_retry_used': False,
+                        'attempt_start_goal_distance': goal_distance,
+                        'attempt_start_heading_error': abs(goal_heading_error),
                         'back_scale': 1.0,
                     }
 
@@ -2156,6 +2270,8 @@ class ArenaRoamer(Node):
                     if not self._reroute_escalate(
                         state,
                         now,
+                        goal_distance,
+                        goal_heading_error,
                         sensor_name='front',
                         preferred_side=self._reroute_preferred_probe_side(),
                     ):
@@ -2177,12 +2293,12 @@ class ArenaRoamer(Node):
                 if elapsed < self.reroute_stop_time:
                     return
 
-                if self._reroute_can_resume_navigation():
+                if self._reroute_can_resume_navigation(goal_body_x, goal_body_y, goal_heading_error):
                     self._finalize_reroute()
                     return
 
                 probe_side = state.get('probe_side')
-                escape_side, sensor_bias = self._reroute_choose_escape_side(probe_side)
+                escape_side, sensor_bias = self._reroute_choose_escape_side(goal_body_x, goal_body_y, probe_side)
                 if escape_side is None:
                     if state.get('alternate_probe_side') not in (None, probe_side) and state.get('last_probe_phase') == 'probe_side_a':
                         self._reroute_begin_probe(state, 'probe_side_b', state['alternate_probe_side'], now)
@@ -2190,6 +2306,10 @@ class ArenaRoamer(Node):
                     if not self._reroute_fail_attempt(
                         state,
                         now,
+                        goal_body_x,
+                        goal_body_y,
+                        goal_distance,
+                        goal_heading_error,
                         sensor_name=sensor_bias or 'front',
                         side_invalidated=False,
                     ):
@@ -2207,6 +2327,10 @@ class ArenaRoamer(Node):
                     if not self._reroute_fail_attempt(
                         state,
                         now,
+                        goal_body_x,
+                        goal_body_y,
+                        goal_distance,
+                        goal_heading_error,
                         sensor_name=state.get('sensor') or 'front',
                         side_invalidated=True,
                     ):
@@ -2236,6 +2360,10 @@ class ArenaRoamer(Node):
                     if not self._reroute_fail_attempt(
                         state,
                         now,
+                        goal_body_x,
+                        goal_body_y,
+                        goal_distance,
+                        goal_heading_error,
                         sensor_name=state.get('sensor') or 'front',
                         side_invalidated=True,
                     ):
@@ -2265,6 +2393,10 @@ class ArenaRoamer(Node):
                     if not self._reroute_fail_attempt(
                         state,
                         now,
+                        goal_body_x,
+                        goal_body_y,
+                        goal_distance,
+                        goal_heading_error,
                         sensor_name=state.get('sensor') or 'front',
                         side_invalidated=True,
                     ):
@@ -2286,13 +2418,17 @@ class ArenaRoamer(Node):
                 if elapsed < self.reroute_post_clear_pause:
                     return
 
-                if self._reroute_can_resume_navigation():
+                if self._reroute_can_resume_navigation(goal_body_x, goal_body_y, goal_heading_error):
                     self._finalize_reroute()
                     return
 
                 if not self._reroute_fail_attempt(
                     state,
                     now,
+                    goal_body_x,
+                    goal_body_y,
+                    goal_distance,
+                    goal_heading_error,
                     sensor_name=self._reroute_forward_sensor_bias() or state.get('sensor') or 'front',
                     side_invalidated=self._reroute_attempt_invalidated(state),
                 ):
