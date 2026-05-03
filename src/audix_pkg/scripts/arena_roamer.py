@@ -57,6 +57,13 @@ class ArenaRoamer(Node):
         self.declare_parameter('reroute_rotate_speed', 0.85)
         self.declare_parameter('reroute_post_clear_pause', 0.40)
         self.declare_parameter('reroute_correct_heading_tol_deg', 8.0)
+        self.declare_parameter('reroute_probe_time', 0.35)
+        self.declare_parameter('reroute_probe_speed', 0.08)
+        self.declare_parameter('reroute_diag_time', 0.65)
+        self.declare_parameter('reroute_diag_forward_speed', 0.05)
+        self.declare_parameter('reroute_diag_lateral_speed', 0.07)
+        self.declare_parameter('reroute_front_retry_limit', 3)
+        self.declare_parameter('reroute_front_backoff_scale', 1.45)
         # Binary IR trip distance for the short-range 3.3V hardware profile.
         self.declare_parameter('obstacle_detect_distance', 0.08)
         self.declare_parameter('obstacle_detect_distance_front', 0.085)
@@ -159,6 +166,13 @@ class ArenaRoamer(Node):
         self.reroute_rotate_speed = float(self.get_parameter('reroute_rotate_speed').value)
         self.reroute_post_clear_pause = float(self.get_parameter('reroute_post_clear_pause').value)
         self.reroute_correct_heading_tol = math.radians(float(self.get_parameter('reroute_correct_heading_tol_deg').value))
+        self.reroute_probe_time = float(self.get_parameter('reroute_probe_time').value)
+        self.reroute_probe_speed = float(self.get_parameter('reroute_probe_speed').value)
+        self.reroute_diag_time = float(self.get_parameter('reroute_diag_time').value)
+        self.reroute_diag_forward_speed = float(self.get_parameter('reroute_diag_forward_speed').value)
+        self.reroute_diag_lateral_speed = float(self.get_parameter('reroute_diag_lateral_speed').value)
+        self.reroute_front_retry_limit = max(1, int(self.get_parameter('reroute_front_retry_limit').value))
+        self.reroute_front_backoff_scale = max(1.0, float(self.get_parameter('reroute_front_backoff_scale').value))
         self.obstacle_detect_distance = float(self.get_parameter('obstacle_detect_distance').value)
         self.obstacle_detect_distance_front = float(self.get_parameter('obstacle_detect_distance_front').value)
         self.obstacle_detect_distance_front_center = float(self.get_parameter('obstacle_detect_distance_front_center').value)
@@ -700,6 +714,166 @@ class ArenaRoamer(Node):
 
     def _sensor_trip_distance(self, sensor_name):
         return self.ir_trip_distance.get(sensor_name, self.obstacle_detect_distance)
+
+    def _reroute_side_blocked(self, side_name):
+        if side_name == 'left':
+            return self._sensors_blocked_any('left', 'front_left')
+        if side_name == 'right':
+            return self._sensors_blocked_any('right', 'front_right')
+        return False
+
+    @staticmethod
+    def _reroute_other_side(side_name):
+        return 'left' if side_name == 'right' else 'right'
+
+    def _reroute_escape_side_for_sensor(self, sensor_name):
+        if sensor_name == 'front_left':
+            return 'right'
+        if sensor_name == 'front_right':
+            return 'left'
+        return None
+
+    def _reroute_sensor_for_escape_side(self, side_name):
+        return 'front_left' if side_name == 'right' else 'front_right'
+
+    def _reroute_preferred_probe_side(self):
+        if self.blocked_side == 'left':
+            return 'right'
+        if self.blocked_side == 'right':
+            return 'left'
+
+        left_blocked = self._reroute_side_blocked('left')
+        right_blocked = self._reroute_side_blocked('right')
+        if left_blocked and not right_blocked:
+            return 'right'
+        if right_blocked and not left_blocked:
+            return 'left'
+        return 'right'
+
+    def _reroute_forward_sensor_bias(self):
+        if self._sensor_blocked('front_left') and not self._sensor_blocked('front_right'):
+            return 'front_left'
+        if self._sensor_blocked('front_right') and not self._sensor_blocked('front_left'):
+            return 'front_right'
+        if self._sensor_blocked('front'):
+            return 'front'
+        return None
+
+    def _reroute_begin_probe(self, state, phase_name, side_name, now_sec):
+        state['phase'] = phase_name
+        state['probe_side'] = side_name
+        state['start_sec'] = now_sec
+
+    def _reroute_commit_escape(self, state, side_name, now_sec, sensor_name=None):
+        if sensor_name is None:
+            sensor_name = self._reroute_sensor_for_escape_side(side_name)
+        state['phase'] = 'rotate'
+        state['escape_side'] = side_name
+        state['sensor'] = sensor_name
+        state['probe_side'] = None
+        state['start_sec'] = now_sec
+
+    def _reroute_rotate_sign(self, escape_side):
+        if escape_side not in ('left', 'right'):
+            return 0.0
+        flip = -1.0 if self.robot_body_frame_flip_180 else 1.0
+        side_sign = -1.0 if escape_side == 'right' else 1.0
+        return side_sign * flip
+
+    def _finalize_reroute(self, cooldown_sec=None):
+        if cooldown_sec is None:
+            cooldown_sec = self.reroute_post_clear_pause * 2.0
+        now_sec = self._now_sec()
+        self.reroute_cooldown_until = now_sec + max(0.0, cooldown_sec)
+        self.reroute_state = None
+        self.probe_state = None
+        self.front_only_count = 0
+        self.avoid_memory = None
+        self._reset_motion_selection()
+        self._reset_blocked_side()
+
+    def _reroute_chunk_duration(self, phase_name, back_scale=1.0):
+        if phase_name == 'backoff':
+            return self.reroute_back_time * 1.00 * max(1.0, back_scale)
+        if phase_name == 'rotate':
+            return self.reroute_rotate_time * 0.90
+        if phase_name == 'diag_escape':
+            return self.reroute_diag_time * 0.95
+        if phase_name in ('probe_side_a', 'probe_side_b'):
+            return self.reroute_probe_time * 0.70
+        return self.reroute_stop_time
+
+    def _reroute_front_blocked(self):
+        return self._sensors_blocked_any('front', 'front_left', 'front_right')
+
+    def _reroute_can_resume_navigation(self):
+        return not self._reroute_front_blocked()
+
+    def _reroute_attempt_invalidated(self, state):
+        escape_side = state.get('escape_side')
+        return escape_side in ('left', 'right') and self._reroute_side_blocked(escape_side)
+
+    def _reroute_choose_escape_side(self, preferred_side=None):
+        sensor_bias = self._reroute_forward_sensor_bias()
+        escape_side = self._reroute_escape_side_for_sensor(sensor_bias)
+        if escape_side in ('left', 'right') and not self._reroute_side_blocked(escape_side):
+            return escape_side, sensor_bias
+
+        candidate_sides = []
+        if preferred_side in ('left', 'right'):
+            candidate_sides.append(preferred_side)
+            candidate_sides.append(self._reroute_other_side(preferred_side))
+
+        fallback_side = self._reroute_preferred_probe_side()
+        candidate_sides.extend([fallback_side, self._reroute_other_side(fallback_side)])
+
+        for side_name in candidate_sides:
+            if side_name in ('left', 'right') and not self._reroute_side_blocked(side_name):
+                return side_name, sensor_bias
+
+        return None, sensor_bias
+
+    def _reroute_escalate(self, state, now_sec, sensor_name=None, preferred_side=None):
+        retry_count = state.get('retry_count', 0) + 1
+        if retry_count > self.reroute_front_retry_limit:
+            self._begin_escape_hold()
+            self._publish_cmd(0.0, 0.0, 0.0)
+            self._finalize_reroute(self.reroute_post_clear_pause * 3.0)
+            return False
+
+        if sensor_name is None:
+            sensor_name = self._reroute_forward_sensor_bias()
+        if sensor_name is None:
+            sensor_name = state.get('sensor', 'front')
+
+        if preferred_side is None:
+            preferred_side = state.get('escape_side')
+        if preferred_side not in ('left', 'right'):
+            preferred_side = self._reroute_preferred_probe_side()
+
+        state['phase'] = 'backoff'
+        state['start_sec'] = now_sec
+        state['sensor'] = sensor_name
+        state['escape_side'] = preferred_side
+        state['probe_side'] = preferred_side
+        state['alternate_probe_side'] = self._reroute_other_side(preferred_side)
+        state['retry_count'] = retry_count
+        state['back_scale'] = max(
+            state.get('back_scale', 1.0),
+            self.reroute_front_backoff_scale ** retry_count,
+        )
+        return True
+
+    def _reroute_fail_attempt(self, state, now_sec, sensor_name=None, side_invalidated=False):
+        preferred_side = state.get('escape_side')
+        if side_invalidated and preferred_side in ('left', 'right'):
+            preferred_side = self._reroute_other_side(preferred_side)
+        return self._reroute_escalate(
+            state,
+            now_sec,
+            sensor_name=sensor_name,
+            preferred_side=preferred_side,
+        )
 
     def _sensors_fresh(self):
         now_sec = self._now_sec()
@@ -1885,7 +2059,10 @@ class ArenaRoamer(Node):
             )
             return
 
-        # --- REROUTE STATE MACHINE (3-point turn style) ---
+        # --- REROUTE STATE MACHINE ---
+        # Keep the existing adaptive reroute layer, but replace the old
+        # rotate-then-straight-forward loop with bounded side probes and a
+        # short diagonal escape so each reroute cycle yields more lateral gain.
         if hottest_sensor in ('front', 'front_left', 'front_right'):
             now = self._now_sec()
             if self.reroute_state is None and now > self.reroute_cooldown_until:
@@ -1901,22 +2078,55 @@ class ArenaRoamer(Node):
 
                 if is_loop:
                     self.get_logger().warn('OSCILLATION LOOP DETECTED! Executing mirrored evasion.')
-                    self.reroute_state = {'phase': 'loop_back', 'start_sec': now, 'sensor': hottest_sensor}
+                    escape_side = self._reroute_escape_side_for_sensor(hottest_sensor)
+                    if escape_side is None:
+                        escape_side = self._reroute_preferred_probe_side()
+                    self.reroute_state = {
+                        'phase': 'backoff',
+                        'start_sec': now,
+                        'sensor': hottest_sensor,
+                        'escape_side': escape_side,
+                        'probe_side': None,
+                        'alternate_probe_side': None,
+                        'retry_count': 1,
+                        'back_scale': self.reroute_front_backoff_scale,
+                    }
                     if hasattr(self, 'reroute_history'):
                         self.reroute_history.clear()
-                elif only_front and self.front_only_count >= 2:
-                    self.get_logger().info('Front-only stall detected. Lateral probing.')
-                    self.reroute_state = {'phase': 'probe_right', 'start_sec': now, 'start_x': self.x, 'start_y': self.y, 'sensor': 'front'}
+                elif only_front:
+                    preferred_side = self._reroute_preferred_probe_side()
+                    alternate_side = self._reroute_other_side(preferred_side)
+                    self.get_logger().info('Front-only obstacle detected. Running bounded side choice.')
+                    self.reroute_state = {
+                        'phase': 'probe_side_a',
+                        'start_sec': now,
+                        'sensor': 'front',
+                        'escape_side': None,
+                        'probe_side': preferred_side,
+                        'alternate_probe_side': alternate_side,
+                        'retry_count': 0,
+                        'back_scale': 1.0,
+                    }
                     self.front_only_count = 0
                 else:
-                    self.reroute_state = {'phase': 'back_diag', 'start_sec': now, 'sensor': hottest_sensor}
+                    self.reroute_state = {
+                        'phase': 'backoff',
+                        'start_sec': now,
+                        'sensor': hottest_sensor,
+                        'escape_side': self._reroute_escape_side_for_sensor(hottest_sensor),
+                        'probe_side': None,
+                        'alternate_probe_side': None,
+                        'retry_count': 0,
+                        'back_scale': 1.0,
+                    }
 
                 if hasattr(self, '_record_reroute_event'):
                     self._record_reroute_event(self.center_x, self.center_y, self.yaw, hottest_sensor, now)
 
         if self.reroute_state is not None:
             state = self.reroute_state
-            elapsed = self._now_sec() - state['start_sec']
+            now = self._now_sec()
+            elapsed = now - state['start_sec']
             sensor = state.get('sensor')
 
             # Compute a normalized escape vector for the detected sensor and use
@@ -1927,59 +2137,84 @@ class ArenaRoamer(Node):
             back_dir_x = -esc_x / norm
             back_dir_y = -esc_y / norm
 
-            # Phase: probe_right (Strafe right 5cm to find a corner)
-            if state['phase'] == 'probe_right':
-                if self._sensor_blocked('front_right'):
-                    state['phase'] = 'back_diag'
-                    state['sensor'] = 'front_right'
-                    state['start_sec'] = self._now_sec()
-                    return
-                if self._sensor_blocked('front_left'):
-                    state['phase'] = 'back_diag'
-                    state['sensor'] = 'front_left'
-                    state['start_sec'] = self._now_sec()
+            if state['phase'] in ('probe_side_a', 'probe_side_b'):
+                probe_side = state.get('probe_side', self._reroute_preferred_probe_side())
+                sensor_bias = self._reroute_forward_sensor_bias()
+                if sensor_bias in ('front_left', 'front_right'):
+                    escape_side = self._reroute_escape_side_for_sensor(sensor_bias)
+                    if escape_side is not None and not self._reroute_side_blocked(escape_side):
+                        self._reroute_commit_escape(state, escape_side, now, sensor_bias)
+                        return
+
+                if self._reroute_side_blocked(probe_side):
+                    if state['phase'] == 'probe_side_a':
+                        alternate_side = state.get('alternate_probe_side', self._reroute_other_side(probe_side))
+                        if alternate_side is not None and alternate_side != probe_side:
+                            self._reroute_begin_probe(state, 'probe_side_b', alternate_side, now)
+                            return
+
+                    if not self._reroute_escalate(
+                        state,
+                        now,
+                        sensor_name='front',
+                        preferred_side=self._reroute_preferred_probe_side(),
+                    ):
+                        return
                     return
 
-                dist = math.hypot(self.x - state['start_x'], self.y - state['start_y'])
-                if dist >= 0.05 or elapsed > 1.5:
-                    state['phase'] = 'probe_left'
-                    state['start_x'] = self.x
-                    state['start_y'] = self.y
-                    state['start_sec'] = self._now_sec()
+                if elapsed >= self._reroute_chunk_duration(state['phase']):
+                    state['last_probe_phase'] = state['phase']
+                    state['phase'] = 'check_after_probe'
+                    state['start_sec'] = now
                     return
 
-                # Strafe right (negative vy)
-                self._publish_cmd(0.0, -0.18, 0.0)
+                lateral_speed = self.reroute_probe_speed if probe_side == 'left' else -self.reroute_probe_speed
+                self._publish_cmd(0.0, lateral_speed, 0.0)
                 return
 
-            # Phase: probe_left (Strafe left 10cm to find opposite corner)
-            if state['phase'] == 'probe_left':
-                if self._sensor_blocked('front_left'):
-                    state['phase'] = 'back_diag'
-                    state['sensor'] = 'front_left'
-                    state['start_sec'] = self._now_sec()
-                    return
-                if self._sensor_blocked('front_right'):
-                    state['phase'] = 'back_diag'
-                    state['sensor'] = 'front_right'
-                    state['start_sec'] = self._now_sec()
+            if state['phase'] == 'check_after_probe':
+                self._publish_cmd(0.0, 0.0, 0.0)
+                if elapsed < self.reroute_stop_time:
                     return
 
-                dist = math.hypot(self.x - state['start_x'], self.y - state['start_y'])
-                if dist >= 0.10 or elapsed > 3.0:
-                    # Give up, fallback to normal back_diag
-                    state['phase'] = 'back_diag'
-                    state['sensor'] = 'front'
-                    state['start_sec'] = self._now_sec()
+                if self._reroute_can_resume_navigation():
+                    self._finalize_reroute()
                     return
-                
-                # Strafe left (positive vy)
-                self._publish_cmd(0.0, 0.18, 0.0)
+
+                probe_side = state.get('probe_side')
+                escape_side, sensor_bias = self._reroute_choose_escape_side(probe_side)
+                if escape_side is None:
+                    if state.get('alternate_probe_side') not in (None, probe_side) and state.get('last_probe_phase') == 'probe_side_a':
+                        self._reroute_begin_probe(state, 'probe_side_b', state['alternate_probe_side'], now)
+                        return
+                    if not self._reroute_fail_attempt(
+                        state,
+                        now,
+                        sensor_name=sensor_bias or 'front',
+                        side_invalidated=False,
+                    ):
+                        return
+                    return
+
+                state['escape_side'] = escape_side
+                state['sensor'] = sensor_bias or 'front'
+                state['phase'] = 'backoff'
+                state['start_sec'] = now
                 return
 
-            # Phase: back_diag
-            if state['phase'] == 'back_diag':
-                if elapsed < self.reroute_back_time:
+            if state['phase'] == 'backoff':
+                if self._reroute_attempt_invalidated(state):
+                    if not self._reroute_fail_attempt(
+                        state,
+                        now,
+                        sensor_name=state.get('sensor') or 'front',
+                        side_invalidated=True,
+                    ):
+                        return
+                    return
+
+                back_time = self._reroute_chunk_duration('backoff', state.get('back_scale', 1.0))
+                if elapsed < back_time:
                     # Back further/stronger to move away from detected obstacle
                     back_speed = 0.35
                     vx = back_dir_x * back_speed
@@ -1991,83 +2226,77 @@ class ArenaRoamer(Node):
 
                     self._publish_cmd(vx, 0.0, 0.0)
                     return
-                state['phase'] = 'stop'
-                state['start_sec'] = self._now_sec()
-                return
-
-            # Phase: brief stop
-            if state['phase'] == 'stop':
-                if elapsed < self.reroute_stop_time:
-                    self._publish_cmd(0.0, 0.0, 0.0)
-                    return
                 state['phase'] = 'rotate'
-                state['start_sec'] = self._now_sec()
+                state['start_sec'] = now
                 return
 
             # Phase: rotate in place away from obstacle (no strafing)
             if state['phase'] == 'rotate':
-                # Only actively rotate for a fraction of the rotate phase,
-                # then hold rotation (no angular velocity) for the remainder.
-                active_rotate_time = self.reroute_rotate_time * 0.65
-                if elapsed < active_rotate_time:
-                    # Rotate AWAY from the obstacle side (use opposite sign of escape y)
-                    flip = -1.0 if self.robot_body_frame_flip_180 else 1.0
-                    rotate_sign = -math.copysign(1.0, esc_y) * flip
-                    wz = rotate_sign * self.reroute_rotate_speed
-                    self._publish_cmd(0.0, 0.0, clamp(wz, -self.max_angular_speed, self.max_angular_speed))
+                if self._reroute_attempt_invalidated(state):
+                    if not self._reroute_fail_attempt(
+                        state,
+                        now,
+                        sensor_name=state.get('sensor') or 'front',
+                        side_invalidated=True,
+                    ):
+                        return
                     return
-                if elapsed < self.reroute_rotate_time:
-                    # Hold position: no rotation during the remainder of rotate phase
-                    self._publish_cmd(0.0, 0.0, 0.0)
+
+                escape_side = state.get('escape_side')
+                rotate_sign = self._reroute_rotate_sign(escape_side)
+                if elapsed < self._reroute_chunk_duration('rotate'):
+                    wz = clamp(rotate_sign * self.reroute_rotate_speed, -self.max_angular_speed, self.max_angular_speed)
+                    self._publish_cmd(0.0, 0.0, wz)
                     return
-                state['phase'] = 'forward'
-                state['start_sec'] = self._now_sec()
+                state['phase'] = 'diag_escape'
+                state['start_sec'] = now
                 return
 
-            # Phase: drive forward a short burst to attempt rejoin
-            if state['phase'] == 'forward':
-                forward_total = (self.reroute_back_time * 0.9 + self.reroute_rotate_time)
-                recovery_window = 0.30 * self.reroute_rotate_time
-                if elapsed < forward_total:
-                    # drive forward only (no lateral). Use stronger forward burst
-                    fwd = self.rotate_forward_speed
-                    if self._sensors_blocked_any('front', 'front_left', 'front_right'):
-                        fwd = 0.0
-                    # Apply a small counter-rotation for the initial recovery window to bias back
-                    # No path recovery rotation during forward phase: drive straight
-                    wz = 0.0
-                    # No strafing in forward phase: vy must be zero
-                    self._publish_cmd(fwd, 0.0, wz)
+            # Phase: short diagonal burst away from the obstacle side.
+            if state['phase'] == 'diag_escape':
+                escape_side = state.get('escape_side')
+                if escape_side is None:
+                    state['phase'] = 'backoff'
+                    state['sensor'] = 'front'
+                    state['start_sec'] = now
                     return
-                # after forward burst, if still blocked restart, otherwise pause
-                if self._sensors_blocked_any('front', 'front_left', 'front_right'):
-                    now = self._now_sec()
-                    self.reroute_state = {'phase': 'back_diag', 'start_sec': now, 'sensor': sensor}
+
+                if self._reroute_attempt_invalidated(state):
+                    if not self._reroute_fail_attempt(
+                        state,
+                        now,
+                        sensor_name=state.get('sensor') or 'front',
+                        side_invalidated=True,
+                    ):
+                        return
                     return
-                # mark post-clear and start cooldown window upon completion
-                state['phase'] = 'post_clear'
-                state['start_sec'] = self._now_sec()
+
+                if elapsed < self._reroute_chunk_duration('diag_escape'):
+                    cmd_vx = self.reroute_diag_forward_speed
+                    cmd_vy = self.reroute_diag_lateral_speed if escape_side == 'left' else -self.reroute_diag_lateral_speed
+                    self._publish_cmd(cmd_vx, cmd_vy, 0.0)
+                    return
+
+                state['phase'] = 'check_after_attempt'
+                state['start_sec'] = now
                 return
 
-            # Phase: short pause to 'take a breath' then finish reroute
-            # NOTE: per user request, we do NOT try to face the path here —
-            # complete the 3-point reroute and resume normal behavior.
-            if state['phase'] == 'post_clear':
+            if state['phase'] == 'check_after_attempt':
+                self._publish_cmd(0.0, 0.0, 0.0)
                 if elapsed < self.reroute_post_clear_pause:
-                    self._publish_cmd(0.0, 0.0, 0.0)
                     return
-                # End reroute: set a cooldown to avoid immediate retrigger.
-                now = self._now_sec()
-                self.reroute_cooldown_until = now + self.reroute_post_clear_pause * 2.0
-                # start lightweight probe sequence before full navigation resumes
-                self.probe_state = {
-                    'phase': 'move',
-                    'start_sec': now,
-                    'probe_yaw': self.yaw,
-                    'attempt': 0,
-                }
-                # end reroute and allow probe to run
-                self.reroute_state = None
+
+                if self._reroute_can_resume_navigation():
+                    self._finalize_reroute()
+                    return
+
+                if not self._reroute_fail_attempt(
+                    state,
+                    now,
+                    sensor_name=self._reroute_forward_sensor_bias() or state.get('sensor') or 'front',
+                    side_invalidated=self._reroute_attempt_invalidated(state),
+                ):
+                    return
                 return
 
         if hottest_sensor is None and abs(goal_heading_error) >= self.reorient_heading_threshold:
