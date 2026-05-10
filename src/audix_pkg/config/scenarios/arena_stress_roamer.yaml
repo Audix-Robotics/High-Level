@@ -1,0 +1,27 @@
+arena_roamer:
+  ros__parameters:
+    waypoints: [0.0, 3.55, 0.0, 0.0]
+    lift_dwell_time: 0.0
+    debug_frame_id: odom
+    cmd_forward_sign: -1.0
+    cmd_lateral_sign: 1.0
+    route_fail_on_timeout: false
+    goal_timeout_sec: 120.0
+    route_waypoint_tolerance: 0.06
+    route_waypoint_dwell_sec: 0.0
+    obstacle_danger_distance: 0.07
+    obstacle_clear_distance: 0.07
+    max_linear_speed: 0.08
+    max_lateral_speed: 0.10
+    max_angular_speed: 0.8
+    wall_influence_distance: 0.0
+    arena_min_x: -4.55
+    arena_max_x: 4.55
+    arena_min_y: -4.55
+    arena_max_y: 4.55
+    control_mode: acceptance_path
+    robot_body_frame_flip_180: true
+    scan_turn_degrees: 0.0
+    scan_directions: right
+    robot_center_offset_x: 0.0
+    robot_center_offset_y: 0.0

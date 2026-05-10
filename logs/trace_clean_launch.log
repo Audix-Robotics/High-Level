@@ -1,0 +1,86 @@
++ set -euo pipefail
++++ dirname scripts/clean_launch_simple_cardinal.sh
+++ cd scripts/..
+++ pwd
++ BASE_DIR=/home/ahmed/audix_manzar/High-Level
++ cd /home/ahmed/audix_manzar/High-Level
++ export COLCON_TRACE=
++ COLCON_TRACE=
++ export AMENT_TRACE=
++ AMENT_TRACE=
++ export AMENT_TRACE_SETUP_FILES=
++ AMENT_TRACE_SETUP_FILES=
++ export AMENT_PYTHON_EXECUTABLE=python3
++ AMENT_PYTHON_EXECUTABLE=python3
++ export COLCON_PYTHON_EXECUTABLE=/usr/bin/python3
++ COLCON_PYTHON_EXECUTABLE=/usr/bin/python3
++ export COLCON_PREFIX_PATH=/home/ahmed/audix_ws/install
++ COLCON_PREFIX_PATH=/home/ahmed/audix_ws/install
++ export _CATKIN_SETUP_DIR=
++ _CATKIN_SETUP_DIR=
++ source /opt/ros/jazzy/setup.bash
+++ AMENT_SHELL=bash
+++++ dirname /opt/ros/jazzy/setup.bash
++++ builtin cd /opt/ros/jazzy
++++ pwd
+++ AMENT_CURRENT_PREFIX=/opt/ros/jazzy
+++ '[' -n '' ']'
+++ . /opt/ros/jazzy/setup.sh
++++ : /opt/ros/jazzy
++++ : bash
++++ _prefix_setup_IFS=' 	
+'
++++ IFS='
+'
++++ _UNIQUE_PREFIX_PATH=
++++ '[' -z SKIP_PARENT_PREFIX_PATH ']'
++++ ament_append_unique_value _UNIQUE_PREFIX_PATH /opt/ros/jazzy
++++ _listname=_UNIQUE_PREFIX_PATH
++++ _value=/opt/ros/jazzy
++++ eval '_values=$_UNIQUE_PREFIX_PATH'
+++++ _values=
++++ _duplicate=
++++ _ament_append_unique_value_IFS='
+'
++++ IFS=:
++++ '[' bash = zsh ']'
++++ unset _item
++++ '[' -z '' ']'
++++ '[' -z '' ']'
++++ eval '_UNIQUE_PREFIX_PATH="/opt/ros/jazzy"'
+++++ _UNIQUE_PREFIX_PATH=/opt/ros/jazzy
++++ IFS='
+'
++++ unset _ament_append_unique_value_IFS
++++ unset _duplicate
++++ unset _values
++++ unset _value
++++ unset _listname
++++ unset AMENT_CURRENT_PREFIX
++++ _prefix_setup_AMENT_SHELL=bash
++++ IFS=:
++++ '[' bash = zsh ']'
++++ for _path in $_UNIQUE_PREFIX_PATH
++++ '[' -n '' ']'
++++ '[' -f /opt/ros/jazzy/local_setup.bash ']'
++++ '[' bash = sh ']'
++++ IFS=' 	
+'
++++ . /opt/ros/jazzy/local_setup.bash
+++++ AMENT_SHELL=bash
+++++++ dirname /opt/ros/jazzy/local_setup.bash
++++++ builtin cd /opt/ros/jazzy
++++++ pwd
+++++ AMENT_CURRENT_PREFIX=/opt/ros/jazzy
+++++ '[' -n '' ']'
+++++ . /opt/ros/jazzy/local_setup.sh
++++++ _ament_prefix_sh_AMENT_CURRENT_PREFIX=/opt/ros/jazzy
++++++ '[' -z /opt/ros/jazzy ']'
++++++ _ament_prefix_sh_AMENT_CURRENT_PREFIX=/opt/ros/jazzy
++++++ : bash
++++++ _ament_python_executable=/usr/bin/python3
++++++ '[' -n python3 ']'
++++++ _ament_python_executable=python3
++++++ '[' '!' -f python3 ']'
++++++ /usr/bin/env python3 --version
+++++++ /usr/bin/env python3 -c 'import sys; print(sys.executable)'

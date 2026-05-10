@@ -15,27 +15,24 @@ install(
 
 install(
 	PROGRAMS
-		scripts/arena_ir_state_adapter.py
-		scripts/arena_route_library.py
-		scripts/arena_obstacle_manager.py
-		scripts/arena_roamer.py
-		scripts/arena_spawn_panel.py
-		scripts/cardinal_motion_debug.py
-		scripts/drive_test.py
-		scripts/goal_sender_node.py
-		scripts/mecanum_kinematics.py
-		scripts/mission_controller.py
-		scripts/obstacle_avoidance.py
-		scripts/warehouse_robot.py
-		scripts/odom_tf_broadcaster.py
-		scripts/scissor_lift_mapper.py
-		scripts/scissor_slider_gui.py
-		scripts/start_stop_node.py
-		scripts/start_stop_gui.py
-		scripts/waypoints_control.py
-		scripts/waypoints_final.py
-		scripts/ir_digital_bridge.py
-		scripts/warehouse_overlay_markers.py
+		scripts/brains/arena_roamer.py
+		scripts/brains/simple_cardinal_brain.py
+		scripts/support/arena_course_spawner.py
+		scripts/support/arena_ir_state_adapter.py
+		scripts/support/arena_route_library.py
+		scripts/support/arena_obstacle_manager.py
+		scripts/ui/arena_spawn_panel.py
+		scripts/tools/cardinal_motion_debug.py
+		scripts/tools/drive_test.py
+		scripts/tools/goal_sender_node.py
+		scripts/support/mecanum_kinematics.py
+		scripts/support/odom_tf_broadcaster.py
+		scripts/support/scissor_lift_mapper.py
+		scripts/ui/scissor_slider_gui.py
+		scripts/ui/start_stop_node.py
+		scripts/ui/start_stop_gui.py
+		scripts/support/ir_digital_bridge.py
+		scripts/visualization/warehouse_overlay_markers.py
 	DESTINATION lib/${PROJECT_NAME}
 )
 

@@ -1,0 +1,31 @@
+simple_cardinal_brain:
+  ros__parameters:
+    odom_topic: /odom
+    imu_topic: /imu
+    frame_id: odom
+    debug_frame_id: arena10
+    debug_origin_x: 0.0
+    debug_origin_y: -3.45
+    goal_distance: 3.55
+    goal_tolerance: 0.05
+    forward_speed: 0.08
+    lateral_speed: 0.10
+    backoff_speed: 0.06
+    line_kp: 1.6
+    max_line_correction_speed: 0.05
+    backoff_distance: 0.0
+    diagonal_shift_distance: 0.0
+    lateral_step_distance: 0.23
+    lateral_clearance_distance: 0.23
+    post_front_clear_lateral_distance: 0.25
+    lateral_recovery_step: 0.05
+    max_lateral_clearance_distance: 0.42
+    forward_clear_distance: 0.252
+    post_side_clear_forward_distance: 0.25
+    shift_tolerance: 0.015
+    rejoin_tolerance: 0.02
+    avoidance_buffer: 0.05
+    sensor_timeout_sec: 0.5
+    path_point_spacing: 0.02
+    preferred_first_direction: right
+    max_shift_cycles: 12

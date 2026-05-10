@@ -12,11 +12,11 @@ def generate_launch_description():
     pkg_share = get_package_share_directory('audix')
     pkg_parent = os.path.dirname(pkg_share)
 
-    ekf_config = os.path.join(pkg_share, 'config', 'ekf.yaml')
-    ir_adapter_config = os.path.join(pkg_share, 'config', 'arena_ir_state_adapter.yaml')
-    mission_config = os.path.join(pkg_share, 'config', 'mission_params.yaml')
-    roamer_mission_config = os.path.join(pkg_share, 'config', 'arena_roamer_mission.yaml')
-    world_config = os.path.join(pkg_share, 'config', 'arena_world.yaml')
+    ekf_config = os.path.join(pkg_share, 'config', 'common', 'ekf.yaml')
+    ir_adapter_config = os.path.join(pkg_share, 'config', 'common', 'arena_ir_state_adapter.yaml')
+    mission_config = os.path.join(pkg_share, 'config', 'common', 'mission_params.yaml')
+    roamer_mission_config = os.path.join(pkg_share, 'config', 'scenarios', 'arena_roamer_mission.yaml')
+    world_config = os.path.join(pkg_share, 'config', 'common', 'arena_world.yaml')
     rviz_config = os.path.join(pkg_share, 'rviz', 'full_mission.rviz')
 
     use_rviz = LaunchConfiguration('use_rviz')
@@ -34,7 +34,7 @@ def generate_launch_description():
 
     world_stack = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
-            os.path.join(pkg_share, 'launch', 'full_mission_world.launch.py')
+            os.path.join(pkg_share, 'launch', 'stacks', 'full_mission_world.launch.py')
         ]),
         launch_arguments={
             'use_rviz': use_rviz,

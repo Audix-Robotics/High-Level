@@ -19,18 +19,21 @@ What `./scripts/clean_launch_arena.sh` does
 - Starts RViz after a short delay and tracks its PID for clean shutdown
 
 Key files and their purpose
-- `src/audix_pkg/launch/midterm.launch.py`: Main convenience launch used for classroom demos. Starts the Gazebo world and most nodes.
-- `src/audix_pkg/launch/scissor_gazebo.launch.py`: Lower-level Gazebo + robot spawn launch (used by `midterm.launch.py`).
-- `src/audix_pkg/launch/arena_experiment.launch.py`: Arena experiment launch that starts the Gazebo world, bridges, and experiment nodes. Note: RViz start was removed from this launch (RViz is started by `./scripts/clean_launch_arena.sh` to avoid duplicate windows).
-- `src/audix_pkg/urdf/audix.urdf`: Robot description; sensor frame origins are defined here and must match `sensor_positions` in the code.
-- `src/audix_pkg/config/ekf.yaml`: EKF configuration (frame names, sensor sources, covariances).
-- `src/audix_pkg/config/mission_params.yaml` and `src/audix_pkg/config/arena_experiment_params.yaml`: Tunable experiment and mission parameters (waypoints, thresholds, IR ranges, reroute timings).
+- `src/audix_pkg/launch/scenarios/full_mission.launch.py`: Active warehouse simulation scenario entrypoint.
+- `src/audix_pkg/launch/scenarios/arena_stress_course.launch.py`: Active stress-course scenario entrypoint.
+- `src/audix_pkg/launch/scenarios/arena_simple_cardinal.launch.py`: Isolated simple-cardinal comparison scenario with a single obstacle.
+- `src/audix_pkg/launch/stacks/scissor_gazebo.launch.py`: Lower-level Gazebo + robot spawn stack used by the scenario launches.
+- `src/audix_pkg/urdf/audix.urdf`: Robot description; sensor frame origins are defined here and must match the brain logic.
+- `src/audix_pkg/config/common/ekf.yaml`: EKF configuration (frame names, sensor sources, covariances).
+- `src/audix_pkg/config/common/mission_params.yaml`: Shared kinematic and mission defaults.
+- `src/audix_pkg/config/scenarios/`: Scenario-specific tuning and obstacle course JSON files.
 
 Main code that handles detection and reroute logic
-- `src/audix_pkg/scripts/arena_roamer.py`: Primary obstacle detection and avoidance node for the arena experiment. Handles IR topic subscriptions, binary sensor sequencing, mapping sensor names to topics, and the local reroute (3-point) behavior. This file contains the sensor-to-topic remapping and the visual markers used for debugging.
-- `src/audix_pkg/scripts/mission_controller.py`: Higher-level mission FSM (waypoint sequencing, EKF-based navigation, and mission-level reroute/probe sequencing). Contains mission parameters and the code that triggers reroutes when blocking obstacles are found.
-- `src/audix_pkg/scripts/arena_obstacle_manager.py`: Runtime obstacle spawning and tracking (used for experiments and replaying obstacle layouts).
-- `src/audix_pkg/scripts/cardinal_motion_debug.py`: Helpful debug utilities for cardinal motion tests and sensor offset tuning.
+- `src/audix_pkg/scripts/brains/arena_roamer.py`: Primary obstacle detection and avoidance node for the arena experiment. Handles IR topic subscriptions, binary sensor sequencing, mapping sensor names to topics, and the local reroute (3-point) behavior. This file contains the sensor-to-topic remapping and the visual markers used for debugging.
+- `src/audix_pkg/scripts/brains/simple_cardinal_brain.py`: Isolated cardinal-motion comparison brain that consumes only encoder odom, IMU, binary IR, and `/robot_enable`.
+- `src/audix_pkg/scripts/support/arena_obstacle_manager.py`: Runtime obstacle spawning and tracking for the warehouse arena.
+- `src/audix_pkg/scripts/tools/cardinal_motion_debug.py`: Debug utility for cardinal motion tests and sensor offset tuning.
+- `src/audix_pkg/scripts/legacy/`: Archived older controllers and waypoint logic kept aside from the active simulation path.
 
 Useful commands
 - Build and source:
@@ -49,9 +52,9 @@ ros2 launch audix src/audix_pkg/launch/arena_experiment.launch.py
 
 Files to inspect when debugging sensors or reroute behavior
 - `src/audix_pkg/urdf/audix.urdf` — verify the sensor joint origins and `gazebo` sensor `<range>` settings.
-- `src/audix_pkg/scripts/arena_roamer.py` — topic remapping, `sensor_positions`, `_sensor_direction_body`, and IR handling code.
-- `src/audix_pkg/scripts/mission_controller.py` — mission-level reroute logic and probe sequencing.
-- `src/audix_pkg/config/arena_experiment_params.yaml` and `mission_params.yaml` — thresholds that control when detection → reroute occurs.
+- `src/audix_pkg/scripts/brains/arena_roamer.py` — topic remapping, `sensor_positions`, `_sensor_direction_body`, and IR handling code.
+- `src/audix_pkg/scripts/brains/simple_cardinal_brain.py` — isolated reroute logic for the simple comparison scenario.
+- `src/audix_pkg/config/scenarios/simple_cardinal.yaml` and `src/audix_pkg/config/common/mission_params.yaml` — thresholds that control the active cardinal scenario and shared motion defaults.
 
 Quick checks while sim is running
 - Verify sensor topics:

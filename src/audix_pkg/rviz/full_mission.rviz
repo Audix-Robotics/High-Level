@@ -412,11 +412,32 @@ Visualization Manager:
         acceptance_route: true
         acceptance_route_labels: true
         arena: false
+        arena_ir_cones: false
+        arena_ir_edges: false
+        arena_ir_hits: false
+        arena_ir_origins: false
+        arena_ir_threshold: false
+        simple_cardinal_goal: true
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /debug/targets
+      Value: true
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: IRMarkers
+      Namespaces:
+        acceptance_route: false
+        acceptance_route_labels: false
+        arena: false
         arena_ir_cones: true
         arena_ir_edges: true
         arena_ir_hits: true
         arena_ir_origins: true
         arena_ir_threshold: true
+        simple_cardinal_goal: false
       Topic:
         Depth: 5
         Durability Policy: Volatile

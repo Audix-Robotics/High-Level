@@ -1372,7 +1372,7 @@
         <remapping>~/robot_description:=robot_description</remapping>
       </ros>
       <!-- Controller manager / ros2_control parameters -->
-      <parameters>$(find audix)/config/controllers.yaml</parameters>
+      <parameters>$(find audix)/config/common/controllers.yaml</parameters>
     </plugin>
   </gazebo>
 
@@ -1381,39 +1381,66 @@
   <!-- mu1 = traction (rolling/X direction), mu2 ≈ 0 (lateral slip) -->
   <!-- fdir1="1 0 0" = rolling direction in link-local frame         -->
   <!-- ============================================================ -->
+  <gazebo reference="base_link">
+    <kinematic>true</kinematic>
+  </gazebo>
+
   <gazebo reference="front_left_wheel_link">
+    <kinematic>true</kinematic>
     <mu1>1.0</mu1>
     <mu2>0.01</mu2>
     <fdir1>1 0 0</fdir1>
     <material>Gazebo/DarkGray</material>
   </gazebo>
   <gazebo reference="front_right_wheel_link">
+    <kinematic>true</kinematic>
     <mu1>1.0</mu1>
     <mu2>0.01</mu2>
     <fdir1>1 0 0</fdir1>
     <material>Gazebo/DarkGray</material>
   </gazebo>
   <gazebo reference="back_left_wheel_link">
+    <kinematic>true</kinematic>
     <mu1>1.0</mu1>
     <mu2>0.01</mu2>
     <fdir1>1 0 0</fdir1>
     <material>Gazebo/DarkGray</material>
   </gazebo>
   <gazebo reference="back_right_wheel_link">
+    <kinematic>true</kinematic>
     <mu1>1.0</mu1>
     <mu2>0.01</mu2>
     <fdir1>1 0 0</fdir1>
     <material>Gazebo/DarkGray</material>
   </gazebo>
 
+  <gazebo reference="scissors_lift_base"><kinematic>true</kinematic></gazebo>
+  <gazebo reference="bottom_stud_link"><kinematic>true</kinematic></gazebo>
+  <gazebo reference="top_stud_link"><kinematic>true</kinematic></gazebo>
+  <gazebo reference="right_link1"><kinematic>true</kinematic></gazebo>
+  <gazebo reference="right_link2"><kinematic>true</kinematic></gazebo>
+  <gazebo reference="right_link3"><kinematic>true</kinematic></gazebo>
+  <gazebo reference="right_link4"><kinematic>true</kinematic></gazebo>
+  <gazebo reference="right_link5"><kinematic>true</kinematic></gazebo>
+  <gazebo reference="right_link6"><kinematic>true</kinematic></gazebo>
+  <gazebo reference="left_link1"><kinematic>true</kinematic></gazebo>
+  <gazebo reference="left_link2"><kinematic>true</kinematic></gazebo>
+  <gazebo reference="left_link3"><kinematic>true</kinematic></gazebo>
+  <gazebo reference="left_link4"><kinematic>true</kinematic></gazebo>
+  <gazebo reference="left_link5"><kinematic>true</kinematic></gazebo>
+  <gazebo reference="left_link6"><kinematic>true</kinematic></gazebo>
+  <gazebo reference="camera_link"><kinematic>true</kinematic></gazebo>
+
   <!-- ============================================================ -->
   <!-- Gazebo: VelocityControl – stable body motion path            -->
-  <!-- cmd_vel still also feeds wheel animation through ros2_control -->
+  <!-- /cmd_vel_sim is produced by mecanum_kinematics from /cmd_vel  -->
+  <!-- so Gazebo body motion uses the same lateral convention as the -->
+  <!-- wheel/odom path.                                             -->
   <!-- ============================================================ -->
   <gazebo>
     <plugin filename="gz-sim-velocity-control-system"
             name="gz::sim::systems::VelocityControl">
-      <topic>/cmd_vel</topic>
+      <topic>/cmd_vel_sim</topic>
     </plugin>
   </gazebo>
 
@@ -1525,7 +1552,7 @@
         </scan>
         <range>
           <min>0.01</min>
-          <max>0.085</max>
+          <max>0.08</max>
           <resolution>0.001</resolution>
         </range>
         <noise>
@@ -1561,7 +1588,7 @@
         </scan>
         <range>
           <min>0.01</min>
-          <max>0.085</max>
+          <max>0.08</max>
           <resolution>0.001</resolution>
         </range>
         <noise>
@@ -1633,7 +1660,7 @@
         </scan>
         <range>
           <min>0.01</min>
-          <max>0.11</max>
+          <max>0.08</max>
           <resolution>0.001</resolution>
         </range>
         <noise>
@@ -1669,7 +1696,7 @@
         </scan>
         <range>
           <min>0.01</min>
-          <max>0.095</max>
+          <max>0.08</max>
           <resolution>0.001</resolution>
         </range>
         <noise>

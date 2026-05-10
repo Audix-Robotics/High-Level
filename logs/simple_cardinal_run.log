@@ -1,0 +1,258 @@
+Building audix with symlink install so source edits are used...
+Starting >>> audix
+Finished <<< audix [0.10s]
+
+Summary: 1 package finished [0.21s]
+Killing lingering simulator/ROS processes...
+Starting arena_simple_cardinal.launch.py (Gazebo + RViz + course spawner + isolated brain)...
+[INFO] [launch]: All log files can be found below /home/ahmed/.ros/log/2026-05-10-11-09-18-362280-LAPTOP-JTPQ0N1U-167689
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [gazebo-1]: process started with pid [167695]
+[INFO] [robot_state_publisher-2]: process started with pid [167696]
+[INFO] [create-3]: process started with pid [167698]
+[INFO] [static_transform_publisher-4]: process started with pid [167699]
+[INFO] [parameter_bridge-5]: process started with pid [167700]
+[INFO] [parameter_bridge-6]: process started with pid [167701]
+[INFO] [parameter_bridge-7]: process started with pid [167702]
+[INFO] [odom_tf_broadcaster.py-8]: process started with pid [167703]
+[INFO] [mecanum_kinematics.py-9]: process started with pid [167704]
+[INFO] [parameter_bridge-10]: process started with pid [167711]
+[INFO] [arena_ir_state_adapter.py-11]: process started with pid [167712]
+[INFO] [ekf_node-12]: process started with pid [167715]
+[INFO] [arena_course_spawner.py-13]: process started with pid [167735]
+[INFO] [static_transform_publisher-14]: process started with pid [167737]
+[INFO] [simple_cardinal_brain.py-15]: process started with pid [167738]
+[static_transform_publisher-4] [WARN] [1778400558.764312063] []: Old-style arguments are deprecated; see --help for new-style arguments
+[static_transform_publisher-4] [INFO] [1778400558.799722932] [world_to_odom_publisher]: Spinning until stopped - publishing transform
+[static_transform_publisher-4] translation: ('0.000000', '0.000000', '0.000000')
+[static_transform_publisher-4] rotation: ('0.000000', '0.000000', '0.000000', '1.000000')
+[static_transform_publisher-4] from 'arena10' to 'odom'
+[static_transform_publisher-14] [WARN] [1778400558.812610922] []: Old-style arguments are deprecated; see --help for new-style arguments
+[parameter_bridge-6] [INFO] [1778400558.823495118] [ros_gz_bridge]: Creating ROS->GZ Bridge: [/cmd_vel_sim (geometry_msgs/msg/Twist) -> /cmd_vel_sim (gz.msgs.Twist)] (Lazy 0)
+[parameter_bridge-7] [INFO] [1778400558.831962954] [ros_gz_bridge]: Creating GZ->ROS Bridge: [/odom (gz.msgs.Odometry) -> /odom (nav_msgs/msg/Odometry)] (Lazy 0)
+[ekf_node-12] [INFO] [1778400558.832772436] [ekf_filter_node]: Waiting for clock to start...
+[robot_state_publisher-2] [INFO] [1778400558.836396580] [robot_state_publisher]: Robot initialized
+[parameter_bridge-5] [INFO] [1778400558.845499611] [ros_gz_bridge]: Creating GZ->ROS Bridge: [/clock (gz.msgs.Clock) -> /clock (rosgraph_msgs/msg/Clock)] (Lazy 0)
+[parameter_bridge-10] [INFO] [1778400558.852939090] [ros_gz_bridge]: Creating GZ->ROS Bridge: [/imu (gz.msgs.IMU) -> /imu (sensor_msgs/msg/Imu)] (Lazy 0)
+[parameter_bridge-10] [INFO] [1778400558.855871554] [ros_gz_bridge]: Creating GZ->ROS Bridge: [/ir_front/scan (gz.msgs.LaserScan) -> /ir_front/scan (sensor_msgs/msg/LaserScan)] (Lazy 0)
+[parameter_bridge-10] [INFO] [1778400558.856365112] [ros_gz_bridge]: Creating GZ->ROS Bridge: [/ir_front_left/scan (gz.msgs.LaserScan) -> /ir_front_left/scan (sensor_msgs/msg/LaserScan)] (Lazy 0)
+[parameter_bridge-10] [INFO] [1778400558.856579551] [ros_gz_bridge]: Creating GZ->ROS Bridge: [/ir_front_right/scan (gz.msgs.LaserScan) -> /ir_front_right/scan (sensor_msgs/msg/LaserScan)] (Lazy 0)
+[parameter_bridge-10] [INFO] [1778400558.856863775] [ros_gz_bridge]: Creating GZ->ROS Bridge: [/ir_left/scan (gz.msgs.LaserScan) -> /ir_left/scan (sensor_msgs/msg/LaserScan)] (Lazy 0)
+[parameter_bridge-10] [INFO] [1778400558.857040645] [ros_gz_bridge]: Creating GZ->ROS Bridge: [/ir_right/scan (gz.msgs.LaserScan) -> /ir_right/scan (sensor_msgs/msg/LaserScan)] (Lazy 0)
+[parameter_bridge-10] [INFO] [1778400558.857274361] [ros_gz_bridge]: Creating GZ->ROS Bridge: [/ir_back/scan (gz.msgs.LaserScan) -> /ir_back/scan (sensor_msgs/msg/LaserScan)] (Lazy 0)
+[static_transform_publisher-14] [INFO] [1778400558.858526453] [arena_alias_publisher]: Spinning until stopped - publishing transform
+[static_transform_publisher-14] translation: ('0.000000', '0.000000', '0.000000')
+[static_transform_publisher-14] rotation: ('0.000000', '0.000000', '0.000000', '1.000000')
+[static_transform_publisher-14] from 'arena' to 'arena10'
+[arena_ir_state_adapter.py-11] [INFO] [1778400559.204516671] [arena_ir_state_adapter]: IR state adapter ready. source_type=scan, mapping=front<-front, front_left<-front_left, front_right<-front_right, left<-left, right<-right, back<-back
+[arena_course_spawner.py-13] [INFO] [1778400559.216983047] [arena_course_spawner]: Arena course spawner ready: /home/ahmed/audix_manzar/High-Level/install/audix/share/audix/config/scenarios/simple_cardinal_course.json
+[odom_tf_broadcaster.py-8] [INFO] [1778400559.218244724] [odom_tf_broadcaster]: Listening on /odom and publishing odom -> base_footprint with yaw_offset_rad=0.0
+[simple_cardinal_brain.py-15] [INFO] [1778400559.240534036] [simple_cardinal_brain]: Simple cardinal brain ready. Inputs: encoder odom, IMU, binary IR, /robot_enable. Outputs: /cmd_vel, /debug/*, lift hold at zero.
+[mecanum_kinematics.py-9] [INFO] [1778400559.245829129] [mecanum_kinematics]: Mecanum kinematics ready: r=0.0485, lx=0.09, ly=0.1574, max_wheel_rpm=60.0, publish_wheel_commands=False, publish_sim_cmd=True, ideal_odom_from_cmd=True, sim_y_sign=-1.0, sim_yaw_hold=True
+[create-3] [INFO] [1778400559.286040712] [ros_gz_sim]: Entity creation successful.
+[INFO] [create-3]: process has finished cleanly [pid 167698]
+[INFO] [spawner-16]: process started with pid [167910]
+[spawner-16] [INFO] [1778400559.730586697] [spawner_joint_state_broadcaster]: waiting for service /controller_manager/list_controllers to become available...
+[INFO] [gz-17]: process started with pid [167930]
+[gazebo-1] [1;33m[Wrn] [SdfEntityCreator.cc:933] [0m[1;33mGazebo does not support Ogre material scripts. See [0m[1;33mhttps://gazebosim.org/api/sim/8/migrationsdf.html#:~:text=Materials [0m[1;33mfor details.[0m[1;33m[0m
+[gazebo-1] [1;33m[Wrn] [SdfEntityCreator.cc:949] [0m[1;33mUsing an internal gazebo.material to parse [0m[1;33mGazebo/DarkGray[0m[1;33m[0m
+[gazebo-1] [1;33m[Wrn] [SdfEntityCreator.cc:933] [0m[1;33mGazebo does not support Ogre material scripts. See [0m[1;33mhttps://gazebosim.org/api/sim/8/migrationsdf.html#:~:text=Materials [0m[1;33mfor details.[0m[1;33m[0m
+[gazebo-1] [1;33m[Wrn] [SdfEntityCreator.cc:949] [0m[1;33mUsing an internal gazebo.material to parse [0m[1;33mGazebo/DarkGray[0m[1;33m[0m
+[gazebo-1] [1;33m[Wrn] [SdfEntityCreator.cc:933] [0m[1;33mGazebo does not support Ogre material scripts. See [0m[1;33mhttps://gazebosim.org/api/sim/8/migrationsdf.html#:~:text=Materials [0m[1;33mfor details.[0m[1;33m[0m
+[gazebo-1] [1;33m[Wrn] [SdfEntityCreator.cc:949] [0m[1;33mUsing an internal gazebo.material to parse [0m[1;33mGazebo/DarkGray[0m[1;33m[0m
+[gazebo-1] [1;33m[Wrn] [SdfEntityCreator.cc:933] [0m[1;33mGazebo does not support Ogre material scripts. See [0m[1;33mhttps://gazebosim.org/api/sim/8/migrationsdf.html#:~:text=Materials [0m[1;33mfor details.[0m[1;33m[0m
+[gazebo-1] [1;33m[Wrn] [SdfEntityCreator.cc:949] [0m[1;33mUsing an internal gazebo.material to parse [0m[1;33mGazebo/DarkGray[0m[1;33m[0m
+[gazebo-1] [INFO] [1778400560.612558411] [gz_ros_control]: Loading controller_manager
+[gazebo-1] [INFO] [1778400560.621298866] [controller_manager]: Using ROS clock for triggering controller manager cycles.
+[gazebo-1] [INFO] [1778400560.624704274] [controller_manager]: Subscribing to '/robot_description' topic for robot description.
+[gazebo-1] [WARN] [1778400560.626836044] [gz_ros_control]: Waiting RM to load and initialize hardware...
+[gz-17] [1;33m[GUI] [Wrn] [Application.cc:908] [0m[1;33m[QT] file::/WorldStats/WorldStats.qml:53:3: QML RowLayout: Binding loop detected for property "x"[0m[1;33m[0m
+[gz-17] [1;33m[GUI] [Wrn] [Ogre2RenderTarget.cc:668] [0m[1;33mAnti-aliasing level of '[0m[1;33m[0m[1;33m' [0m[1;33mis not supported; valid FSAA levels are: [0m[1;33m[ 0 4 ][0m[1;33m. Setting to 1[0m[1;33m[0m
+[gazebo-1] [WARN] [1778400561.624344612] [controller_manager]: Waiting for data on 'robot_description' topic to finish initialization
+[gazebo-1] [INFO] [1778400562.046372009] [controller_manager]: Received robot description from topic.
+[gazebo-1] [INFO] [1778400562.052308119] [gz_ros_control]: The position_proportional_gain has been set to: 0.1
+[gazebo-1] [INFO] [1778400562.052417968] [gz_ros_control]: Loading joint: front_left_wheel_joint
+[gazebo-1] [INFO] [1778400562.052427345] [gz_ros_control]: 	State:
+[gazebo-1] [INFO] [1778400562.052432758] [gz_ros_control]: 		 velocity
+[gazebo-1] [INFO] [1778400562.052437357] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1778400562.052447757] [gz_ros_control]: 	Command:
+[gazebo-1] [INFO] [1778400562.052449872] [gz_ros_control]: 		 velocity
+[gazebo-1] [INFO] [1778400562.052462020] [gz_ros_control]: Loading joint: front_right_wheel_joint
+[gazebo-1] [INFO] [1778400562.052464098] [gz_ros_control]: 	State:
+[gazebo-1] [INFO] [1778400562.052465957] [gz_ros_control]: 		 velocity
+[gazebo-1] [INFO] [1778400562.052468293] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1778400562.052470150] [gz_ros_control]: 	Command:
+[gazebo-1] [INFO] [1778400562.052471846] [gz_ros_control]: 		 velocity
+[gazebo-1] [INFO] [1778400562.052479695] [gz_ros_control]: Loading joint: back_left_wheel_joint
+[gazebo-1] [INFO] [1778400562.052481866] [gz_ros_control]: 	State:
+[gazebo-1] [INFO] [1778400562.052483616] [gz_ros_control]: 		 velocity
+[gazebo-1] [INFO] [1778400562.052486211] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1778400562.052488225] [gz_ros_control]: 	Command:
+[gazebo-1] [INFO] [1778400562.052489856] [gz_ros_control]: 		 velocity
+[gazebo-1] [INFO] [1778400562.052495454] [gz_ros_control]: Loading joint: back_right_wheel_joint
+[gazebo-1] [INFO] [1778400562.052504013] [gz_ros_control]: 	State:
+[gazebo-1] [INFO] [1778400562.052506187] [gz_ros_control]: 		 velocity
+[gazebo-1] [INFO] [1778400562.052508230] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1778400562.052509983] [gz_ros_control]: 	Command:
+[gazebo-1] [INFO] [1778400562.052511644] [gz_ros_control]: 		 velocity
+[gazebo-1] [INFO] [1778400562.052519077] [gz_ros_control]: Loading joint: bottom_stud_joint
+[gazebo-1] [INFO] [1778400562.052520921] [gz_ros_control]: 	State:
+[gazebo-1] [INFO] [1778400562.052522810] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1778400562.052525587] [gz_ros_control]: 		 velocity
+[gazebo-1] [INFO] [1778400562.052527525] [gz_ros_control]: 	Command:
+[gazebo-1] [INFO] [1778400562.052529324] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1778400562.052537836] [gz_ros_control]: Loading joint: top_stud_joint
+[gazebo-1] [INFO] [1778400562.052539733] [gz_ros_control]: 	State:
+[gazebo-1] [INFO] [1778400562.052541701] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1778400562.052543530] [gz_ros_control]: 		 velocity
+[gazebo-1] [INFO] [1778400562.052545307] [gz_ros_control]: 	Command:
+[gazebo-1] [INFO] [1778400562.052546974] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1778400562.052553022] [gz_ros_control]: Loading joint: left_joint1
+[gazebo-1] [INFO] [1778400562.052554815] [gz_ros_control]: 	State:
+[gazebo-1] [INFO] [1778400562.052556622] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1778400562.052560489] [gz_ros_control]: 		 velocity
+[gazebo-1] [INFO] [1778400562.052562255] [gz_ros_control]: 	Command:
+[gazebo-1] [INFO] [1778400562.052563917] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1778400562.052571009] [gz_ros_control]: Loading joint: right_joint1
+[gazebo-1] [INFO] [1778400562.052572754] [gz_ros_control]: 	State:
+[gazebo-1] [INFO] [1778400562.052574621] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1778400562.052576392] [gz_ros_control]: 		 velocity
+[gazebo-1] [INFO] [1778400562.052578160] [gz_ros_control]: 	Command:
+[gazebo-1] [INFO] [1778400562.052579798] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1778400562.052585653] [gz_ros_control]: Loading joint: left_joint2
+[gazebo-1] [INFO] [1778400562.052587420] [gz_ros_control]: 	State:
+[gazebo-1] [INFO] [1778400562.052589099] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1778400562.052591857] [gz_ros_control]: 		 velocity
+[gazebo-1] [INFO] [1778400562.052593751] [gz_ros_control]: 	Command:
+[gazebo-1] [INFO] [1778400562.052595454] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1778400562.052601368] [gz_ros_control]: Loading joint: right_joint2
+[gazebo-1] [INFO] [1778400562.052652160] [gz_ros_control]: 	State:
+[gazebo-1] [INFO] [1778400562.052658078] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1778400562.052661704] [gz_ros_control]: 		 velocity
+[gazebo-1] [INFO] [1778400562.052664068] [gz_ros_control]: 	Command:
+[gazebo-1] [INFO] [1778400562.052666211] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1778400562.052677420] [gz_ros_control]: Loading joint: left_joint3
+[gazebo-1] [INFO] [1778400562.052684450] [gz_ros_control]: 	State:
+[gazebo-1] [INFO] [1778400562.052686495] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1778400562.052688364] [gz_ros_control]: 		 velocity
+[gazebo-1] [INFO] [1778400562.052690175] [gz_ros_control]: 	Command:
+[gazebo-1] [INFO] [1778400562.052691834] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1778400562.052697722] [gz_ros_control]: Loading joint: right_joint3
+[gazebo-1] [INFO] [1778400562.052700002] [gz_ros_control]: 	State:
+[gazebo-1] [INFO] [1778400562.052701954] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1778400562.052703706] [gz_ros_control]: 		 velocity
+[gazebo-1] [INFO] [1778400562.052708982] [gz_ros_control]: 	Command:
+[gazebo-1] [INFO] [1778400562.052714385] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1778400562.052721381] [gz_ros_control]: Loading joint: left_joint4
+[gazebo-1] [INFO] [1778400562.052723349] [gz_ros_control]: 	State:
+[gazebo-1] [INFO] [1778400562.052725085] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1778400562.052726853] [gz_ros_control]: 		 velocity
+[gazebo-1] [INFO] [1778400562.052728591] [gz_ros_control]: 	Command:
+[gazebo-1] [INFO] [1778400562.052730270] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1778400562.052736856] [gz_ros_control]: Loading joint: right_joint4
+[gazebo-1] [INFO] [1778400562.052738638] [gz_ros_control]: 	State:
+[gazebo-1] [INFO] [1778400562.052740424] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1778400562.052742469] [gz_ros_control]: 		 velocity
+[gazebo-1] [INFO] [1778400562.052746548] [gz_ros_control]: 	Command:
+[gazebo-1] [INFO] [1778400562.052748316] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1778400562.052753463] [gz_ros_control]: Loading joint: left_joint5
+[gazebo-1] [INFO] [1778400562.052756300] [gz_ros_control]: 	State:
+[gazebo-1] [INFO] [1778400562.052758146] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1778400562.052759941] [gz_ros_control]: 		 velocity
+[gazebo-1] [INFO] [1778400562.052761656] [gz_ros_control]: 	Command:
+[gazebo-1] [INFO] [1778400562.052763386] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1778400562.052767877] [gz_ros_control]: Loading joint: right_joint5
+[gazebo-1] [INFO] [1778400562.052769680] [gz_ros_control]: 	State:
+[gazebo-1] [INFO] [1778400562.052771535] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1778400562.052773309] [gz_ros_control]: 		 velocity
+[gazebo-1] [INFO] [1778400562.052775221] [gz_ros_control]: 	Command:
+[gazebo-1] [INFO] [1778400562.052776988] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1778400562.052782354] [gz_ros_control]: Loading joint: left_joint6
+[gazebo-1] [INFO] [1778400562.052784113] [gz_ros_control]: 	State:
+[gazebo-1] [INFO] [1778400562.052786675] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1778400562.052793073] [gz_ros_control]: 		 velocity
+[gazebo-1] [INFO] [1778400562.052800452] [gz_ros_control]: 	Command:
+[gazebo-1] [INFO] [1778400562.052804106] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1778400562.052812571] [gz_ros_control]: Loading joint: right_joint6
+[gazebo-1] [INFO] [1778400562.052820799] [gz_ros_control]: 	State:
+[gazebo-1] [INFO] [1778400562.052822938] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1778400562.052829374] [gz_ros_control]: 		 velocity
+[gazebo-1] [INFO] [1778400562.052833532] [gz_ros_control]: 	Command:
+[gazebo-1] [INFO] [1778400562.052835260] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1778400562.052844386] [gz_ros_control]: Loading joint: camera_joint
+[gazebo-1] [INFO] [1778400562.052850170] [gz_ros_control]: 	State:
+[gazebo-1] [INFO] [1778400562.052852022] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1778400562.052853782] [gz_ros_control]: 		 velocity
+[gazebo-1] [INFO] [1778400562.052855570] [gz_ros_control]: 	Command:
+[gazebo-1] [INFO] [1778400562.052857272] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1778400562.052918147] [gz_ros_control]: Loading sensor: imu_sensor
+[gazebo-1] [INFO] [1778400562.052925152] [gz_ros_control]: 	State:
+[gazebo-1] [INFO] [1778400562.053015374] [controller_manager]: Initialize hardware 'GazeboSystem' 
+[gazebo-1] [WARN] [1778400562.053032183] [controller_manager.hardware_component.system.GazeboSystem]: Executor is not available during hardware component initialization for 'GazeboSystem'. Skipping node creation!
+[gazebo-1] [INFO] [1778400562.053113356] [controller_manager]: Successful initialization of hardware 'GazeboSystem'
+[gazebo-1] [INFO] [1778400562.053369764] [resource_manager]: 'configure' hardware 'GazeboSystem' 
+[gazebo-1] [INFO] [1778400562.053378305] [gz_ros_control]: System Successfully configured!
+[gazebo-1] [INFO] [1778400562.053388933] [resource_manager]: Successful 'configure' of hardware 'GazeboSystem'
+[gazebo-1] [INFO] [1778400562.053399745] [resource_manager]: 'activate' hardware 'GazeboSystem' 
+[gazebo-1] [INFO] [1778400562.053412208] [resource_manager]: Successful 'activate' of hardware 'GazeboSystem'
+[gazebo-1] [WARN] [1778400562.053518896] [controller_manager]: Component 'GazeboSystem' does not have read or write statistics initialized, skipping registration.
+[gazebo-1] [INFO] [1778400562.053526615] [controller_manager]: Resource Manager has been successfully initialized. Starting Controller Manager services...
+[gazebo-1] [INFO] [1778400563.008540788] [controller_manager]: Loading controller : 'joint_state_broadcaster' of type 'joint_state_broadcaster/JointStateBroadcaster'
+[gazebo-1] [INFO] [1778400563.008654857] [controller_manager]: Loading controller 'joint_state_broadcaster'
+[gazebo-1] [INFO] [1778400563.014648272] [controller_manager]: Controller 'joint_state_broadcaster' node arguments: --ros-args --params-file /home/ahmed/audix_manzar/High-Level/install/audix/share/audix/config/common/controllers.yaml --ros-args -p use_sim_time:=true --param use_sim_time:=true 
+[spawner-16] [INFO] [1778400563.069012783] [spawner_joint_state_broadcaster]: Loaded joint_state_broadcaster
+[gazebo-1] [INFO] [1778400563.072484426] [controller_manager]: Configuring controller: 'joint_state_broadcaster'
+[gazebo-1] [INFO] [1778400563.072903954] [joint_state_broadcaster]: 'joints' or 'interfaces' parameter is empty. All available state interfaces will be published
+[gazebo-1] [INFO] [1778400563.176154294] [controller_manager]: Activating controllers: [ joint_state_broadcaster ]
+[gazebo-1] [WARN] [1778400563.208272587] [gz_ros_control]:  Desired controller update period (0.02 s) is slower than the gazebo simulation period (0.001 s).
+[gazebo-1] [INFO] [1778400563.934529597] [gz_ros_control]: IMU imu_sensor has a topic name: /imu
+[gazebo-1] [INFO] [1778400563.935502711] [controller_manager]: Successfully switched controllers!
+[odom_tf_broadcaster.py-8] [INFO] [1778400563.952381058] [odom_tf_broadcaster]: Received first odometry message for TF broadcast.
+[spawner-16] [INFO] [1778400563.959190228] [spawner_joint_state_broadcaster]: Configured and activated joint_state_broadcaster
+[parameter_bridge-6] [INFO] [1778400563.973291014] [ros_gz_bridge]: Passing message from ROS geometry_msgs/msg/Twist to Gazebo gz.msgs.Twist (showing msg only once per type)
+[odom_tf_broadcaster.py-8] [INFO] [1778400563.998034480] [odom_tf_broadcaster]: Publishing odom TF transform.
+[INFO] [spawner-16]: process has finished cleanly [pid 167910]
+[INFO] [spawner-18]: process started with pid [168135]
+[spawner-18] [INFO] [1778400564.510875074] [spawner_scissor_position_controller]: waiting for service /controller_manager/list_controllers to become available...
+Starting rviz2...
+Starting start_stop_gui...
+Started: launch_pid=167689 rviz_pid=168156 gui_pid=168157
+Wrapper is running. To stop, Ctrl-C this script or kill the PIDs above.
+[INFO] [1778400565.401606192] [rviz2]: Stereo is NOT SUPPORTED
+[INFO] [1778400565.402183052] [rviz2]: OpenGl version: 4.5 (GLSL 4.5)
+[INFO] [1778400565.448264552] [rviz2]: Stereo is NOT SUPPORTED
+[INFO] [1778400565.542707397] [start_stop_gui]: STOP
+[arena_course_spawner.py-13] [INFO] [1778400566.403761388] [arena_course_spawner]: Spawned 1/1 course obstacles.
+[spawner-18] [INFO] [1778400567.056523309] [spawner_scissor_position_controller]: Setting controller param "params_file" to "['/home/ahmed/audix_manzar/High-Level/install/audix/share/audix/config/common/controllers.yaml']" for scissor_position_controller
+[gazebo-1] [INFO] [1778400567.062826450] [controller_manager]: Loading controller : 'scissor_position_controller' of type 'forward_command_controller/ForwardCommandController'
+[gazebo-1] [INFO] [1778400567.062882192] [controller_manager]: Loading controller 'scissor_position_controller'
+[gazebo-1] [INFO] [1778400567.066410476] [controller_manager]: Controller 'scissor_position_controller' node arguments: --ros-args --params-file /home/ahmed/audix_manzar/High-Level/install/audix/share/audix/config/common/controllers.yaml --ros-args -p use_sim_time:=true --params-file /home/ahmed/audix_manzar/High-Level/install/audix/share/audix/config/common/controllers.yaml --param use_sim_time:=true 
+[spawner-18] [INFO] [1778400567.132360369] [spawner_scissor_position_controller]: Loaded scissor_position_controller
+[gazebo-1] [INFO] [1778400567.134887102] [controller_manager]: Configuring controller: 'scissor_position_controller'
+[gazebo-1] [INFO] [1778400567.141414266] [scissor_position_controller]: configure successful
+[gazebo-1] [INFO] [1778400567.170057200] [controller_manager]: Activating controllers: [ scissor_position_controller ]
+[gazebo-1] [INFO] [1778400567.192398009] [scissor_position_controller]: activate successful
+[gazebo-1] [INFO] [1778400567.192545363] [controller_manager]: Successfully switched controllers!
+[spawner-18] [INFO] [1778400567.221237551] [spawner_scissor_position_controller]: Configured and activated scissor_position_controller
+[INFO] [spawner-18]: process has finished cleanly [pid 168135]
+[INFO] [scissor_lift_mapper.py-19]: process started with pid [168231]
+[scissor_lift_mapper.py-19] [INFO] [1778400567.800405736] [scissor_lift_mapper]: Scissor mapper ready. Send Float64 slider to /scissor_lift/slider in [0, 1]. Mapping: baseline + coordinated scissor deltas for the full lift stroke.
+[scissor_lift_mapper.py-19] [INFO] [1778400569.794565575] [scissor_lift_mapper]: Scissor mapper baseline captured from full joint state set.
+[INFO] [1778400575.106918029] [start_stop_gui]: START
+[INFO] [gz-17]: process has finished cleanly [pid 167930]
+[INFO] [1778401200.887699521] [start_stop_gui]: Shutting down start_stop_gui.
+[parameter_bridge-5] [INFO] [1778401338.878137586] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[parameter_bridge-6] [INFO] [1778401338.878180188] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[ERROR] [gazebo-1]: process has died [pid 167695, exit code -15, cmd 'ruby /opt/ros/jazzy/opt/gz_tools_vendor/bin/gz sim -r -s -v 2 /home/ahmed/audix_manzar/High-Level/install/audix/share/audix/world/arena_stress_course.sdf --force-version 8'].
+[parameter_bridge-7] [INFO] [1778401338.878795827] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[parameter_bridge-10] [INFO] [1778401338.878939943] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[parameter_bridge-6] [INFO] [1778401338.914800911] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[parameter_bridge-7] [INFO] [1778401338.914864802] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[parameter_bridge-10] [INFO] [1778401338.914904032] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[parameter_bridge-5] [INFO] [1778401338.914940604] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[parameter_bridge-5] [INFO] [1778401338.919894664] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[parameter_bridge-7] [INFO] [1778401338.919974763] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[parameter_bridge-10] [INFO] [1778401338.920008427] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[parameter_bridge-6] [INFO] [1778401338.920006006] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[static_transform_publisher-4] [INFO] [1778401338.961132162] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+Cleaning up launcher...

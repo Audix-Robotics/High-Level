@@ -1,7 +1,7 @@
 import os
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, GroupAction, IncludeLaunchDescription, SetEnvironmentVariable, TimerAction
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, SetEnvironmentVariable, TimerAction
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
@@ -15,9 +15,9 @@ def generate_launch_description():
 
     models_path = os.path.join(pkg_share, 'models')
     world_path = os.path.join(pkg_share, 'world', 'warehouse.sdf')
-    ekf_config = os.path.join(pkg_share, 'config', 'ekf.yaml')
-    ir_adapter_config = os.path.join(pkg_share, 'config', 'arena_ir_state_adapter.yaml')
-    world_config = os.path.join(pkg_share, 'config', 'arena_world.yaml')
+    ekf_config = os.path.join(pkg_share, 'config', 'common', 'ekf.yaml')
+    ir_adapter_config = os.path.join(pkg_share, 'config', 'common', 'arena_ir_state_adapter.yaml')
+    world_config = os.path.join(pkg_share, 'config', 'common', 'arena_world.yaml')
     rviz_config = os.path.join(pkg_share, 'rviz', 'full_mission.rviz')
 
     use_rviz = LaunchConfiguration('use_rviz')
@@ -33,26 +33,21 @@ def generate_launch_description():
         value=f'{models_path}:{pkg_parent}:{pkg_share}',
     )
 
-    base_sim = GroupAction(
-        scoped=True,
-        actions=[
-            IncludeLaunchDescription(
-                PythonLaunchDescriptionSource([
-                    os.path.join(pkg_share, 'launch', 'scissor_gazebo.launch.py')
-                ]),
-                launch_arguments={
-                    'use_rviz': 'false',
-                    'use_gazebo_gui': 'true',
-                    'use_slider_gui': 'false',
-                    'world_file': world_path,
-                    'world_name': world_name,
-                    'spawn_x': '0.0',
-                    'spawn_y': '-3.9',
-                    'spawn_z': '0.06',
-                    'spawn_yaw': '-1.570796',
-                }.items(),
-            )
-        ],
+    base_sim = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([
+            os.path.join(pkg_share, 'launch', 'stacks', 'scissor_gazebo.launch.py')
+        ]),
+        launch_arguments={
+            'use_rviz': 'false',
+            'use_gazebo_gui': 'true',
+            'use_slider_gui': 'false',
+            'world_file': world_path,
+            'world_name': world_name,
+            'spawn_x': '0.0',
+            'spawn_y': '-3.9',
+            'spawn_z': '0.06',
+            'spawn_yaw': '-1.570796',
+        }.items(),
     )
 
     bridge = Node(
@@ -75,7 +70,7 @@ def generate_launch_description():
         executable='ekf_node',
         name='ekf_filter_node',
         output='screen',
-        parameters=[ekf_config, {'use_sim_time': True, 'odom0': '/mecanum_odom'}],
+        parameters=[ekf_config, {'use_sim_time': True}],
     )
 
     ir_state_adapter = Node(

@@ -2,15 +2,24 @@
 
 import math
 import random
+import sys
+from pathlib import Path
 
 import rclpy
-from arena_route_library import build_route_waypoints
 from geometry_msgs.msg import PoseStamped, Twist
 from nav_msgs.msg import Odometry, Path
 from rclpy.node import Node
 from std_msgs.msg import String, Float64, Bool
 from visualization_msgs.msg import Marker, MarkerArray
 from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy
+
+try:
+    from arena_route_library import build_route_waypoints
+except ImportError:
+    support_dir = Path(__file__).resolve().parents[1] / 'support'
+    if str(support_dir) not in sys.path:
+        sys.path.append(str(support_dir))
+    from arena_route_library import build_route_waypoints
 
 
 def clamp(value, low, high):
@@ -122,10 +131,10 @@ class ArenaRoamer(Node):
         self.declare_parameter('avoid_override_enable', True)
         self.declare_parameter('avoid_override_timeout_sec', 0.8)
         self.declare_parameter('ir_display_distance_front', 0.08)
-        self.declare_parameter('ir_display_distance_front_left', 0.085)
-        self.declare_parameter('ir_display_distance_front_right', 0.11)
-        self.declare_parameter('ir_display_distance_left', 0.085)
-        self.declare_parameter('ir_display_distance_right', 0.095)
+        self.declare_parameter('ir_display_distance_front_left', 0.08)
+        self.declare_parameter('ir_display_distance_front_right', 0.08)
+        self.declare_parameter('ir_display_distance_left', 0.08)
+        self.declare_parameter('ir_display_distance_right', 0.08)
         self.declare_parameter('ir_display_distance_back', 0.08)
         self.declare_parameter('waypoints', [0.0])
         self.declare_parameter('lift_dwell_time', 2.0)
@@ -282,11 +291,11 @@ class ArenaRoamer(Node):
 
         self.sensor_positions = {
             'back': (0.16255, -0.00323),
-            'left': (0.00273, 0.15504),
-            'front_left': (-0.17753, 0.12688),
+            'left': (-0.00537, -0.15346),
+            'front_left': (-0.18323, -0.11962),
             'front': (-0.20195, 0.00482),
-            'front_right': (-0.18323, -0.11962),
-            'right': (-0.00537, -0.15346),
+            'front_right': (-0.17753, 0.12688),
+            'right': (0.00273, 0.15504),
         }
 
         self.x = 0.0
@@ -1053,8 +1062,8 @@ class ArenaRoamer(Node):
     def _sensor_direction_body(self, sensor_name):
         directions = {
             'front': (1.0, 0.0),
-            'front_left': (1.0, -1.0),
-            'front_right': (1.0, 1.0),
+            'front_left': (1.0, 1.0),
+            'front_right': (1.0, -1.0),
             'left': (0.0, -1.0),
             'right': (0.0, 1.0),
             'back': (-1.0, 0.0),
@@ -1140,6 +1149,8 @@ class ArenaRoamer(Node):
             origin_x, origin_y = self._body_point_to_world(origin_body_x, origin_body_y)
             dir_body_x, dir_body_y = self._sensor_direction_body(sensor_name)
             sensor_yaw = self._geometry_body_yaw() + math.atan2(dir_body_y, dir_body_x)
+            if sensor_name in ('left', 'right'):
+                sensor_yaw += math.pi
             display_range = self._sensor_display_range(sensor_name)
             color_r, color_g, color_b = self._ir_cone_color(sensor_name)
 
@@ -1225,7 +1236,12 @@ class ArenaRoamer(Node):
             hit.scale.x = 0.08
             hit.scale.y = 0.08
             hit.scale.z = 0.08
-            if self._sensor_hit_visible(sensor_name):
+            hit_sensor_name = sensor_name
+            if sensor_name == 'front_left':
+                hit_sensor_name = 'front_right'
+            elif sensor_name == 'front_right':
+                hit_sensor_name = 'front_left'
+            if self._sensor_hit_visible(hit_sensor_name):
                 hit.pose.position.x = origin_x + display_range * math.cos(sensor_yaw)
                 hit.pose.position.y = origin_y + display_range * math.sin(sensor_yaw)
                 hit.pose.position.z = 0.11

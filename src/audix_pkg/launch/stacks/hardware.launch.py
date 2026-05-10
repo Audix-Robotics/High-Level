@@ -9,10 +9,10 @@ from ament_index_python.packages import get_package_share_directory
 
 def generate_launch_description():
     pkg_share    = get_package_share_directory('audix')
-    ekf_config   = os.path.join(pkg_share, 'config', 'ekf.yaml')
-    ir_adapter_config = os.path.join(pkg_share, 'config', 'arena_ir_state_adapter.yaml')
-    mission_config = os.path.join(pkg_share, 'config', 'mission_params.yaml')
-    experiment_config = os.path.join(pkg_share, 'config', 'full_mission_params.yaml')
+    ekf_config   = os.path.join(pkg_share, 'config', 'common', 'ekf.yaml')
+    ir_adapter_config = os.path.join(pkg_share, 'config', 'common', 'arena_ir_state_adapter.yaml')
+    mission_config = os.path.join(pkg_share, 'config', 'common', 'mission_params.yaml')
+    experiment_config = os.path.join(pkg_share, 'config', 'legacy', 'full_mission_params.yaml')
     rviz_config  = os.path.join(pkg_share, 'rviz', 'full_mission.rviz')
 
     use_rviz       = LaunchConfiguration('use_rviz')

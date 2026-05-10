@@ -25,8 +25,8 @@ def generate_launch_description():
 
     model_path = os.path.join(pkg_share, 'urdf', 'audix.urdf')
     rviz_config = os.path.join(pkg_share, 'rviz', 'config.rviz')
-    controllers_yaml = os.path.join(pkg_share, 'config', 'controllers.yaml')
-    mission_config = os.path.join(pkg_share, 'config', 'mission_params.yaml')
+    controllers_yaml = os.path.join(pkg_share, 'config', 'common', 'controllers.yaml')
+    mission_config = os.path.join(pkg_share, 'config', 'common', 'mission_params.yaml')
     world_file_path = LaunchConfiguration('world_file')
     world_name = LaunchConfiguration('world_name')
     spawn_x = LaunchConfiguration('spawn_x')
@@ -34,6 +34,7 @@ def generate_launch_description():
     spawn_z = LaunchConfiguration('spawn_z')
     spawn_yaw = LaunchConfiguration('spawn_yaw')
     use_gazebo_gui = LaunchConfiguration('use_gazebo_gui')
+    publish_encoder_odom = LaunchConfiguration('publish_encoder_odom')
 
     robot_description = Command(['xacro ', model_path])
 
@@ -153,6 +154,7 @@ def generate_launch_description():
             {'odom_topic': '/odom'},
             {'odom_frame': 'odom'},
             {'base_frame': 'base_footprint'},
+            {'yaw_offset_rad': 0.0},
             {'flatten_to_yaw': True},
         ],
     )
@@ -205,7 +207,14 @@ def generate_launch_description():
         package='audix',
         executable='mecanum_kinematics.py',
         output='screen',
-        parameters=[mission_config, {'use_sim_time': True, 'publish_odom': True, 'publish_wheel_commands': False}],
+        parameters=[
+            mission_config,
+            {
+                'use_sim_time': True,
+                'publish_odom': ParameterValue(publish_encoder_odom, value_type=bool),
+                'publish_wheel_commands': False,
+            },
+        ],
     )
 
     # ── Scissor mapper (converts single slider → all joint commands) ──
@@ -233,13 +242,6 @@ def generate_launch_description():
         arguments=['-d', rviz_config],
         parameters=[{'use_sim_time': True}],
         condition=IfCondition(LaunchConfiguration('use_rviz')),
-    )
-
-    start_rviz_after_scissor = RegisterEventHandler(
-        OnProcessExit(
-            target_action=scissor_controller_spawner,
-            on_exit=[rviz_node],
-        )
     )
 
     start_jsb_after_spawn = RegisterEventHandler(
@@ -270,6 +272,7 @@ def generate_launch_description():
         DeclareLaunchArgument('use_rviz', default_value='true', description='Launch RViz2'),
         DeclareLaunchArgument('use_gazebo_gui', default_value='true', description='Launch Gazebo GUI client'),
         DeclareLaunchArgument('use_slider_gui', default_value='true', description='Launch scissor slider GUI'),
+        DeclareLaunchArgument('publish_encoder_odom', default_value='false', description='Publish /mecanum_odom from mecanum kinematics'),
         DeclareLaunchArgument(
             'world_file',
             default_value=os.path.join(pkg_share, 'world', 'empty_world.sdf'),
@@ -297,5 +300,5 @@ def generate_launch_description():
         start_scissor_after_jsb,
         start_mapper_after_controller,
         mecanum_kinematics_node,
-        start_rviz_after_scissor,
+        rviz_node,
     ])

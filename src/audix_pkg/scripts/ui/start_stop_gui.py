@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Simple Start/Stop GUI for /robot_enable
+Simple Start/Stop GUI for /robot_enable.
 
 Creates a small Tkinter window with Start and Stop buttons. Publishes
 std_msgs/Bool on `/robot_enable` with TRANSIENT_LOCAL QoS so late
-subscribers (controllers) see the current state. The node starts in
-the STOP state and repeatedly republishes the state at 2 Hz.
+subscribers see the latest state. The node starts in the STOP state
+and only republishes when the state changes.
 """
 
 import threading
@@ -25,15 +25,14 @@ class StartStopGUI(Node):
     def __init__(self):
         super().__init__('start_stop_gui')
 
+        self.declare_parameter('initial_state', False)
+
         qos = QoSProfile(depth=1)
         qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
         qos.reliability = ReliabilityPolicy.RELIABLE
 
         self.pub = self.create_publisher(Bool, '/robot_enable', qos)
-        self.state = False  # start in STOP state
-
-        # Periodic heartbeat to ensure state is known (2 Hz)
-        self.create_timer(0.5, self._publish_state)
+        self.state = bool(self.get_parameter('initial_state').value)
 
     def _publish_state(self):
         msg = Bool()
@@ -104,8 +103,8 @@ def main(argv=None):
     spin_thread = threading.Thread(target=rclpy.spin, args=(node,), daemon=True)
     spin_thread.start()
 
-    # Ensure initial STOP message is published immediately
-    node.set_state(False)
+    # Ensure initial state is published immediately
+    node.set_state(node.state)
 
     try:
         _run_gui(node)

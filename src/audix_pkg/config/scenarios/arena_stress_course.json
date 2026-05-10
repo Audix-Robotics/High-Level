@@ -1,0 +1,84 @@
+{
+  "obstacles": [
+    {
+      "name": "static_right_probe",
+      "level": "L1",
+      "note": "Small offset obstacle on the right edge of the straight path.",
+      "x": 0.28,
+      "y": -2.95,
+      "size": [0.25, 0.25, 0.35],
+      "dynamic": false,
+      "color": [0.18, 0.70, 0.96, 1.0]
+    },
+    {
+      "name": "static_left_probe",
+      "level": "L2",
+      "note": "Mirror case on the left edge of the straight path.",
+      "x": -0.28,
+      "y": -2.10,
+      "size": [0.25, 0.25, 0.35],
+      "dynamic": false,
+      "color": [0.18, 0.70, 0.96, 1.0]
+    },
+    {
+      "name": "center_small_block",
+      "level": "L3",
+      "note": "Small centered block that should force an early side choice.",
+      "x": 0.00,
+      "y": -1.20,
+      "size": [0.28, 0.28, 0.40],
+      "dynamic": false,
+      "color": [0.18, 0.70, 0.96, 1.0]
+    },
+    {
+      "name": "center_medium_block",
+      "level": "L4",
+      "note": "Wider centered obstacle that should require a deeper reroute.",
+      "x": 0.00,
+      "y": -0.10,
+      "size": [0.45, 0.45, 0.60],
+      "dynamic": false,
+      "color": [0.18, 0.70, 0.96, 1.0]
+    },
+    {
+      "name": "stagger_left",
+      "level": "L5",
+      "note": "First half of a staggered chicane.",
+      "x": -0.42,
+      "y": 0.90,
+      "size": [0.45, 0.45, 0.60],
+      "dynamic": false,
+      "color": [0.18, 0.70, 0.96, 1.0]
+    },
+    {
+      "name": "stagger_right",
+      "level": "L5",
+      "note": "Second half of a staggered chicane.",
+      "x": 0.42,
+      "y": 1.45,
+      "size": [0.45, 0.45, 0.60],
+      "dynamic": false,
+      "color": [0.18, 0.70, 0.96, 1.0]
+    },
+    {
+      "name": "dynamic_crossing_box",
+      "level": "L6",
+      "note": "Offset blocker before the final large obstacle.",
+      "x": -0.70,
+      "y": 2.20,
+      "size": [0.30, 0.30, 0.42],
+      "dynamic": false,
+      "color": [0.96, 0.40, 0.22, 1.0]
+    },
+    {
+      "name": "center_large_block",
+      "level": "L7",
+      "note": "Large centered obstacle near the end of the course.",
+      "x": 0.00,
+      "y": 3.10,
+      "size": [0.80, 0.55, 0.95],
+      "dynamic": false,
+      "color": [0.18, 0.70, 0.96, 1.0]
+    }
+  ]
+}

@@ -88,13 +88,12 @@ class CardinalMotionDebug(Node):
             'right': float('inf'),
             'back': float('inf'),
         }
-        # SWAPPED mapping to account for URDF naming error (physical left/right swapped)
         ir_topics = {
             'front': '/ir_front/scan',
-            'front_left': '/ir_front_right/scan',
-            'front_right': '/ir_front_left/scan',
-            'left': '/ir_right/scan',
-            'right': '/ir_left/scan',
+            'front_left': '/ir_front_left/scan',
+            'front_right': '/ir_front_right/scan',
+            'left': '/ir_left/scan',
+            'right': '/ir_right/scan',
             'back': '/ir_back/scan',
         }
         for key, topic in ir_topics.items():

@@ -16,17 +16,22 @@ class OdomTfBroadcaster(Node):
         self.declare_parameter('odom_topic', '/odom')
         self.declare_parameter('odom_frame', 'odom')
         self.declare_parameter('base_frame', 'base_link')
+        self.declare_parameter('yaw_offset_rad', 0.0)
+        self.declare_parameter('flatten_to_yaw', False)
 
         self._odom_topic = self.get_parameter('odom_topic').get_parameter_value().string_value
         self._odom_frame = self.get_parameter('odom_frame').get_parameter_value().string_value
         self._base_frame = self.get_parameter('base_frame').get_parameter_value().string_value
+        self._yaw_offset_rad = self.get_parameter('yaw_offset_rad').get_parameter_value().double_value
+        self._flatten_to_yaw = self.get_parameter('flatten_to_yaw').get_parameter_value().bool_value
         self._latest_translation = None
         self._latest_rotation = None
         self._received_odom = False
         self._published_tf = False
 
         self.get_logger().info(
-            f'Listening on {self._odom_topic} and publishing {self._odom_frame} -> {self._base_frame}'
+            f'Listening on {self._odom_topic} and publishing {self._odom_frame} -> {self._base_frame} '
+            f'with yaw_offset_rad={self._yaw_offset_rad}'
         )
 
         self._broadcaster = TransformBroadcaster(self)
@@ -62,6 +67,29 @@ class OdomTfBroadcaster(Node):
         else:
             self._latest_rotation = (0.0, 0.0, 0.0, 1.0)
 
+    def _apply_yaw_offset(self, rotation):
+        if not self._flatten_to_yaw and abs(self._yaw_offset_rad) <= 1e-9:
+            return rotation
+
+        if self._flatten_to_yaw:
+            x_val, y_val, z_val, w_val = rotation
+            siny_cosp = 2.0 * (w_val * z_val + x_val * y_val)
+            cosy_cosp = 1.0 - 2.0 * (y_val * y_val + z_val * z_val)
+            yaw = math.atan2(siny_cosp, cosy_cosp) + self._yaw_offset_rad
+            return (0.0, 0.0, math.sin(0.5 * yaw), math.cos(0.5 * yaw))
+
+        half_yaw = 0.5 * self._yaw_offset_rad
+        offset_z = math.sin(half_yaw)
+        offset_w = math.cos(half_yaw)
+
+        x_val, y_val, z_val, w_val = rotation
+        return (
+            x_val * offset_w + y_val * offset_z,
+            -x_val * offset_z + y_val * offset_w,
+            w_val * offset_z + z_val * offset_w,
+            w_val * offset_w - z_val * offset_z,
+        )
+
     def _publish_latest_transform(self) -> None:
         if self._latest_translation is None or self._latest_rotation is None:
             return
@@ -78,10 +106,11 @@ class OdomTfBroadcaster(Node):
         transform.transform.translation.x = self._latest_translation.x
         transform.transform.translation.y = self._latest_translation.y
         transform.transform.translation.z = self._latest_translation.z
-        transform.transform.rotation.x = self._latest_rotation[0]
-        transform.transform.rotation.y = self._latest_rotation[1]
-        transform.transform.rotation.z = self._latest_rotation[2]
-        transform.transform.rotation.w = self._latest_rotation[3]
+        rotation = self._apply_yaw_offset(self._latest_rotation)
+        transform.transform.rotation.x = rotation[0]
+        transform.transform.rotation.y = rotation[1]
+        transform.transform.rotation.z = rotation[2]
+        transform.transform.rotation.w = rotation[3]
 
         self._broadcaster.sendTransform(transform)
 

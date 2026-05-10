@@ -1,7 +1,7 @@
 import os
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, GroupAction, IncludeLaunchDescription, SetEnvironmentVariable, TimerAction
+from launch.actions import DeclareLaunchArgument, GroupAction, IncludeLaunchDescription, SetEnvironmentVariable
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
@@ -14,14 +14,15 @@ def generate_launch_description():
     pkg_parent = os.path.dirname(pkg_share)
 
     models_path = os.path.join(pkg_share, 'models')
-    world_path = os.path.join(pkg_share, 'world', 'warehouse.sdf')
+    world_path = os.path.join(pkg_share, 'world', 'arena_stress_course.sdf')
     ekf_config = os.path.join(pkg_share, 'config', 'ekf.yaml')
     ir_adapter_config = os.path.join(pkg_share, 'config', 'arena_ir_state_adapter.yaml')
-    world_config = os.path.join(pkg_share, 'config', 'arena_world.yaml')
     rviz_config = os.path.join(pkg_share, 'rviz', 'full_mission.rviz')
+    course_file = os.path.join(pkg_share, 'config', 'arena_stress_course.json')
 
     use_rviz = LaunchConfiguration('use_rviz')
-    use_spawn_panel = LaunchConfiguration('use_spawn_panel')
+    use_gazebo_gui = LaunchConfiguration('use_gazebo_gui')
+    use_slider_gui = LaunchConfiguration('use_slider_gui')
     world_name = LaunchConfiguration('world_name')
 
     gz_resource = SetEnvironmentVariable(
@@ -42,12 +43,12 @@ def generate_launch_description():
                 ]),
                 launch_arguments={
                     'use_rviz': 'false',
-                    'use_gazebo_gui': 'true',
-                    'use_slider_gui': 'false',
+                    'use_gazebo_gui': use_gazebo_gui,
+                    'use_slider_gui': use_slider_gui,
                     'world_file': world_path,
                     'world_name': world_name,
                     'spawn_x': '0.0',
-                    'spawn_y': '-3.9',
+                    'spawn_y': '-3.45',
                     'spawn_z': '0.06',
                     'spawn_yaw': '-1.570796',
                 }.items(),
@@ -86,29 +87,19 @@ def generate_launch_description():
         parameters=[ir_adapter_config, {'source_type': 'scan', 'use_sim_time': True}],
     )
 
-    obstacle_manager = Node(
+    course_spawner = Node(
         package='audix',
-        executable='arena_obstacle_manager.py',
-        name='arena_obstacle_manager',
+        executable='arena_course_spawner.py',
+        name='arena_course_spawner',
         output='screen',
-        parameters=[world_config, {'use_sim_time': True, 'world_name': world_name}],
-    )
-
-    spawn_panel = Node(
-        package='audix',
-        executable='arena_spawn_panel.py',
-        name='arena_spawn_panel',
-        output='screen',
-        parameters=[world_config],
-        condition=IfCondition(use_spawn_panel),
-    )
-
-    warehouse_overlay = Node(
-        package='audix',
-        executable='warehouse_overlay_markers.py',
-        name='warehouse_overlay_markers',
-        output='screen',
-        parameters=[{'use_sim_time': True, 'frame_id': 'odom'}],
+        parameters=[
+            {
+                'use_sim_time': True,
+                'world_name': world_name,
+                'course_file': course_file,
+                'dynamic_update_period': 0.12,
+            }
+        ],
     )
 
     arena_alias_tf = Node(
@@ -130,21 +121,18 @@ def generate_launch_description():
         condition=IfCondition(use_rviz),
     )
 
-    start_spawn_panel = TimerAction(period=2.0, actions=[spawn_panel])
-
     return LaunchDescription([
         DeclareLaunchArgument('use_rviz', default_value='true'),
-        DeclareLaunchArgument('use_spawn_panel', default_value='false'),
-        DeclareLaunchArgument('world_name', default_value='warehouse'),
+        DeclareLaunchArgument('use_gazebo_gui', default_value='true'),
+        DeclareLaunchArgument('use_slider_gui', default_value='false'),
+        DeclareLaunchArgument('world_name', default_value='arena10'),
         gz_resource,
         ign_resource,
         base_sim,
         bridge,
         ir_state_adapter,
         ekf,
-        obstacle_manager,
-        start_spawn_panel,
-        warehouse_overlay,
+        course_spawner,
         arena_alias_tf,
         rviz_node,
     ])
